@@ -105,7 +105,8 @@ class EvaluationRunner:
         print(f"\nRunning 1-Task Pilot on Task: {selected_task['name']} (ID: {selected_task['task_id']})")
 
         # 1. Run MAS
-        mas_run_id = f"pilot_mas_{selected_task['task_id']}"
+        timestamp = int(time.time())
+        mas_run_id = f"pilot_mas_{selected_task['task_id']}_{timestamp}"
         llm = FakeLLMProvider() if use_fake else OpenAIProvider()
         mas_workflow = MASWorkflow(llm=llm)
         mas_state = mas_workflow.run(
@@ -130,7 +131,7 @@ class EvaluationRunner:
             task=selected_task,
             output_base_dir="./eval/workspaces",
             model=model,
-            run_id=f"pilot_chatdev_{selected_task['task_id']}",
+            run_id=f"pilot_chatdev_{selected_task['task_id']}_{timestamp}",
             use_fake=use_fake,
         )
 

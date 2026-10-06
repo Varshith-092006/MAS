@@ -89,7 +89,7 @@ class SandboxRunner:
             "--memory", self.memory_limit,
             "--pids-limit", str(self.pids_limit),
             "--read-only",
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",  # nosec B108 - Docker container tmpfs mount, not host temporary file
             "-v", f"{abs_workspace}:/workspace:rw",
             "-w", "/workspace",
         ]
@@ -194,12 +194,23 @@ class SandboxRunner:
         workspace_path: str,
         command: List[str],
         env_vars: Optional[Dict[str, str]] = None,
+        allow_fallback: bool = False,
     ) -> SandboxExecutionResult:
-        """Executes in Docker if available, otherwise runs in local isolated subprocess."""
+        """Executes in Docker container. For real runs, fails if Docker is not available."""
         if self.is_docker_available():
             return self.execute_in_container(workspace_path, command, env_vars)
-        return self.execute_local_isolated(workspace_path, command, env_vars)
+        if allow_fallback or os.environ.get("MAS_ALLOW_SUBPROCESS_SANDBOX") == "1":
+            return self.execute_local_isolated(workspace_path, command, env_vars)
+        raise RuntimeError(
+            "Docker daemon is not running or unavailable. Real execution requires Docker sandbox; "
+            "host execution fallback is disabled."
+        )
 
-    def smoke_run(self, workspace_path: str, entry_point: str = "main.py") -> SandboxExecutionResult:
+    def smoke_run(
+        self,
+        workspace_path: str,
+        entry_point: str = "main.py",
+        allow_fallback: bool = False,
+    ) -> SandboxExecutionResult:
         """Runs a smoke test on the entry point file with timeout."""
-        return self.execute(workspace_path, ["python", entry_point])
+        return self.execute(workspace_path, ["python", entry_point], allow_fallback=allow_fallback)

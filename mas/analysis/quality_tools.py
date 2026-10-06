@@ -91,3 +91,25 @@ class QualityTools:
             "bandit": cls.run_bandit(target_dir),
             "radon": cls.run_radon(target_dir),
         }
+
+    @staticmethod
+    def normalize_ruff(violations: int) -> float:
+        """LLD Sec. 7.4: Ruff = 1 - min(violations / 10, 1)."""
+        return round(max(0.0, 1.0 - min(violations / 10.0, 1.0)), 4)
+
+    @staticmethod
+    def normalize_bandit(high: int, medium: int = 0, low: int = 0) -> float:
+        """LLD Sec. 7.4: Bandit = 1 - min((3*High + 2*Medium + 1*Low) / 10, 1)."""
+        weighted = 3.0 * high + 2.0 * medium + 1.0 * low
+        return round(max(0.0, 1.0 - min(weighted / 10.0, 1.0)), 4)
+
+    @staticmethod
+    def normalize_radon(mean_mi: float) -> float:
+        """LLD Sec. 7.4: Radon = clip(mean_mi / 100, 0, 1)."""
+        return round(max(0.0, min(mean_mi / 100.0, 1.0)), 4)
+
+    @staticmethod
+    def normalize_reviewer(critical: int, major: int = 0) -> float:
+        """LLD Sec. 7.4: Reviewer = 1 - min((3*critical + 1*major) / 6, 1)."""
+        weighted = 3.0 * critical + 1.0 * major
+        return round(max(0.0, 1.0 - min(weighted / 6.0, 1.0)), 4)

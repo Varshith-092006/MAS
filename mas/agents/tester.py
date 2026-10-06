@@ -57,6 +57,18 @@ class TesterAgent(BaseAgent):
 
         report: TestReport = self.produce_valid_artifact("TestReport", produce_test_report, state, TestReport)
 
+        # Run code in Docker Sandbox
+        from mas.analysis.sandbox import SandboxRunner
+        sandbox = SandboxRunner()
+        workspace_path = state.get("workspace_path", ".")
+        sandbox_res = sandbox.smoke_run(workspace_path)
+        state["sandbox_execution"] = {
+            "exit_code": sandbox_res.exit_code,
+            "is_success": sandbox_res.is_success,
+            "duration_ms": sandbox_res.duration_ms,
+            "timed_out": sandbox_res.timed_out,
+        }
+
         state["mas_pytest_report"] = report.model_dump()
         state["artifacts"]["TestReport"] = report.model_dump()
 

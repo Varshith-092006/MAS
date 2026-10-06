@@ -53,11 +53,12 @@ class SandboxRunner:
             return False
         try:
             res = subprocess.run(
-                ["docker", "info"],
+                ["docker", "version"],
                 capture_output=True,
-                timeout=5,
+                text=True,
+                timeout=10,
             )
-            return res.returncode == 0
+            return res.returncode == 0 and "Server:" in res.stdout
         except Exception:
             return False
 
@@ -209,8 +210,20 @@ class SandboxRunner:
     def smoke_run(
         self,
         workspace_path: str,
-        entry_point: str = "main.py",
+        entry_point: Optional[str] = None,
         allow_fallback: bool = False,
     ) -> SandboxExecutionResult:
         """Runs a smoke test on the entry point file with timeout."""
+        if not entry_point:
+            candidates = ["main.py", "app.py", "calculator.py"]
+            chosen = None
+            for cand in candidates:
+                if os.path.exists(os.path.join(workspace_path, cand)):
+                    chosen = cand
+                    break
+            if not chosen and os.path.exists(workspace_path):
+                py_files = [f for f in os.listdir(workspace_path) if f.endswith(".py") and not f.startswith("test_")]
+                if py_files:
+                    chosen = py_files[0]
+            entry_point = chosen or "main.py"
         return self.execute(workspace_path, ["python", entry_point], allow_fallback=allow_fallback)

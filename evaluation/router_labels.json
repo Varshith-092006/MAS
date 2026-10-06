@@ -1,0 +1,82 @@
+[
+  {
+    "id": "router_diag_01",
+    "requirement": "Write a Python script that calculates the Fibonacci sequence up to n terms and prints the list.",
+    "expected_label": "SIMPLE",
+    "expected_score": 0,
+    "needs_human_review": true,
+    "notes": "Pure algorithm script without persistence or integrations"
+  },
+  {
+    "id": "router_diag_02",
+    "requirement": "Create a command-line tool that parses markdown files and converts them into simple HTML files.",
+    "expected_label": "SIMPLE",
+    "expected_score": 0,
+    "needs_human_review": true,
+    "notes": "Local text processing utility"
+  },
+  {
+    "id": "router_diag_03",
+    "requirement": "Implement a calculator utility that evaluates mathematical expressions from standard input.",
+    "expected_label": "SIMPLE",
+    "expected_score": 0,
+    "needs_human_review": true,
+    "notes": "Simple CLI math evaluator"
+  },
+  {
+    "id": "router_diag_04",
+    "requirement": "Build a simple currency converter that converts amounts between USD, EUR, and GBP with hardcoded exchange rates.",
+    "expected_label": "SIMPLE",
+    "expected_score": 1,
+    "needs_human_review": true,
+    "notes": "Small CLI utility with a couple of separators"
+  },
+  {
+    "id": "router_diag_05",
+    "requirement": "Create a password generator CLI with options for length, symbols, digits, and uppercase letters.",
+    "expected_label": "SIMPLE",
+    "expected_score": 1,
+    "needs_human_review": true,
+    "notes": "Single utility module with basic options"
+  },
+  {
+    "id": "router_diag_06",
+    "requirement": "Build a multi-user inventory management system with a SQLite database, user authentication and login, role-based access for admin and staff roles, REST API endpoints, analytics dashboard reporting monthly sales metrics, and an order approval workflow state machine.",
+    "expected_label": "STRUCTURED",
+    "expected_score": 7,
+    "needs_human_review": true,
+    "notes": "Database, auth, roles, api, analytics, workflow, multiple commas"
+  },
+  {
+    "id": "router_diag_07",
+    "requirement": "Develop a customer relationship management (CRM) web service that integrates with an external third-party webhook API, stores customer data in a PostgreSQL database, authenticates clients with tokens, provides sales analytics reports, and supports distinct permissions for manager and sales roles.",
+    "expected_label": "STRUCTURED",
+    "expected_score": 6,
+    "needs_human_review": true,
+    "notes": "External integration, database, auth token, analytics, roles"
+  },
+  {
+    "id": "router_diag_08",
+    "requirement": "Implement a cloud deployment orchestration platform with stages for build, test, and release status transition lifecycle. It requires account login, audit metrics reporting, admin and viewer role access, and a sqlite database table to store deployments.",
+    "expected_label": "STRUCTURED",
+    "expected_score": 6,
+    "needs_human_review": true,
+    "notes": "Workflow lifecycle, auth login, metrics, roles, database"
+  },
+  {
+    "id": "router_diag_09",
+    "requirement": "Create an automated billing system that connects to external payment gateway APIs, maintains customer transaction ledgers in a database, provides periodic financial analytics and revenue charts, enforces superadmin and accountant permission roles, and tracks payment invoice workflow states.",
+    "expected_label": "STRUCTURED",
+    "expected_score": 6,
+    "needs_human_review": true,
+    "notes": "External API, database, analytics, roles, workflow"
+  },
+  {
+    "id": "router_diag_10",
+    "requirement": "Build a hospital patient portal requiring secure doctor and patient accounts with login authentication, storing medical records in a database, exposing REST API endpoints for external appointment booking, tracking patient visit status transitions through a triage workflow, and generating clinic metric reports.",
+    "expected_label": "STRUCTURED",
+    "expected_score": 6,
+    "needs_human_review": true,
+    "notes": "Roles, auth login, database, rest api, workflow transition, metric reports"
+  }
+]

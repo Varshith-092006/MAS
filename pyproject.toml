@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mas"
+version = "0.1.0"
+description = "MAS — Multi-Agent Software Engineering Team"
+authors = [{ name = "Batch 20" }]
+dependencies = [
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "pyyaml>=6.0",
+    "httpx>=0.24.0",
+    "fastapi>=0.100.0",
+]
+
+[project.scripts]
+mas = "mas.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mas*"]

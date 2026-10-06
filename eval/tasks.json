@@ -1,0 +1,122 @@
+[
+  {
+    "task_id": "srdd_edu_01",
+    "name": "Flashcard Quiz System",
+    "description": "Develop a command-line flashcard study app where users can create decks of questions and answers, review cards with spaced repetition scores, and view study performance summaries.",
+    "category": "Education"
+  },
+  {
+    "task_id": "srdd_edu_05",
+    "name": "Interactive Periodic Table Guide",
+    "description": "Develop an educational chemistry reference tool that displays element properties, atomic weights, electron configurations, and allows search by symbol or atomic number.",
+    "category": "Education"
+  },
+  {
+    "task_id": "srdd_edu_03",
+    "name": "Language Vocabulary Builder",
+    "description": "Build an interactive vocabulary training tool that quizzes users on foreign language word translations, tracks incorrect answers, and generates review lists.",
+    "category": "Education"
+  },
+  {
+    "task_id": "srdd_edu_02",
+    "name": "Typing Speed Tester",
+    "description": "Create a typing speed test application that presents sample text paragraphs, measures words-per-minute (WPM) and accuracy percentage, and displays summary statistics.",
+    "category": "Education"
+  },
+  {
+    "task_id": "srdd_work_02",
+    "name": "Timesheet & Billing Calculator",
+    "description": "Implement a work hours logging utility that records client project sessions, hourly rates, calculates billable totals, and outputs formatted text invoices.",
+    "category": "Work"
+  },
+  {
+    "task_id": "srdd_work_05",
+    "name": "Employee Shift Scheduler",
+    "description": "Create a workplace scheduling utility that assigns staff members to weekly work shifts according to availability constraints and outputs a weekly roster.",
+    "category": "Work"
+  },
+  {
+    "task_id": "srdd_work_01",
+    "name": "Markdown Todo Organizer",
+    "description": "Create a task tracking manager that parses and updates markdown todo lists, supports task priority tagging, due dates, and prints pending task summaries.",
+    "category": "Work"
+  },
+  {
+    "task_id": "srdd_work_03",
+    "name": "Meeting Agenda Planner",
+    "description": "Build a CLI meeting agenda assistant that organizes agenda topics with estimated time limits, tracks speaker discussion allocations, and exports meeting minutes.",
+    "category": "Work"
+  },
+  {
+    "task_id": "srdd_life_05",
+    "name": "Workout Exercise Log",
+    "description": "Build a fitness tracking app that records workout sessions with sets, reps, and weights lifted, providing progressive overload progress comparisons.",
+    "category": "Life"
+  },
+  {
+    "task_id": "srdd_life_01",
+    "name": "Personal Expense Tracker",
+    "description": "Build a personal budgeting application that logs daily financial expenses across custom categories, calculates monthly balances, and prints spending breakdown reports.",
+    "category": "Life"
+  },
+  {
+    "task_id": "srdd_life_03",
+    "name": "Recipe & Meal Planner",
+    "description": "Create a meal preparation assistant that stores food recipes with ingredient quantities, plans weekly dinners, and automatically compiles combined grocery shopping lists.",
+    "category": "Life"
+  },
+  {
+    "task_id": "srdd_life_02",
+    "name": "Daily Habit Streak Tracker",
+    "description": "Develop a daily habit tracking tool that records habit completions, maintains streak counters, and computes completion rates over a 30-day window.",
+    "category": "Life"
+  },
+  {
+    "task_id": "srdd_game_01",
+    "name": "Terminal Blackjack Game",
+    "description": "Develop a full console Blackjack card game with card deck shuffling, player hit/stand actions, dealer rules (soft 17), and chip betting balances.",
+    "category": "Games"
+  },
+  {
+    "task_id": "srdd_game_05",
+    "name": "Connect Four Console Game",
+    "description": "Develop a two-player Connect Four grid game in console with column piece dropping, boundary checks, and four-in-a-row victory condition detection.",
+    "category": "Games"
+  },
+  {
+    "task_id": "srdd_game_04",
+    "name": "Hangman Word Guessing Game",
+    "description": "Implement the classic Hangman word game with ASCII gallows art rendering, hidden word letter reveals, guess tracking, and remaining life counts.",
+    "category": "Games"
+  },
+  {
+    "task_id": "srdd_game_03",
+    "name": "Text Adventure Dungeon Crawler",
+    "description": "Build a room-based text adventure game featuring room navigation commands, inventory management, monster encounters with turn-based combat, and treasure collection.",
+    "category": "Games"
+  },
+  {
+    "task_id": "srdd_create_02",
+    "name": "Static Site HTML Builder",
+    "description": "Build a lightweight static website compiler that takes markdown content files and Jinja-like text templates, producing styled standalone HTML pages.",
+    "category": "Creation"
+  },
+  {
+    "task_id": "srdd_create_01",
+    "name": "ASCII Art Banner Generator",
+    "description": "Create a command-line utility that renders text strings as large block ASCII art characters with customizable borders and font styles.",
+    "category": "Creation"
+  },
+  {
+    "task_id": "srdd_create_03",
+    "name": "Color Palette Generator",
+    "description": "Develop a color scheme tool that calculates complementary, triadic, and analogous color palettes from a base hex color, outputting RGB and CSS hex codes.",
+    "category": "Creation"
+  },
+  {
+    "task_id": "srdd_create_04",
+    "name": "Procedural Dungeon Map Generator",
+    "description": "Implement a procedural 2D tile dungeon map generator using cellular automata or random walk algorithms, outputting ASCII dungeon layouts.",
+    "category": "Creation"
+  }
+]

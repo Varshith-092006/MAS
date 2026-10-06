@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mas_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mas_user
+      POSTGRES_PASSWORD: mas_password
+      POSTGRES_DB: mas_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mas_user -d mas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mas_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8089:8089"
+    environment:
+      DATABASE_URL: postgresql://mas_user:mas_password@postgres:5432/mas_db
+      PROXY_BASE_URL: http://127.0.0.1:8089/v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mas_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

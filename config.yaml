@@ -1,0 +1,41 @@
+models:
+  main: "gpt-4o"
+  cheap: "gpt-4o-mini"
+  reviewer: "gpt-4o-mini"
+  temperature: 0
+  seed: 42
+
+router:
+  simple_max: 3
+
+limits:
+  max_tokens_per_run: 60000
+  run_timeout_minutes: 20
+  sandbox_execution_timeout_seconds: 45
+
+adaptive:
+  weights:
+    internal_test: 0.30
+    ruff: 0.10
+    
+    bandit: 0.15
+    radon: 0.10
+    reviewer: 0.15
+    ce: 0.20
+  stop_epsilon: 0.02
+  patience: 2
+  max_iterations: 3
+
+database:
+  url: "sqlite:///./mas.db"
+
+proxy:
+  host: "127.0.0.1"
+  port: 8089
+
+sandbox:
+  image: "python:3.11-slim"
+  memory_limit: "512m"
+  cpu_limit: 1.0
+  pids_limit: 64
+  network: "none"

@@ -13,7 +13,7 @@ from eval.chatdev_adapter import ChatDevAdapter
 from eval.neutral_evaluator import NeutralEvaluator
 from eval.reports import export_results_csv, generate_stats_markdown_report
 from eval.srdd_loader import load_srdd_benchmark_tasks, save_and_persist_tasks
-from mas.core.llm import FakeLLMProvider, OpenAIProvider
+from mas.core.llm import FakeLLMProvider, OpenRouterProvider
 from mas.core.workflow import MASWorkflow
 from mas.db.models import Evaluation, Run
 from mas.db.session import get_session, init_db
@@ -107,7 +107,7 @@ class EvaluationRunner:
         # 1. Run MAS
         timestamp = int(time.time())
         mas_run_id = f"pilot_mas_{selected_task['task_id']}_{timestamp}"
-        llm = FakeLLMProvider() if use_fake else OpenAIProvider()
+        llm = FakeLLMProvider() if use_fake else OpenRouterProvider(default_model=model)
         mas_workflow = MASWorkflow(llm=llm)
         mas_state = mas_workflow.run(
             requirement=selected_task["description"],
@@ -184,7 +184,7 @@ def main():
     parser = argparse.ArgumentParser(description="MAS Evaluation Runner")
     parser.add_argument("--dry-run", action="store_true", help="Print dry run plan (0 model calls)")
     parser.add_argument("--pilot", action="store_true", help="Run 1-task pilot for MAS and ChatDev")
-    parser.add_argument("--model", type=str, default="fake", help="Model condition (fake, gpt-4o, gpt-4o-mini)")
+    parser.add_argument("--model", type=str, default="fake", help="Model condition (e.g. 'fake', 'openrouter/free', 'openai/gpt-4o')")
     args = parser.parse_args()
 
     runner = EvaluationRunner()
@@ -192,7 +192,7 @@ def main():
         runner.print_dry_run()
     elif args.pilot:
         use_fake = (args.model == "fake")
-        runner.run_pilot(use_fake=use_fake)
+        runner.run_pilot(model=args.model, use_fake=use_fake)
     else:
         runner.print_dry_run()
 

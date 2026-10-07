@@ -7,16 +7,99 @@ import time
 from typing import Any, Dict, List, Optional
 import uuid
 
+import httpx
 from pydantic import BaseModel
 from mas.db.models import ModelCall
 from mas.db.session import get_session
 
 # Pricing per million tokens (USD)
 PRICING_CATALOG = {
+    # OpenRouter Free Models ($0.00 / token)
+    "openrouter/free": {"input": 0.0, "output": 0.0},
+    "meta-llama/llama-3.3-70b-instruct:free": {"input": 0.0, "output": 0.0},
+    "meta-llama/llama-3.1-8b-instruct:free": {"input": 0.0, "output": 0.0},
+    "qwen/qwen-2.5-coder-32b-instruct:free": {"input": 0.0, "output": 0.0},
+    "google/gemma-4-31b-it:free": {"input": 0.0, "output": 0.0},
+    "google/gemma-4-26b-a4b-it:free": {"input": 0.0, "output": 0.0},
+    "google/gemini-2.0-flash-exp:free": {"input": 0.0, "output": 0.0},
+    "deepseek/deepseek-r1:free": {"input": 0.0, "output": 0.0},
+    "cohere/north-mini-code:free": {"input": 0.0, "output": 0.0},
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {"input": 0.0, "output": 0.0},
+
+    # OpenRouter Paid Models
+    "openai/gpt-4o": {"input": 2.50 / 1_000_000, "output": 10.00 / 1_000_000},
+    "openai/gpt-4o-mini": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
     "gpt-4o": {"input": 2.50 / 1_000_000, "output": 10.00 / 1_000_000},
     "gpt-4o-mini": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
+    "anthropic/claude-3.5-sonnet": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
     "fake": {"input": 0.0, "output": 0.0},
 }
+
+
+def resolve_openrouter_model(model: Optional[str]) -> str:
+    """Normalizes and maps shorthand model identifiers to OpenRouter model IDs."""
+    import os
+    if not model or model.lower() in ("default", "main"):
+        return os.environ.get("OPENROUTER_MODEL", "openrouter/free")
+    mapping = {
+        "gpt-4o": "openai/gpt-4o",
+        "gpt-4o-mini": "openai/gpt-4o-mini",
+        "claude-3-5-sonnet": "anthropic/claude-3.5-sonnet",
+        "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
+        "llama-3.3-70b": "meta-llama/llama-3.3-70b-instruct:free",
+        "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct:free",
+        "qwen-2.5-coder": "qwen/qwen-2.5-coder-32b-instruct:free",
+        "gemini-2.0-flash": "google/gemini-2.0-flash-exp:free",
+        "free": "openrouter/free",
+    }
+    return mapping.get(model.lower(), model)
+
+
+def calculate_model_cost(model_name: str, in_tokens: int, out_tokens: int) -> float:
+    """Calculates cost in USD, checking :free suffix and catalog."""
+    if ":free" in model_name or model_name in ("openrouter/free", "fake"):
+        return 0.0
+    canonical = resolve_openrouter_model(model_name)
+    price = PRICING_CATALOG.get(model_name, PRICING_CATALOG.get(canonical, {"input": 0.0, "output": 0.0}))
+    return round((in_tokens * price["input"]) + (out_tokens * price["output"]), 6)
+
+
+def extract_json(content: str) -> Optional[Dict[str, Any]]:
+    """Extracts valid JSON object from model output, handling markdown blocks."""
+    if not content:
+        return None
+    text = content.strip()
+    # 1. Direct parsing
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    # 2. Markdown code fences ```json ... ```
+    if "```" in text:
+        parts = text.split("```")
+        for i in range(1, len(parts), 2):
+            block = parts[i].strip()
+            if block.lower().startswith("json"):
+                block = block[4:].strip()
+            try:
+                data = json.loads(block)
+                if isinstance(data, dict):
+                    return data
+            except Exception:
+                pass
+    # 3. Outer bracket search
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            data = json.loads(text[start : end + 1])
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return None
 
 
 @dataclass
@@ -262,54 +345,132 @@ class FakeLLMProvider(LLMProvider):
         return res
 
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI API provider routing through the local logging proxy."""
+class OpenRouterProvider(LLMProvider):
+    """OpenRouter API provider supporting free and paid models."""
 
-    def __init__(self, base_url: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        default_model: Optional[str] = None,
+    ):
         import os
-        self.base_url = base_url or os.environ.get("PROXY_BASE_URL", "http://127.0.0.1:8089/v1")
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "dummy-key")
+        self.base_url = (
+            base_url
+            or os.environ.get("OPENROUTER_BASE_URL")
+            or os.environ.get("PROXY_BASE_URL", "https://openrouter.ai/api/v1")
+        )
+        self.api_key = (
+            api_key
+            or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPENAI_API_KEY", "")
+        )
+        self.default_model = (
+            default_model
+            or os.environ.get("OPENROUTER_MODEL")
+            or "openrouter/free"
+        )
 
     def generate(
         self,
         messages: List[Dict[str, str]],
-        model: str = "gpt-4o",
+        model: Optional[str] = None,
         response_schema: Optional[type[BaseModel]] = None,
         temperature: float = 0.0,
         run_id: Optional[str] = None,
         agent_name: str = "agent",
     ) -> ModelResult:
-        import httpx
-
+        target_model = resolve_openrouter_model(model or self.default_model)
         t0 = time.time()
+
+        processed_messages = list(messages)
+        if response_schema:
+            schema_instruction = (
+                f"\n\nCRITICAL INSTRUCTION: You MUST return a single JSON object conforming exactly to this JSON Schema:\n"
+                f"{json.dumps(response_schema.model_json_schema())}\n"
+                f"Do NOT include any explanatory text outside the JSON object."
+            )
+            if processed_messages and processed_messages[-1]["role"] == "user":
+                processed_messages[-1] = {
+                    "role": "user",
+                    "content": processed_messages[-1]["content"] + schema_instruction,
+                }
+            else:
+                processed_messages.append({"role": "user", "content": schema_instruction})
+
         payload: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
+            "model": target_model,
+            "messages": processed_messages,
             "temperature": temperature,
             "seed": 42,
         }
 
         if response_schema:
-            payload["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_schema.__name__,
-                    "schema": response_schema.model_json_schema(),
-                    "strict": True,
-                },
-            }
+            if target_model.startswith("openai/"):
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_schema.__name__,
+                        "schema": response_schema.model_json_schema(),
+                        "strict": True,
+                    },
+                }
+            else:
+                payload["response_format"] = {"type": "json_object"}
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/mas-team/mas",
+            "X-Title": "MAS Multi-Agent Software Engineering Team",
         }
 
         url = f"{self.base_url.rstrip('/')}/chat/completions"
-        with httpx.Client(timeout=60.0) as client:
-            resp = client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            with httpx.Client(timeout=90.0) as client:
+                resp = client.post(url, json=payload, headers=headers)
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Failed to connect to OpenRouter at {url}. "
+                f"Please verify your network connection or OPENROUTER_BASE_URL. Details: {e}"
+            ) from e
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Request to OpenRouter timed out after 90s for model {target_model}. Details: {e}"
+            ) from e
 
+        if resp.status_code == 401:
+            raise RuntimeError(
+                "OpenRouter Authentication Error (401): Invalid or missing OPENROUTER_API_KEY. "
+                "Please configure a valid OPENROUTER_API_KEY in your .env file."
+            )
+        elif resp.status_code == 402:
+            raise RuntimeError(
+                "OpenRouter Insufficient Credits (402): Account credits depleted. "
+                "Switch to a free model (e.g., OPENROUTER_MODEL=openrouter/free or "
+                "OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free) or add credits at openrouter.ai."
+            )
+        elif resp.status_code == 429:
+            raise RuntimeError(
+                f"OpenRouter Rate Limit Exceeded (429) on model '{target_model}'. "
+                "Free tier models typically allow ~20 req/min and ~200 req/day. Please wait before retrying."
+            )
+        elif resp.status_code in (400, 404):
+            err_data = {}
+            try:
+                parsed_json = resp.json()
+                if isinstance(parsed_json, dict):
+                    err_data = parsed_json.get("error", {})
+            except (ValueError, TypeError):
+                err_data = {}
+            err_msg = err_data.get("message", resp.text) if isinstance(err_data, dict) else resp.text
+            raise RuntimeError(
+                f"OpenRouter Request Error ({resp.status_code}) on model '{target_model}': {err_msg}"
+            )
+        else:
+            resp.raise_for_status()
+
+        data = resp.json()
         latency = int((time.time() - t0) * 1000)
         choice = data["choices"][0]
         content = choice["message"]["content"]
@@ -318,19 +479,11 @@ class OpenAIProvider(LLMProvider):
         in_tok = usage.get("prompt_tokens", 0)
         out_tok = usage.get("completion_tokens", 0)
         tot_tok = usage.get("total_tokens", in_tok + out_tok)
-        model_name = data.get("model", model)
+        model_name = data.get("model", target_model)
         req_id = data.get("id", str(uuid.uuid4()))
 
-        # Pricing calculation
-        price = PRICING_CATALOG.get(model, {"input": 0.0, "output": 0.0})
-        cost = (in_tok * price["input"]) + (out_tok * price["output"])
-
-        parsed_json = None
-        if response_schema:
-            try:
-                parsed_json = json.loads(content)
-            except Exception:
-                pass
+        cost = calculate_model_cost(model_name, in_tok, out_tok)
+        parsed_json = extract_json(content) if response_schema else None
 
         result = ModelResult(
             text=content,
@@ -341,7 +494,7 @@ class OpenAIProvider(LLMProvider):
             total_tokens=tot_tok,
             latency_ms=latency,
             request_id=req_id,
-            estimated_cost=round(cost, 6),
+            estimated_cost=cost,
             parsed_json=parsed_json,
         )
 
@@ -349,3 +502,7 @@ class OpenAIProvider(LLMProvider):
             token_logger.record_call(run_id=run_id, agent=agent_name, result=result)
 
         return result
+
+
+# Preserve alias for backwards compatibility
+OpenAIProvider = OpenRouterProvider

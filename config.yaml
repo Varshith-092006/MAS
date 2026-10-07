@@ -1,7 +1,12 @@
+provider:
+  name: "openrouter"
+  base_url: "https://openrouter.ai/api/v1"
+  default_free_model: "openrouter/free"
+
 models:
-  main: "gpt-4o"
-  cheap: "gpt-4o-mini"
-  reviewer: "gpt-4o-mini"
+  main: "openrouter/free"
+  cheap: "openrouter/free"
+  reviewer: "openrouter/free"
   temperature: 0
   seed: 42
 

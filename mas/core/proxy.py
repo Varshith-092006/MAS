@@ -1,51 +1,73 @@
-"""OpenAI-compatible logging proxy for MAS and ChatDev."""
+"""OpenRouter-compatible logging proxy for MAS and ChatDev."""
 
 import json
 import os
 import time
-from typing import Any, Dict
-from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
-import httpx
 
-from mas.core.llm import PRICING_CATALOG, token_logger, ModelResult
-from mas.db.models import ModelCall
-from mas.db.session import get_session
+import httpx
+from fastapi import FastAPI, Header, Request
+from fastapi.responses import JSONResponse
+
+from mas.core.llm import (
+    ModelResult,
+    calculate_model_cost,
+    resolve_openrouter_model,
+    token_logger,
+)
 
 proxy_app = FastAPI(title="MAS Logging Proxy")
 
-OPENAI_UPSTREAM_URL = os.environ.get("OPENAI_UPSTREAM_URL", "https://api.openai.com/v1")
+OPENROUTER_UPSTREAM_URL = os.environ.get(
+    "OPENROUTER_UPSTREAM_URL",
+    os.environ.get("OPENAI_UPSTREAM_URL", "https://openrouter.ai/api/v1"),
+)
 
 
 @proxy_app.post("/v1/chat/completions")
 async def chat_completions(request: Request, authorization: str = Header(None)):
     body = await request.json()
-    model = body.get("model", "gpt-4o")
+    raw_model = body.get("model", "openrouter/free")
+    model = resolve_openrouter_model(raw_model)
+    body["model"] = model
+
     run_id = request.headers.get("X-Run-ID", "global-run")
     agent_name = request.headers.get("X-Agent-Name", "chatdev_or_external")
 
     t0 = time.time()
 
-    # Forward to real upstream if real API key is provided and not fake
-    api_key = os.environ.get("OPENAI_API_KEY")
+    # Forward to OpenRouter upstream if real API key is provided and not fake/mock
+    api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if authorization and authorization.startswith("Bearer "):
         api_key = authorization.split("Bearer ")[1].strip()
 
-    if api_key and api_key != "dummy-key" and not api_key.startswith("mock"):
+    if api_key and api_key != "dummy-key" and not api_key.startswith("mock") and not api_key.startswith("sk-1234"):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/mas-team/mas",
+            "X-Title": "MAS Multi-Agent Software Engineering Team",
         }
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                f"{OPENAI_UPSTREAM_URL}/chat/completions",
-                json=body,
-                headers=headers,
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    f"{OPENROUTER_UPSTREAM_URL.rstrip('/')}/chat/completions",
+                    json=body,
+                    headers=headers,
+                )
+                latency = int((time.time() - t0) * 1000)
+                if resp.status_code != 200:
+                    return JSONResponse(status_code=resp.status_code, content=resp.json())
+                data = resp.json()
+        except httpx.ConnectError as e:
+            return JSONResponse(
+                status_code=502,
+                content={"error": {"message": f"Proxy failed to connect to OpenRouter upstream: {e}"}},
             )
-            latency = int((time.time() - t0) * 1000)
-            if resp.status_code != 200:
-                return JSONResponse(status_code=resp.status_code, content=resp.json())
-            data = resp.json()
+        except httpx.TimeoutException:
+            return JSONResponse(
+                status_code=504,
+                content={"error": {"message": "OpenRouter upstream request timed out after 90s."}},
+            )
     else:
         # Local mock proxy mode for testing without external calls
         latency = int((time.time() - t0) * 1000)
@@ -81,8 +103,7 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
     out_tok = usage.get("completion_tokens", 0)
     tot_tok = usage.get("total_tokens", in_tok + out_tok)
 
-    price = PRICING_CATALOG.get(model, {"input": 0.0, "output": 0.0})
-    cost = round((in_tok * price["input"]) + (out_tok * price["output"]), 6)
+    cost = calculate_model_cost(model, in_tok, out_tok)
 
     # Record model call
     res = ModelResult(

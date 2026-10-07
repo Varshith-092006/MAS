@@ -70,6 +70,7 @@ pip install -e .
 
 # Configure environment variables
 cp .env.example .env
+# Set OPENROUTER_API_KEY in .env (Free model 'openrouter/free' enabled by default)
 ```
 
 ### Docker Compose Startup (Full Stack: PostgreSQL + API + Frontend)
@@ -97,13 +98,18 @@ mas run --model fake --task "Build a multi-user inventory system with a SQLite d
 mas run --model fake --file requirement.txt
 ```
 
-### B. Run Single Tasks (Real OpenAI Models)
+### B. Run Single Tasks (OpenRouter Models & Free Models)
 ```bash
-# Main model condition (GPT-4o, Reviewer: GPT-4o-mini)
-mas run --model gpt-4o --task "Build a task manager CLI"
+# Free model arm (Default: openrouter/free, zero API cost)
+mas run --model openrouter/free --task "Build a task manager CLI"
 
-# Cheaper MAS arm (GPT-4o-mini)
-mas run --model gpt-4o-mini --task "Build a task manager CLI"
+# Specific free model on OpenRouter (e.g., Gemma 4, Llama 3.3, Qwen 2.5 Coder)
+mas run --model google/gemma-4-31b-it:free --task "Build a task manager CLI"
+mas run --model meta-llama/llama-3.3-70b-instruct:free --task "Build a task manager CLI"
+
+# OpenAI models via OpenRouter
+mas run --model openai/gpt-4o --task "Build a task manager CLI"
+mas run --model openai/gpt-4o-mini --task "Build a task manager CLI"
 ```
 
 ### C. Inspect Runs, Event Logs, and Metrics

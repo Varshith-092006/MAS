@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from mas.core.change_request import ChangeRequestManager
-from mas.core.llm import FakeLLMProvider, OpenAIProvider, token_logger
+from mas.core.llm import FakeLLMProvider, OpenRouterProvider, token_logger
 from mas.core.workflow import MASWorkflow
 from mas.db.models import AgentEvent, Evaluation, Metric, Run
 from mas.db.session import get_session
@@ -18,7 +18,7 @@ router = APIRouter()
 class CreateRunRequest(BaseModel):
     requirement: str
     task_id: str = "custom"
-    model: str = "fake"  # 'fake', 'gpt-4o', 'gpt-4o-mini'
+    model: str = "openrouter/free"  # e.g., 'openrouter/free', 'fake', 'qwen/qwen-2.5-coder-32b-instruct:free', 'openai/gpt-4o'
     workspace_base: str = "./workspace"
 
 
@@ -29,7 +29,7 @@ class ChangeRequestPayload(BaseModel):
 @router.post("/runs")
 async def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks):
     """Creates and starts an execution run."""
-    llm = FakeLLMProvider() if req.model == "fake" else OpenAIProvider()
+    llm = FakeLLMProvider() if req.model == "fake" else OpenRouterProvider(default_model=req.model)
     workflow = MASWorkflow(llm=llm)
 
     # Execute workflow in background or immediate task

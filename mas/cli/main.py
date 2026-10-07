@@ -1,14 +1,14 @@
 """MAS Command-Line Interface."""
 
 import argparse
-import json
 import os
 import sys
 from typing import List, Optional
 
-from mas.core.llm import FakeLLMProvider, OpenAIProvider, token_logger
+from mas.core.change_request import ChangeRequestManager
+from mas.core.llm import FakeLLMProvider, OpenRouterProvider
 from mas.core.workflow import MASWorkflow
-from mas.db.models import Run, Metric, AgentEvent
+from mas.db.models import AgentEvent, Metric, Run
 from mas.db.session import get_session, init_db
 
 
@@ -27,8 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         type=str,
         default="fake",
-        choices=["fake", "gpt-4o", "gpt-4o-mini"],
-        help="Model to use (fake, gpt-4o, gpt-4o-mini)",
+        help="Model to use (e.g. 'openrouter/free', 'qwen/qwen-2.5-coder-32b-instruct:free', 'fake', 'openai/gpt-4o')",
     )
     run_parser.add_argument("--task-id", type=str, default="custom", help="Task ID identifier")
     run_parser.add_argument("--workspace", type=str, default="./workspace", help="Base workspace path")
@@ -87,7 +86,7 @@ def handle_run(args) -> int:
     if args.model == "fake":
         llm = FakeLLMProvider()
     else:
-        llm = OpenAIProvider()
+        llm = OpenRouterProvider(default_model=args.model)
 
     workflow = MASWorkflow(llm=llm)
     state = workflow.run(
@@ -201,8 +200,7 @@ def handle_evaluate(args) -> int:
     print("=" * 60)
     print(f"Starting Evaluation Batch: {args.benchmark} on {args.system} (Model: {args.model})")
     print("=" * 60)
-    # Execute pilot or standard benchmark batch
-    res = runner.run_pilot(use_fake=(args.model == "fake"), model=args.model)
+    runner.run_pilot(use_fake=(args.model == "fake"), model=args.model)
     return 0
 
 

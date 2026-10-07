@@ -12,6 +12,12 @@ from pydantic import BaseModel
 from mas.db.models import ModelCall
 from mas.db.session import get_session
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 # Pricing per million tokens (USD)
 PRICING_CATALOG = {
     # OpenRouter Free Models ($0.00 / token)
@@ -76,25 +82,31 @@ def extract_json(content: str) -> Optional[Dict[str, Any]]:
             return data
     except Exception:
         pass
-    # 2. Markdown code fences ```json ... ```
-    if "```" in text:
-        parts = text.split("```")
-        for i in range(1, len(parts), 2):
-            block = parts[i].strip()
-            if block.lower().startswith("json"):
-                block = block[4:].strip()
-            try:
-                data = json.loads(block)
-                if isinstance(data, dict):
-                    return data
-            except Exception:
-                pass
+    # 2. Markdown code fences
+    import re
+    match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
     # 3. Outer bracket search
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
+        candidate = text[start : end + 1]
         try:
-            data = json.loads(text[start : end + 1])
+            data = json.loads(candidate)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        # Clean trailing commas
+        cleaned = re.sub(r",\s*([}\]])", r"\1", candidate)
+        try:
+            data = json.loads(cleaned)
             if isinstance(data, dict):
                 return data
         except Exception:

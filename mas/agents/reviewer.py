@@ -1,5 +1,6 @@
 """Reviewer Agent: Performs semantic and requirement review using GPT-4o-mini."""
 
+import os
 from typing import Dict, List, Optional
 import uuid
 
@@ -50,9 +51,14 @@ class ReviewerAgent(BaseAgent):
                     ),
                 },
             ]
+            cheap_model = (
+                os.environ.get("OPENROUTER_CHEAP_MODEL")
+                or os.environ.get("OPENROUTER_MODEL")
+                or "openrouter/free"
+            )
             res = self.llm.generate(
                 messages=messages,
-                model="gpt-4o-mini",
+                model=cheap_model,
                 response_schema=ReviewReport,
                 run_id=run_id,
                 agent_name="reviewer",

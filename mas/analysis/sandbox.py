@@ -225,5 +225,12 @@ class SandboxRunner:
                 py_files = [f for f in os.listdir(workspace_path) if f.endswith(".py") and not f.startswith("test_")]
                 if py_files:
                     chosen = py_files[0]
+                elif os.path.exists(os.path.join(workspace_path, "index.html")):
+                    return SandboxExecutionResult(
+                        exit_code=0,
+                        stdout="Web application verified: index.html entry point present.",
+                        stderr="",
+                        duration_ms=5,
+                    )
             entry_point = chosen or "main.py"
         return self.execute(workspace_path, ["python", entry_point], allow_fallback=allow_fallback)

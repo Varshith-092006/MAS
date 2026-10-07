@@ -56,14 +56,19 @@ class DeveloperAgent(BaseAgent):
                 f"Architecture Components: {arch.get('components', []) if arch else 'None'}\n"
                 f"UML Context: {uml_slice}\n"
                 f"Review Findings: {review_feedback}\n"
-                f"Validator Feedback: {feedback or 'None'}\n"
+                f"Validator Feedback: {feedback or 'None'}\n\n"
+                "Return a single JSON object with these keys:\n"
+                "- files: list of target file paths (e.g. ['index.html', 'style.css', 'app.js', 'README.md'])\n"
+                "- file_contents: an object mapping each filename to its complete, non-truncated source code string\n"
+                "- summary: a concise description of the implementation\n"
+                "- tests_expected: list of test or verification cases\n"
             )
 
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are DeveloperAgent. Generate complete, executable Python code without placeholders. "
+                        "You are DeveloperAgent. Generate complete, production-ready code without placeholders according to the task requirement. "
                         "Return a valid CodePatch JSON containing files, file_contents mapping, summary, and tests_expected."
                     ),
                 },

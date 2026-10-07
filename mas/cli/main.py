@@ -5,6 +5,8 @@ import os
 import sys
 from typing import List, Optional
 
+sys.path.insert(0, os.path.abspath("."))
+
 from mas.core.change_request import ChangeRequestManager
 from mas.core.llm import FakeLLMProvider, OpenRouterProvider
 from mas.core.workflow import MASWorkflow
@@ -26,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--model",
         type=str,
-        default="fake",
+        default=os.environ.get("OPENROUTER_MODEL", "openrouter/free"),
         help="Model to use (e.g. 'openrouter/free', 'qwen/qwen-2.5-coder-32b-instruct:free', 'fake', 'openai/gpt-4o')",
     )
     run_parser.add_argument("--task-id", type=str, default="custom", help="Task ID identifier")

@@ -11,6 +11,9 @@ export default function StatusBanner({ status, complexity, iteration, stopReason
         return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 animate-pulse';
       case 'CANCELLED':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'MODEL_MISMATCH_DIAGNOSTIC':
+      case 'DIAGNOSTIC_RUN':
+        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
       default:
         return 'bg-slate-700/50 text-slate-300 border-slate-600';
     }

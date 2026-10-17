@@ -16,11 +16,55 @@ from mas.analysis.ast_analyzer import ASTAnalyzer
 from mas.analysis.quality_tools import QualityTools
 from mas.core.checkpoints import CheckpointManager
 from mas.core.events import event_logger
-from mas.core.llm import LLMProvider, token_logger, TokenCapExceededError
+from mas.core.llm import (
+    LLMProvider,
+    FakeLLMProvider,
+    token_logger,
+    TokenCapExceededError,
+    DispatchCeilingExceededError,
+    DailyTransmissionsCeilingExceededError,
+    ModelMismatchError,
+    OpenRouterAPIError,
+    resolve_openrouter_model,
+)
 from mas.core.state import MASState, create_initial_state
 from mas.core.validator import SchemaValidator
 from mas.db.models import Run, ConfigSnapshot
 from mas.db.session import get_session, init_db
+
+
+import json
+
+def generate_artifacts_manifest(workspace_dir: str):
+    """Generates an auditable manifest of files created in the workspace with SHA256 hashes."""
+    if not os.path.exists(workspace_dir):
+        return []
+    manifest = []
+    import hashlib
+    for root, _, files in os.walk(workspace_dir):
+        if any(x in root for x in [".git", "__pycache__", ".mas_snapshots"]):
+            continue
+        for fn in sorted(files):
+            full_path = os.path.join(root, fn)
+            rel_path = os.path.relpath(full_path, workspace_dir).replace("\\", "/")
+            try:
+                sz = os.path.getsize(full_path)
+                mtime = os.path.getmtime(full_path)
+                with open(full_path, "rb") as fh:
+                    sha = hashlib.sha256(fh.read()).hexdigest()
+                ext = os.path.splitext(fn)[1].lower()
+                f_type = "code" if ext in [".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css"] else ("config" if ext in [".json", ".yaml", ".yml", ".toml", ".ini"] else "text")
+                manifest.append({
+                    "name": fn,
+                    "path": rel_path,
+                    "size": sz,
+                    "type": f_type,
+                    "hash": sha,
+                    "mtime": mtime,
+                })
+            except Exception:
+                pass
+    return manifest
 
 
 class MASWorkflow:
@@ -43,36 +87,59 @@ class MASWorkflow:
         self,
         requirement: str,
         task_id: str = "custom",
-        model_name: str = "gpt-4o",
+        model_name: Optional[str] = None,
         run_id: Optional[str] = None,
         workspace_base: str = "./workspace",
     ) -> MASState:
         """Executes full end-to-end MAS workflow."""
+        model_name = model_name or os.environ.get("OPENROUTER_MODEL", "cohere/north-mini-code:free")
         run_id = run_id or str(uuid.uuid4())
         workspace_path = os.path.abspath(os.path.join(workspace_base, run_id))
         os.makedirs(workspace_path, exist_ok=True)
+
+        is_simulated = (model_name == "fake" or isinstance(self.llm, FakeLLMProvider))
+        exec_mode = "SIMULATED" if is_simulated else "LIVE_API"
+        token_prov = "SIMULATED" if is_simulated else "UNAVAILABLE"
+
+        if hasattr(self.llm, "default_model") and not is_simulated:
+            self.llm.default_model = resolve_openrouter_model(model_name)
 
         state = create_initial_state(
             run_id=run_id,
             requirement=requirement,
             task_id=task_id,
             workspace_path=workspace_path,
+            model=model_name,
         )
 
         checkpoint_mgr = CheckpointManager(workspace_path)
 
         # Initialize DB Run record
         with get_session() as session:
-            db_run = Run(
-                run_id=run_id,
-                task_id=task_id if task_id != "custom" else None,
-                system="mas",
-                model=model_name,
-                seed=42,
-                status="RUNNING",
-                started_at=datetime.utcnow(),
-            )
-            session.add(db_run)
+            existing_run = session.query(Run).filter(Run.run_id == run_id).first()
+            if existing_run:
+                existing_run.status = "RUNNING"
+                existing_run.started_at = datetime.utcnow()
+                existing_run.task_id = task_id if task_id != "custom" else None
+                existing_run.model = model_name
+                existing_run.execution_mode = exec_mode
+                existing_run.token_provenance = token_prov
+                existing_run.workspace_path = workspace_path
+            else:
+                db_run = Run(
+                    run_id=run_id,
+                    task_id=task_id if task_id != "custom" else None,
+                    system="mas",
+                    model=model_name,
+                    actual_model=model_name,
+                    execution_mode=exec_mode,
+                    token_provenance=token_prov,
+                    workspace_path=workspace_path,
+                    seed=42,
+                    status="RUNNING",
+                    started_at=datetime.utcnow(),
+                )
+                session.add(db_run)
             session.commit()
 
         event_logger.emit(
@@ -168,14 +235,14 @@ class MASWorkflow:
                     summary=f"AST Analysis: {ast_rep['module_count']} modules, {len(ast_rep['cycles'])} cycles",
                 )
 
-                # Internal MAS pytest diagnostics
-                state = tester.run(state)
-
                 # Static quality analysis (Ruff, Bandit, Radon)
                 q_rep = QualityTools.run_all(workspace_path)
                 state["quality_report"] = q_rep
 
-                # Semantic review using cheap model (GPT-4o-mini)
+                # Internal MAS pytest diagnostics & sandbox execution
+                state = tester.run(state)
+
+                # Semantic review examining code, static analysis, and test outcomes
                 state = reviewer.run(state)
 
                 # Reflection & Adaptive Stopper
@@ -188,19 +255,47 @@ class MASWorkflow:
                 else:
                     state["iteration"] = curr_iter + 1
 
-            # Run completed successfully
-            state["status"] = "COMPLETED"
+            # Determine final status distinguishing quality gate from iteration limit and infrastructure failure
+            final_decision = state.get("artifacts", {}).get("ReflectionDecision", {})
+            stop_reason = str(final_decision.get("reason", state.get("stop_reason", "")))
+            last_review = state.get("review_report", {})
+            last_crit = last_review.get("critical_issues", 0)
+            last_status = last_review.get("status", "")
+            sandbox_exec = state.get("sandbox_execution", {})
+            sandbox_ok = sandbox_exec.get("is_success", False) if "is_success" in sandbox_exec else True
+
+            has_open_findings = (last_crit > 0 or last_status in ("FAILED", "NEEDS_REVISION") or not sandbox_ok)
+
+            if not has_open_findings and stop_reason.startswith("clean_result"):
+                final_status = "COMPLETED_QUALITY_GATE"
+                state["quality_gate_passed"] = True
+            elif "max_iterations" in stop_reason or "marginal_gain" in stop_reason or has_open_findings:
+                final_status = "STOPPED_MAX_ITERATIONS_WITH_OPEN_FINDINGS"
+                state["quality_gate_passed"] = False
+            else:
+                final_status = "COMPLETED_QUALITY_GATE"
+                state["quality_gate_passed"] = True
+
+            state["status"] = final_status
             totals = token_logger.get_run_totals(run_id)
             state["input_tokens"] = totals["input_tokens"]
             state["output_tokens"] = totals["output_tokens"]
             state["total_tokens"] = totals["total_tokens"]
             state["estimated_cost"] = totals["estimated_cost"]
 
+            manifest = generate_artifacts_manifest(workspace_path)
+
             with get_session() as session:
                 run_row = session.query(Run).filter(Run.run_id == run_id).first()
                 if run_row:
-                    run_row.status = "COMPLETED"
+                    run_row.status = final_status
                     run_row.finished_at = datetime.utcnow()
+                    run_row.workspace_path = workspace_path
+                    run_row.artifacts_manifest = json.dumps(manifest)
+                    if not run_row.execution_mode:
+                        run_row.execution_mode = exec_mode
+                    if not run_row.token_provenance:
+                        run_row.token_provenance = "SIMULATED" if is_simulated else ("PROVIDER_REPORTED" if totals["total_tokens"] > 0 else "UNAVAILABLE")
                     session.commit()
 
             event_logger.emit(
@@ -208,18 +303,20 @@ class MASWorkflow:
                 agent="system",
                 event="run_completed",
                 summary=(
-                    f"Run {run_id} COMPLETED. Tokens: {totals['total_tokens']}, "
-                    f"Cost: ${totals['estimated_cost']:.4f}, Stop reason: {state.get('stop_reason')}"
+                    f"Run {run_id} finished with status {final_status}. Tokens: {totals['total_tokens']}, "
+                    f"Cost: ${totals['estimated_cost']:.4f}, Files: {len(manifest)}, Stop reason: {state.get('stop_reason')}"
                 ),
             )
 
-        except TokenCapExceededError as e:
+        except ModelMismatchError as e:
             state["status"] = "FAILED"
-            state["stop_reason"] = "TOKEN_CAP_EXCEEDED"
+            state["stop_reason"] = "MODEL_MISMATCH_DIAGNOSTIC"
             with get_session() as session:
                 run_row = session.query(Run).filter(Run.run_id == run_id).first()
                 if run_row:
-                    run_row.status = "FAILED"
+                    run_row.status = "MODEL_MISMATCH_DIAGNOSTIC"
+                    run_row.failure_reason = f"MODEL_MISMATCH_DIAGNOSTIC: {str(e)}"
+                    run_row.execution_mode = "FAILED"
                     run_row.finished_at = datetime.utcnow()
                     session.commit()
             event_logger.emit(
@@ -227,15 +324,74 @@ class MASWorkflow:
                 agent="system",
                 event="run_failed",
                 status="failure",
-                summary=f"Run {run_id} failed: TOKEN_CAP_EXCEEDED ({str(e)})",
+                summary=f"Run {run_id} failed: MODEL_MISMATCH_DIAGNOSTIC ({str(e)})",
+            )
+            raise
+        except (TokenCapExceededError, DispatchCeilingExceededError, DailyTransmissionsCeilingExceededError) as e:
+            err_type = type(e).__name__
+            state["status"] = "STOPPED_BUDGET_CEILING"
+            state["stop_reason"] = err_type
+            with get_session() as session:
+                run_row = session.query(Run).filter(Run.run_id == run_id).first()
+                if run_row:
+                    run_row.status = "STOPPED_BUDGET_CEILING"
+                    run_row.failure_reason = f"{err_type}: {str(e)}"
+                    run_row.execution_mode = "STOPPED_BUDGET_CEILING"
+                    run_row.finished_at = datetime.utcnow()
+                    session.commit()
+            event_logger.emit(
+                run_id=run_id,
+                agent="system",
+                event="run_stopped_budget_ceiling",
+                status="failure",
+                summary=f"Run {run_id} checkpointed safely: {err_type} ({str(e)})",
+            )
+        except OpenRouterAPIError as e:
+            if e.is_daily_quota_exhausted:
+                err_type = "PROVIDER_DAILY_QUOTA_EXHAUSTED"
+                terminal_status = "STOPPED_PROVIDER_QUOTA"
+                event_name = "run_stopped_provider_quota"
+            elif e.status_code == 429:
+                err_type = "RATE_LIMIT_429"
+                terminal_status = "STOPPED_BUDGET_CEILING"
+                event_name = "run_stopped_rate_limit"
+            elif e.status_code >= 500:
+                err_type = f"OPENROUTER_SERVER_ERROR_{e.status_code}"
+                terminal_status = "FAILED_INFRASTRUCTURE"
+                event_name = "run_failed_infrastructure"
+            else:
+                err_type = f"OPENROUTER_ERROR_{e.status_code}"
+                terminal_status = "FAILED"
+                event_name = "run_failed"
+
+            state["status"] = terminal_status
+            state["stop_reason"] = f"{err_type}: {e.error_message or str(e)}"
+            with get_session() as session:
+                run_row = session.query(Run).filter(Run.run_id == run_id).first()
+                if run_row:
+                    run_row.status = terminal_status
+                    run_row.failure_reason = f"{err_type}: {str(e)}"
+                    run_row.execution_mode = terminal_status
+                    run_row.finished_at = datetime.utcnow()
+                    session.commit()
+            event_logger.emit(
+                run_id=run_id,
+                agent="system",
+                event=event_name,
+                status="failure",
+                summary=f"Run {run_id} halted: {err_type} ({str(e)})",
             )
         except Exception as e:
-            state["status"] = "FAILED"
+            is_infra = any(term in type(e).__name__.lower() for term in ("connect", "timeout", "network", "socket"))
+            terminal_status = "FAILED_INFRASTRUCTURE" if is_infra else "FAILED"
+            state["status"] = terminal_status
             state["stop_reason"] = f"ERROR: {str(e)}"
             with get_session() as session:
                 run_row = session.query(Run).filter(Run.run_id == run_id).first()
                 if run_row:
-                    run_row.status = "FAILED"
+                    run_row.status = terminal_status
+                    run_row.failure_reason = str(e)
+                    run_row.execution_mode = terminal_status
                     run_row.finished_at = datetime.utcnow()
                     session.commit()
             event_logger.emit(

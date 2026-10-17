@@ -153,14 +153,67 @@ SRDD_CANDIDATE_TASKS = {
 }
 
 
-def load_srdd_benchmark_tasks(seed: int = 42, tasks_per_category: int = 4) -> List[Dict[str, Any]]:
-    """Selects tasks_per_category from each of the 5 categories using fixed seed."""
+CATEGORY_MAPPING = {
+    "Games": [
+        "Action_Game", "Board_Game", "Management_Game", "Puzzle_Game",
+        "Racing_Game", "Role_Playing_Game", "Shooter_Game", "Simulation_Game",
+        "Sport_Game", "Strategy_Game",
+    ],
+    "Education": [
+        "Language", "Science", "Reference_Books", "Culture", "Family_Kids", "Notebook",
+    ],
+    "Work": [
+        "Business", "Development", "Office", "Schedule", "Security", "Tools_Utilities",
+    ],
+    "Life": [
+        "Budgeting", "Finance", "Health_Fitness", "Medical", "Restaurants_Delivery",
+        "Shopping", "Transportation", "Travel",
+    ],
+    "Creation": [
+        "Graphics", "Music", "Photo", "Video", "Personalisation", "Entertainment",
+    ],
+}
+
+
+def load_srdd_benchmark_tasks(
+    seed: int = 42,
+    tasks_per_category: int = 4,
+    csv_path: str = "data_attribute_format.csv",
+) -> List[Dict[str, Any]]:
+    """Selects tasks_per_category from each of the 5 categories using fixed seed.
+
+    If data_attribute_format.csv is available, samples directly from the uploaded dataset.
+    Otherwise falls back to canonical SRDD_CANDIDATE_TASKS.
+    """
     rng = random.Random(seed)
     selected_tasks: List[Dict[str, Any]] = []
 
+    if os.path.exists(csv_path):
+        import csv
+        with open(csv_path, "r", encoding="utf-8", errors="replace") as f:
+            all_rows = list(csv.DictReader(f))
+
+        task_num = 1
+        for category in ["Education", "Work", "Life", "Games", "Creation"]:
+            subcats = CATEGORY_MAPPING.get(category, [])
+            pool = [r for r in all_rows if r.get("Category") in subcats]
+            if not pool:
+                pool = [r for r in all_rows if category.lower() in r.get("Category", "").lower()]
+            chosen = rng.sample(pool, min(tasks_per_category, len(pool)))
+            for row in chosen:
+                selected_tasks.append({
+                    "task_id": f"srdd_{category.lower()[:4]}_{task_num:02d}",
+                    "name": row.get("Name", "Task").replace("_", " "),
+                    "description": row.get("Description", ""),
+                    "category": category,
+                    "subcategory": row.get("Category", ""),
+                })
+                task_num += 1
+        return selected_tasks
+
+    # Fallback catalog
     for category in ["Education", "Work", "Life", "Games", "Creation"]:
         candidates = SRDD_CANDIDATE_TASKS[category]
-        # Fixed deterministic sample
         chosen = rng.sample(candidates, tasks_per_category)
         for t in chosen:
             task_copy = dict(t)
@@ -168,6 +221,7 @@ def load_srdd_benchmark_tasks(seed: int = 42, tasks_per_category: int = 4) -> Li
             selected_tasks.append(task_copy)
 
     return selected_tasks
+
 
 
 def save_and_persist_tasks(

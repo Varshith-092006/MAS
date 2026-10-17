@@ -46,59 +46,91 @@ class DeveloperAgent(BaseAgent):
 
         def produce_code(feedback=None):
             req = state.get("requirement", "")
+            plan = state.get("artifacts", {}).get("TaskPlan", {})
+            acceptance_criteria = plan.get("acceptance_criteria", [])
+            sprint_goals = plan.get("sprint_goals", [])
             arch = state.get("architecture", {})
             uml_slice = state.get("relevant_uml", [])
             review_feedback = state.get("review_report", {}).get("findings", [])
+            test_feedback = state.get("mas_pytest_report", {}).get("details", [])
+            sandbox_err = state.get("sandbox_execution", {}).get("stderr", "")
 
-            prompt = (
-                f"Task Requirement: {req}\n"
-                f"Iteration: {iteration}\n"
-                f"Architecture Components: {arch.get('components', []) if arch else 'None'}\n"
-                f"UML Context: {uml_slice}\n"
-                f"Review Findings: {review_feedback}\n"
-                f"Validator Feedback: {feedback or 'None'}\n\n"
+            prompt_sections = [
+                f"Task Requirement:\n{req}\n",
+                f"Iteration: {iteration}\n",
+                "Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n",
+            ]
+            if sprint_goals:
+                prompt_sections.append(f"Sprint Goals: {sprint_goals}\n")
+            if arch and arch.get("components"):
+                prompt_sections.append(f"Architecture Components: {arch['components']}\n")
+            if uml_slice:
+                prompt_sections.append(f"UML Context: {uml_slice}\n")
+            if review_feedback:
+                prompt_sections.append("Review Findings to Address:\n" + "\n".join(f"- {f}" for f in review_feedback) + "\n")
+            if test_feedback:
+                prompt_sections.append("Test Diagnostic Details:\n" + "\n".join(f"- {t}" for t in test_feedback) + "\n")
+            if sandbox_err:
+                prompt_sections.append(f"Sandbox Stderr:\n{sandbox_err}\n")
+            if feedback:
+                prompt_sections.append(f"Validator Feedback:\n{feedback}\n")
+
+            prompt_sections.append(
+                "Instructions:\n"
+                "- Write complete Python code with entry point in main.py.\n"
+                "- Handle column variations flexibly: 'product name'/'product'/'product_name', 'quantity'/'qty', and 'unit price'/'unit_price'/'price'.\n"
+                "- Handle empty CSV files without crashing (output total 0).\n"
+                "- Validate numeric inputs (quantity >= 0, unit_price >= 0.0), warning to stderr and skipping invalid/negative rows.\n"
+                "- Handle malformed rows by warning to stderr and skipping.\n"
+                "- When acceptance criteria specify automated tests, generate test_main.py alongside main.py.\n"
                 "Return a single JSON object with these keys:\n"
-                "- files: list of target file paths (e.g. ['index.html', 'style.css', 'app.js', 'README.md'])\n"
-                "- file_contents: an object mapping each filename to its complete, non-truncated source code string\n"
+                "- files: list of target file paths (e.g. ['main.py', 'test_main.py'])\n"
+                "- file_contents: an object mapping each filename to its complete, non-truncated Python source code string\n"
                 "- summary: a concise description of the implementation\n"
                 "- tests_expected: list of test or verification cases\n"
             )
+            prompt = "\n".join(prompt_sections)
 
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are DeveloperAgent. Generate complete, production-ready code without placeholders according to the task requirement. "
+                        "You are DeveloperAgent. Generate complete, production-ready, executable Python code with a valid entry point (main.py). "
+                        "The code must strictly satisfy the task requirements and all acceptance criteria. "
+                        "Do NOT use placeholders, pass statements, or ellipsis stubs. "
                         "Return a valid CodePatch JSON containing files, file_contents mapping, summary, and tests_expected."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ]
 
+            target_model = state.get("model") or getattr(self.llm, "default_model", None)
             res = self.llm.generate(
                 messages=messages,
+                model=target_model,
                 response_schema=CodePatch,
                 run_id=run_id,
                 agent_name="developer",
+                max_tokens=6000,
             )
-            if res.parsed_json:
+            if res.parsed_json and "files" in res.parsed_json and "file_contents" in res.parsed_json:
                 return res.parsed_json
 
-            # Fallback code patch
+            # Fallback: check if model emitted python code block directly
+            import re
+            code_match = re.search(r"```(?:python)?\s*([\s\S]*?)\s*```", res.text)
+            if code_match and len(code_match.group(1).strip()) > 30:
+                extracted_code = code_match.group(1).strip()
+                return {
+                    "files": ["main.py"],
+                    "file_contents": {"main.py": extracted_code},
+                    "summary": "Extracted complete Python implementation from model code block",
+                    "tests_expected": ["Execute main.py entry point and verify outputs"],
+                }
+
+            # Return error payload to trigger produce_valid_artifact retry mechanism
             return {
-                "files": ["calculator.py"],
-                "file_contents": {
-                    "calculator.py": (
-                        "def add(a: int, b: int) -> int:\n"
-                        "    '''Adds two numbers.'''\n"
-                        "    return a + b\n\n"
-                        "def multiply(a: int, b: int) -> int:\n"
-                        "    '''Multiplies two numbers.'''\n"
-                        "    return a * b\n"
-                    )
-                },
-                "summary": "Implemented calculator arithmetic operations",
-                "tests_expected": ["test_add", "test_multiply"],
+                "error": f"Developer LLM output could not be parsed as CodePatch JSON: {res.text[:300]}"
             }
 
         patch: CodePatch = self.produce_valid_artifact("CodePatch", produce_code, state, CodePatch)

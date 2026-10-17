@@ -52,8 +52,10 @@ class ArchitectAgent(BaseAgent):
                     "content": f"Task: {plan_data.get('description', '')}\nFeedback: {feedback or 'None'}",
                 },
             ]
+            target_model = state.get("model") or getattr(self.llm, "default_model", None)
             res = self.llm.generate(
                 messages=messages,
+                model=target_model,
                 response_schema=Architecture,
                 run_id=run_id,
                 agent_name="architect",
@@ -86,8 +88,10 @@ class ArchitectAgent(BaseAgent):
                     "content": f"Task: {plan_data.get('description', '')}\nFeedback: {feedback or 'None'}",
                 },
             ]
+            target_model = state.get("model") or getattr(self.llm, "default_model", None)
             res = self.llm.generate(
                 messages=messages,
+                model=target_model,
                 response_schema=UserStory,
                 run_id=run_id,
                 agent_name="architect",

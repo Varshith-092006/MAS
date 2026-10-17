@@ -60,9 +60,12 @@ class ContextSlicer:
             relevant_uml = arch_agent.slice_uml(state["architecture"], list(sliced_files.keys()))
 
         findings = state.get("review_report", {}).get("findings", [])
+        plan = state.get("artifacts", {}).get("TaskPlan", {})
+        acceptance_criteria = plan.get("acceptance_criteria", [])
 
         return {
             "task": state.get("requirement", ""),
+            "acceptance_criteria": acceptance_criteria,
             "iteration": state.get("iteration", 1),
             "files": sliced_files,
             "relevant_uml": relevant_uml,

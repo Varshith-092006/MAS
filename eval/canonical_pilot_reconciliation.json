@@ -1,0 +1,83 @@
+{
+  "stage": "STAGE_1_CANONICAL_MATCHED_PAIR",
+  "task_id": "srdd_educ_01",
+  "task_name": "Science Question Solver",
+  "requirement": "Step-by-step science question solver providing explanations and solutions.",
+  "requirement_sha256": "15b83bd79330fcf4a79de4ad9cbc725ffeba2a695f1b76bf4d1ca567c4740012",
+  "eval_id": "eval_canonical_1791719422",
+  "max_budget_usd": 1.0,
+  "stage_cumulative_spend_usd": 0.0,
+  "pair_validity": "INCOMPLETE",
+  "pair_validity_reason": "Run A failed before project generation due to OpenRouter HTTP 402 Insufficient Credits; Run B was skipped because Stage 1 stopped immediately after the MAS failure.",
+  "mas": {
+    "run_id": "mas_srdd_educ_01_canonical",
+    "status": "FAILED",
+    "execution_mode": "FAILED",
+    "failure_reason": "OpenRouter Insufficient Credits (402): Account credits depleted. Switch to a free model (e.g., OPENROUTER_MODEL=openrouter/free or OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free) or add credits at openrouter.ai.",
+    "research_statistics_eligible": false,
+    "workspace": "C:\\Users\\The Mighty King\\Desktop\\Final Year Project\\eval\\workspaces\\mas_srdd_educ_01_canonical",
+    "duration": 1.197911262512207,
+    "totals": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "total_tokens": null,
+      "estimated_cost": 0.0,
+      "call_count": 0,
+      "token_provenance": "UNAVAILABLE"
+    },
+    "metrics": {
+      "completeness": null,
+      "executability": null,
+      "consistency": null,
+      "quality": null,
+      "shared_test": null
+    },
+    "q1k": null,
+    "neutral_test": {
+      "all_passed": false,
+      "passed": 0,
+      "total": 0,
+      "details": [
+        "Neutral evaluation not executed: generation halted with OpenRouter HTTP 402 Insufficient Credits before artifacts were generated."
+      ]
+    },
+    "manifest": [],
+    "model_calls": []
+  },
+  "chatdev": {
+    "run_id": "SKIPPED_DUE_TO_MAS_FAILURE",
+    "status": "SKIPPED",
+    "execution_mode": "SKIPPED",
+    "skip_reason": "Skipped: Stage 1 stopped after MAS Run A failure",
+    "failure_reason": null,
+    "research_statistics_eligible": false,
+    "workspace": "",
+    "duration": 0.0,
+    "totals": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "total_tokens": null,
+      "estimated_cost": 0.0,
+      "call_count": 0,
+      "token_provenance": "UNAVAILABLE"
+    },
+    "metrics": {
+      "completeness": null,
+      "executability": null,
+      "consistency": null,
+      "quality": null,
+      "shared_test": null
+    },
+    "q1k": null,
+    "neutral_test": {
+      "all_passed": false,
+      "passed": 0,
+      "total": 0,
+      "details": [
+        "Neutral evaluation not executed: ChatDev was skipped because Stage 1 stopped after MAS Run A failure."
+      ]
+    },
+    "manifest": [],
+    "model_calls": []
+  }
+}

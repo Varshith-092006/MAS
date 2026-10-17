@@ -1,122 +1,142 @@
 [
   {
-    "task_id": "srdd_edu_01",
-    "name": "Flashcard Quiz System",
-    "description": "Develop a command-line flashcard study app where users can create decks of questions and answers, review cards with spaced repetition scores, and view study performance summaries.",
-    "category": "Education"
+    "task_id": "srdd_educ_01",
+    "name": "Science Question Solver",
+    "description": "Step-by-step science question solver providing explanations and solutions.",
+    "category": "Education",
+    "subcategory": "Science"
   },
   {
-    "task_id": "srdd_edu_05",
-    "name": "Interactive Periodic Table Guide",
-    "description": "Develop an educational chemistry reference tool that displays element properties, atomic weights, electron configurations, and allows search by symbol or atomic number.",
-    "category": "Education"
+    "task_id": "srdd_educ_02",
+    "name": "Culture Quiz Challenge",
+    "description": "A fun and interactive quiz challenge that tests users",
+    "category": "Education",
+    "subcategory": "Culture"
   },
   {
-    "task_id": "srdd_edu_03",
-    "name": "Language Vocabulary Builder",
-    "description": "Build an interactive vocabulary training tool that quizzes users on foreign language word translations, tracks incorrect answers, and generates review lists.",
-    "category": "Education"
+    "task_id": "srdd_educ_03",
+    "name": "Culture Insights",
+    "description": "Culture Insights is a software application that provides users with in-depth insights into the customs, traditions, and social norms of different cultures around the world.",
+    "category": "Education",
+    "subcategory": "Culture"
   },
   {
-    "task_id": "srdd_edu_02",
-    "name": "Typing Speed Tester",
-    "description": "Create a typing speed test application that presents sample text paragraphs, measures words-per-minute (WPM) and accuracy percentage, and displays summary statistics.",
-    "category": "Education"
-  },
-  {
-    "task_id": "srdd_work_02",
-    "name": "Timesheet & Billing Calculator",
-    "description": "Implement a work hours logging utility that records client project sessions, hourly rates, calculates billable totals, and outputs formatted text invoices.",
-    "category": "Work"
+    "task_id": "srdd_educ_04",
+    "name": "Linguistics Analyzer",
+    "description": "Analyzes sentences, identifies parts of speech, determines sentence structure, and detects grammatical errors.",
+    "category": "Education",
+    "subcategory": "Language"
   },
   {
     "task_id": "srdd_work_05",
-    "name": "Employee Shift Scheduler",
-    "description": "Create a workplace scheduling utility that assigns staff members to weekly work shifts according to availability constraints and outputs a weekly roster.",
-    "category": "Work"
+    "name": "Document Tracker",
+    "description": "A software to track the status of documents within an office",
+    "category": "Work",
+    "subcategory": "Office"
   },
   {
-    "task_id": "srdd_work_01",
-    "name": "Markdown Todo Organizer",
-    "description": "Create a task tracking manager that parses and updates markdown todo lists, supports task priority tagging, due dates, and prints pending task summaries.",
-    "category": "Work"
+    "task_id": "srdd_work_06",
+    "name": "Code Quality Metrics Analyzer",
+    "description": "The Code Quality Metrics Analyzer software analyzes code quality metrics for a software project and provides insights into areas that require improvement. It calculates various metrics like code complexity, code duplication, code coverage, and adherence to coding style guidelines. The software generates visualizations and reports that help developers identify and prioritize code quality issues. It also provides recommendations for enhancing code quality and maintainability.",
+    "category": "Work",
+    "subcategory": "Development"
   },
   {
-    "task_id": "srdd_work_03",
-    "name": "Meeting Agenda Planner",
-    "description": "Build a CLI meeting agenda assistant that organizes agenda topics with estimated time limits, tracks speaker discussion allocations, and exports meeting minutes.",
-    "category": "Work"
+    "task_id": "srdd_work_07",
+    "name": "Code Complexity Analyzer",
+    "description": "The Code Complexity Analyzer is a software designed to evaluate the complexity of code snippets and highlight potential areas for improvement. It analyzes the code using various metrics such as cyclomatic complexity, nesting depth, and code duplication. The software provides a visual representation of the complexity metrics, allowing developers to easily identify and understand complex sections of code. It also suggests refactoring techniques and provides recommendations for simplifying and optimizing the code.",
+    "category": "Work",
+    "subcategory": "Development"
   },
   {
-    "task_id": "srdd_life_05",
-    "name": "Workout Exercise Log",
-    "description": "Build a fitness tracking app that records workout sessions with sets, reps, and weights lifted, providing progressive overload progress comparisons.",
-    "category": "Life"
+    "task_id": "srdd_work_08",
+    "name": "Lead Generation Tracker",
+    "description": "The Lead Generation Tracker is a business software application that helps businesses track and manage their lead generation efforts. It provides features for recording and categorizing leads, tracking their progress through the sales funnel, and generating reports to analyze the effectiveness of lead generation strategies.",
+    "category": "Work",
+    "subcategory": "Business"
   },
   {
-    "task_id": "srdd_life_01",
-    "name": "Personal Expense Tracker",
-    "description": "Build a personal budgeting application that logs daily financial expenses across custom categories, calculates monthly balances, and prints spending breakdown reports.",
-    "category": "Life"
+    "task_id": "srdd_life_09",
+    "name": "Price Comparison Assistant",
+    "description": "The Price Comparison Assistant is a shopping software application that helps users find the best prices for products across different online retailers. It allows users to search for specific products and provides real-time price comparisons. The software also includes features such as product descriptions, customer reviews, and the ability to filter and sort results based on user preferences. With the Price Comparison Assistant, users can make informed purchasing decisions and save money by finding the best deals available.",
+    "category": "Life",
+    "subcategory": "Shopping"
   },
   {
-    "task_id": "srdd_life_03",
-    "name": "Recipe & Meal Planner",
-    "description": "Create a meal preparation assistant that stores food recipes with ingredient quantities, plans weekly dinners, and automatically compiles combined grocery shopping lists.",
-    "category": "Life"
+    "task_id": "srdd_life_10",
+    "name": "Trip Planner",
+    "description": "Trip Planner is a transportation software application that helps users plan their trips by providing detailed information about their journey, including transportation options, estimated travel time, and cost. It takes into account multiple factors such as distance, traffic conditions, and user preferences to suggest the most efficient and convenient routes.",
+    "category": "Life",
+    "subcategory": "Transportation"
   },
   {
-    "task_id": "srdd_life_02",
-    "name": "Daily Habit Streak Tracker",
-    "description": "Develop a daily habit tracking tool that records habit completions, maintains streak counters, and computes completion rates over a 30-day window.",
-    "category": "Life"
+    "task_id": "srdd_life_11",
+    "name": "Travel Memories Sharer",
+    "description": "A software application that allows users to share their travel memories with friends and family. Users can create interactive and visually appealing travel albums by uploading photos, videos, and adding captions. They can also customize the layout and design of the album. The Travel Memories Sharer provides a social media-like platform where users can explore and interact with each other",
+    "category": "Life",
+    "subcategory": "Travel"
   },
   {
-    "task_id": "srdd_game_01",
-    "name": "Terminal Blackjack Game",
-    "description": "Develop a full console Blackjack card game with card deck shuffling, player hit/stand actions, dealer rules (soft 17), and chip betting balances.",
-    "category": "Games"
+    "task_id": "srdd_life_12",
+    "name": "MenuExpress",
+    "description": "MenuExpress is a Restaurants&Delivery software application that allows users to create personalized menus from their favorite local restaurants. Users can browse through various restaurant menus, select dishes they want to include in their menu, and save their customized menu for future reference. MenuExpress also provides options to schedule delivery or pickup, ensuring a convenient dining experience.",
+    "category": "Life",
+    "subcategory": "Restaurants_Delivery"
   },
   {
-    "task_id": "srdd_game_05",
-    "name": "Connect Four Console Game",
-    "description": "Develop a two-player Connect Four grid game in console with column piece dropping, boundary checks, and four-in-a-row victory condition detection.",
-    "category": "Games"
+    "task_id": "srdd_game_13",
+    "name": "Board Game Dice Tower Simulator",
+    "description": "Accurately simulate a dice tower for board games with customizable appearance and sound effects. Enhance the board game experience by adding a touch of realism.",
+    "category": "Games",
+    "subcategory": "Board_Game"
   },
   {
-    "task_id": "srdd_game_04",
-    "name": "Hangman Word Guessing Game",
-    "description": "Implement the classic Hangman word game with ASCII gallows art rendering, hidden word letter reveals, guess tracking, and remaining life counts.",
-    "category": "Games"
+    "task_id": "srdd_game_14",
+    "name": "Fantasy Town Builder",
+    "description": "Fantasy Town Builder is a simulation game software that allows players to create and manage their own virtual fantasy towns. Players can design and construct various buildings, including magical shops, taverns, and enchanting structures, and strategically plan the layout of streets, parks, and landmarks. They must cater to the needs of their magical inhabitants, manage resources effectively, and make decisions to ensure the growth and prosperity of the town. The game will provide challenges and quests to test the player",
+    "category": "Games",
+    "subcategory": "Simulation_Game"
   },
   {
-    "task_id": "srdd_game_03",
-    "name": "Text Adventure Dungeon Crawler",
-    "description": "Build a room-based text adventure game featuring room navigation commands, inventory management, monster encounters with turn-based combat, and treasure collection.",
-    "category": "Games"
+    "task_id": "srdd_game_15",
+    "name": "Virtual Ninja Warrior",
+    "description": "Virtual Ninja Warrior is an action game where players take on the role of a skilled ninja tasked with completing challenging missions. Players will navigate through different levels, using stealth, agility, and combat skills to overcome obstacles, defeat enemies, and accomplish their objectives. The game features immersive graphics, smooth controls, and a variety of weapons and abilities to enhance the ninja",
+    "category": "Games",
+    "subcategory": "Action_Game"
   },
   {
-    "task_id": "srdd_create_02",
-    "name": "Static Site HTML Builder",
-    "description": "Build a lightweight static website compiler that takes markdown content files and Jinja-like text templates, producing styled standalone HTML pages.",
-    "category": "Creation"
+    "task_id": "srdd_game_16",
+    "name": "Ultra Blaster",
+    "description": "Ultra Blaster is an action game where players take on the role of a futuristic space pilot. Armed with a high-powered blaster, players navigate through various levels filled with enemy spaceships and obstacles. The objective is to destroy as many enemy ships as possible while avoiding collisions and collecting power-ups for upgrades. With its stunning graphics, intense gameplay, and challenging levels, Ultra Blaster offers an exhilarating action gaming experience.",
+    "category": "Games",
+    "subcategory": "Action_Game"
   },
   {
-    "task_id": "srdd_create_01",
-    "name": "ASCII Art Banner Generator",
-    "description": "Create a command-line utility that renders text strings as large block ASCII art characters with customizable borders and font styles.",
-    "category": "Creation"
+    "task_id": "srdd_crea_17",
+    "name": "Night Sky Stargazer",
+    "description": "Night Sky Stargazer is an entertainment software application that allows users to explore and learn about the wonders of the night sky. Users can navigate through a virtual starry sky, identify constellations, and learn interesting facts about stars, planets, and other celestial objects. The software provides a user-friendly interface where users can zoom in on specific areas, toggle different layers of information like star names and constellation lines, and even simulate different time and date settings to see how the night sky changes.",
+    "category": "Creation",
+    "subcategory": "Entertainment"
   },
   {
-    "task_id": "srdd_create_03",
-    "name": "Color Palette Generator",
-    "description": "Develop a color scheme tool that calculates complementary, triadic, and analogous color palettes from a base hex color, outputting RGB and CSS hex codes.",
-    "category": "Creation"
+    "task_id": "srdd_crea_18",
+    "name": "Art Element Organizer",
+    "description": "Art Element Organizer is a graphics software application that provides a visual workspace for graphic designers to organize and categorize different art elements. It allows users to import and arrange images, icons, illustrations, and other graphical assets into custom folders and collections. Users can easily search and filter art elements based on categories, tags, or metadata. Art Element Organizer also includes features like labeling, annotating, and grouping to help users create a well-organized library of art assets.",
+    "category": "Creation",
+    "subcategory": "Graphics"
   },
   {
-    "task_id": "srdd_create_04",
-    "name": "Procedural Dungeon Map Generator",
-    "description": "Implement a procedural 2D tile dungeon map generator using cellular automata or random walk algorithms, outputting ASCII dungeon layouts.",
-    "category": "Creation"
+    "task_id": "srdd_crea_19",
+    "name": "Texture Generator",
+    "description": "Texture Generator is a graphics software application that allows users to create custom textures for use in digital art and design projects. It provides a variety of tools and features for generating unique textures, including brushes, noise patterns, color blending modes, and texture overlays. Users can adjust parameters such as scale, intensity, and randomness to create different textures with various effects. Texture Generator also supports seamless tiling, enabling users to create textures that seamlessly repeat when applied to larger surfaces.",
+    "category": "Creation",
+    "subcategory": "Graphics"
+  },
+  {
+    "task_id": "srdd_crea_20",
+    "name": "Photo Background Changer",
+    "description": "A software application that allows users to easily change the background of their photos. Users can select an image and choose a new background image or color. The software intelligently removes the existing background and replaces it with the new one, preserving the main subject with accuracy. It provides tools to refine the selection and make adjustments if needed. Once the background is changed, users can save the edited image.",
+    "category": "Creation",
+    "subcategory": "Photo"
   }
 ]

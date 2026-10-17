@@ -27,6 +27,7 @@ class MASState(TypedDict, total=False):
     previous_adaptive_score: float
     marginal_gain: float
     stop_reason: Optional[str]
+    model: str
     input_tokens: int
     output_tokens: int
     total_tokens: int
@@ -39,12 +40,14 @@ def create_initial_state(
     requirement: str,
     task_id: str = "custom",
     workspace_path: str = "./workspace",
+    model: str = "gpt-4o",
 ) -> MASState:
     """Creates a blank, initialized MASState."""
     return MASState(
         run_id=run_id,
         task_id=task_id,
         requirement=requirement,
+        model=model,
         complexity="SIMPLE",
         complexity_score=0,
         router_features={},

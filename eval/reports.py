@@ -39,7 +39,8 @@ def generate_stats_markdown_report(
         task_vals: Dict[str, List[float]] = {}
         for r in runs:
             tid = r.get("task_id", "unknown")
-            val = float(r.get(metric_key, 0.0))
+            raw_v = r.get(metric_key)
+            val = float(raw_v) if raw_v is not None else 0.0
             task_vals.setdefault(tid, []).append(val)
         return {tid: sum(vals) / len(vals) for tid, vals in task_vals.items()}
 

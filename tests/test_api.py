@@ -37,7 +37,7 @@ def test_create_and_get_run_api():
             data = post_resp.json()
             assert "run_id" in data
             run_id = data["run_id"]
-            assert data["status"] == "COMPLETED"
+            assert data["status"] in ("COMPLETED", "COMPLETED_QUALITY_GATE")
 
             # GET /runs/{id}
             get_resp = await client.get(f"/runs/{run_id}")
@@ -55,4 +55,15 @@ def test_create_and_get_run_api():
             results_resp = await client.get(f"/runs/{run_id}/results")
             assert results_resp.status_code == 200
 
+            # GET /runs/{id}/artifacts
+            artifacts_resp = await client.get(f"/runs/{run_id}/artifacts")
+            assert artifacts_resp.status_code == 200
+            assert isinstance(artifacts_resp.json(), list)
+
+            # GET /runs/{id}/workspace
+            workspace_resp = await client.get(f"/runs/{run_id}/workspace")
+            assert workspace_resp.status_code == 200
+            assert "files" in workspace_resp.json()
+
     asyncio.run(_test())
+

@@ -2,7 +2,7 @@
 
 import ast
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 
@@ -31,15 +31,20 @@ def is_unimplemented_function(func_node: ast.FunctionDef) -> bool:
 
 
 def calculate_completeness(workspace_path: str) -> float:
-    """Calculates function completeness = 1 - (unimplemented / total_functions)."""
+    """Calculates function completeness = 1 - (unimplemented / total_functions).
+
+    Returns 0.0 if no python code files exist in workspace.
+    """
     total_funcs = 0
     unimplemented_funcs = 0
+    has_py_files = False
 
     for root, _, filenames in os.walk(workspace_path):
         if any(skip in root for skip in [".git", "__pycache__", ".mas_snapshots"]):
             continue
         for f in filenames:
             if f.endswith(".py"):
+                has_py_files = True
                 path = os.path.join(root, f)
                 try:
                     with open(path, "r", encoding="utf-8") as fh:
@@ -52,35 +57,89 @@ def calculate_completeness(workspace_path: str) -> float:
                 except Exception:
                     pass
 
+    if not has_py_files:
+        return 0.0
     if total_funcs == 0:
-        return 1.0  # If script is module-level statements without explicit defs
+        return 1.0  # If script has module-level code without explicit function defs
     return round(1.0 - (unimplemented_funcs / total_funcs), 4)
 
 
-def calculate_executability(workspace_path: str, sandbox_runner=None) -> float:
-    """Checks if main entry point executes cleanly under neutral smoke test."""
+def calculate_executability_v1_2(workspace_path: str, sandbox_runner=None) -> float:
+    """Legacy Evaluator v1.2: checks if main entry point executes cleanly under zero-arg smoke test."""
     from mas.analysis.sandbox import SandboxRunner
     runner = sandbox_runner or SandboxRunner()
 
-    entry_points = ["main.py", "app.py", "calculator.py"]
+    entry_points = ["main.py", "app.py"]
     chosen_entry = None
     for ep in entry_points:
         if os.path.exists(os.path.join(workspace_path, ep)):
             chosen_entry = ep
             break
 
-    if not chosen_entry:
-        # Pick any python file
+    if not chosen_entry and os.path.exists(workspace_path):
         for f in os.listdir(workspace_path):
             if f.endswith(".py") and not f.startswith("test_"):
                 chosen_entry = f
                 break
 
     if not chosen_entry:
+        if os.path.exists(os.path.join(workspace_path, "index.html")):
+            res = runner.smoke_run(workspace_path, entry_point=None, allow_fallback=True)
+            return 1.0 if res.is_success else 0.0
         return 0.0
 
-    res = runner.smoke_run(workspace_path, entry_point=chosen_entry)
+    # Legacy v1.2: direct zero-argument execution without CLI protocol fallback
+    py_stem = os.path.splitext(chosen_entry)[0]
+    smoke_code = (
+        "import sys, os\n"
+        "sys.path.insert(0, '.')\n"
+        "import importlib\n"
+        f"mod = importlib.import_module('{py_stem}')\n"
+        "if hasattr(mod, 'main'):\n"
+        "    try:\n"
+        "        mod.main()\n"
+        "    except SystemExit as se:\n"
+        "        if se.code not in (0, None):\n"
+        "            raise\n"
+    )
+    smoke_cmd = ["python", "-c", smoke_code]
+    res = runner.execute(workspace_path, smoke_cmd, allow_fallback=True)
     return 1.0 if res.is_success else 0.0
+
+
+def calculate_executability_v1_3(workspace_path: str, sandbox_runner=None) -> float:
+    """Evaluator v1.3: executes Level 1 Entry-Point Smoke Protocol handling supported app types."""
+    from mas.analysis.sandbox import SandboxRunner
+    runner = sandbox_runner or SandboxRunner()
+
+    entry_points = ["main.py", "app.py"]
+    chosen_entry = None
+    for ep in entry_points:
+        if os.path.exists(os.path.join(workspace_path, ep)):
+            chosen_entry = ep
+            break
+
+    if not chosen_entry and os.path.exists(workspace_path):
+        for f in os.listdir(workspace_path):
+            if f.endswith(".py") and not f.startswith("test_"):
+                chosen_entry = f
+                break
+
+    if not chosen_entry:
+        if os.path.exists(os.path.join(workspace_path, "index.html")):
+            res = runner.smoke_run(workspace_path, entry_point=None, allow_fallback=True)
+            return 1.0 if res.is_success else 0.0
+        return 0.0
+
+    res = runner.smoke_run(workspace_path, entry_point=chosen_entry, allow_fallback=True)
+    return 1.0 if res.is_success else 0.0
+
+
+def calculate_executability(workspace_path: str, sandbox_runner=None, version: str = "v1.3") -> float:
+    """Calculates entry-point executability under specified evaluator methodology version."""
+    if version == "v1.2":
+        return calculate_executability_v1_2(workspace_path, sandbox_runner=sandbox_runner)
+    return calculate_executability_v1_3(workspace_path, sandbox_runner=sandbox_runner)
 
 
 _embedder = None
@@ -89,6 +148,9 @@ _embedder = None
 def get_embedding_model():
     global _embedder
     if _embedder is None:
+        if os.environ.get("MAS_DISABLE_TORCH") == "1":
+            _embedder = "mock"
+            return _embedder
         try:
             from sentence_transformers import SentenceTransformer
             _embedder = SentenceTransformer("all-MiniLM-L6-v2")
@@ -97,13 +159,14 @@ def get_embedding_model():
     return _embedder
 
 
-def calculate_consistency(requirement: str, code_text: str) -> float:
+def calculate_consistency(requirement: str, code_text: Optional[str]) -> Optional[float]:
     """Calculates cosine similarity between requirement and code embedding using all-MiniLM-L6-v2.
 
-    (Note: This is an MAS implementation choice, not claimed to be iCoder's original model).
+    Returns None (UNAVAILABLE) if requirement or code is missing.
+    Falls back to genuine lexical token recall without artificial floor if embedding fails.
     """
-    if not requirement or not code_text:
-        return 0.5
+    if not requirement or not code_text or not code_text.strip():
+        return None
 
     embedder = get_embedding_model()
     if embedder != "mock":
@@ -118,16 +181,28 @@ def calculate_consistency(requirement: str, code_text: str) -> float:
         except Exception:
             pass
 
-    # Deterministic lexical fallback
-    req_words = set(requirement.lower().split())
-    code_words = set(code_text.lower().split())
-    if not req_words or not code_words:
-        return 0.5
-    overlap = len(req_words & code_words) / len(req_words | code_words)
-    sim = 0.5 + min(overlap * 2.0, 0.5)
-    return round(sim, 4)
+    # Genuine lexical keyword overlap without artificial floor
+    import re
+    clean_req_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', requirement.lower()) if w not in {'the', 'and', 'for', 'with', 'that', 'this', 'you', 'from'})
+    clean_code_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', code_text.lower()))
+    if not clean_req_words:
+        return 0.0
+
+    overlap = len(clean_req_words & clean_code_words)
+    recall = overlap / len(clean_req_words)
+    return round(float(recall), 4)
 
 
-def calculate_quality(completeness: float, executability: float, consistency: float) -> float:
-    """Quality_i = Completeness_i * Executability_i * Consistency_i."""
+def calculate_quality(
+    completeness: Optional[float],
+    executability: Optional[float],
+    consistency: Optional[float],
+) -> Optional[float]:
+    """Quality_i = Completeness_i * Executability_i * Consistency_i.
+
+    Returns None if any component metric is None / UNAVAILABLE.
+    """
+    if completeness is None or executability is None or consistency is None:
+        return None
     return round(completeness * executability * consistency, 4)
+

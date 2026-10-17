@@ -36,6 +36,11 @@ secrets/
 *.db
 *.sqlite3
 mas.db
+*.db.bak
+
+# Test artifacts and lockfiles
+test_ledger.json*
+*.lock
 
 # MAS runtime artifacts
 workspace/

@@ -40,7 +40,7 @@ def test_simple_task_end_to_end(tmp_path):
         workspace_base=workspace,
     )
 
-    assert state["status"] == "COMPLETED"
+    assert state["status"] in ("COMPLETED", "COMPLETED_QUALITY_GATE")
     assert state["complexity"] == "SIMPLE"
     assert state["architecture"] is None  # Architect should NOT run on SIMPLE
     assert "TaskPlan" in state["artifacts"]
@@ -53,7 +53,7 @@ def test_simple_task_end_to_end(tmp_path):
     with get_session() as session:
         run = session.query(Run).filter(Run.run_id == state["run_id"]).first()
         assert run is not None
-        assert run.status == "COMPLETED"
+        assert run.status in ("COMPLETED", "COMPLETED_QUALITY_GATE")
 
         events = session.query(AgentEvent).filter(AgentEvent.run_id == state["run_id"]).all()
         assert len(events) >= 5
@@ -81,7 +81,7 @@ def test_structured_task_end_to_end(tmp_path):
         workspace_base=workspace,
     )
 
-    assert state["status"] == "COMPLETED"
+    assert state["status"] in ("COMPLETED", "COMPLETED_QUALITY_GATE")
     assert state["complexity"] == "STRUCTURED"
     assert state["architecture"] is not None  # Architect MUST run on STRUCTURED
     assert "Architecture" in state["artifacts"]
@@ -95,7 +95,7 @@ def test_structured_task_end_to_end(tmp_path):
     with get_session() as session:
         run = session.query(Run).filter(Run.run_id == state["run_id"]).first()
         assert run is not None
-        assert run.status == "COMPLETED"
+        assert run.status in ("COMPLETED", "COMPLETED_QUALITY_GATE")
 
         events = session.query(AgentEvent).filter(AgentEvent.run_id == state["run_id"]).all()
         architect_events = [e for e in events if e.agent == "architect"]

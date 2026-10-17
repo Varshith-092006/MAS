@@ -1,0 +1,40 @@
+{
+  "benchmark": "FREE_MODEL_EXPLORATORY",
+  "task_id": "srdd_educ_01",
+  "task_name": "Science Question Solver",
+  "requirement_sha256": "15b83bd79330fcf4a79de4ad9cbc725ffeba2a695f1b76bf4d1ca567c4740012",
+  "requested_model": "cohere/north-mini-code:free",
+  "evaluation_id": "eval_free_model_exploratory_1791737975",
+  "timestamp": "2026-10-11T17:02:53.293207",
+  "pair_status": "COMPLETED",
+  "mas": {
+    "run_id": "mas_srdd_educ_01_free_exp",
+    "status": "COMPLETED",
+    "duration_s": 133.73,
+    "tokens": 15403,
+    "token_provenance": "PROVIDER_REPORTED",
+    "cost_usd": 0.0,
+    "completeness": 1.0,
+    "executability": 1.0,
+    "consistency": 0.85,
+    "quality_q": 0.85,
+    "quality_per_1k": 0.0552,
+    "neutral_test_passed": false,
+    "neutral_test_details": []
+  },
+  "chatdev": {
+    "run_id": "cd_srdd_educ_01_free_exp",
+    "status": "COMPLETED",
+    "duration_s": 44.09,
+    "tokens": 2519,
+    "token_provenance": "PROVIDER_REPORTED",
+    "cost_usd": 0.0,
+    "completeness": 1.0,
+    "executability": 0.0,
+    "consistency": 0.5,
+    "quality_q": 0.0,
+    "quality_per_1k": 0.0,
+    "neutral_test_passed": false,
+    "neutral_test_details": []
+  }
+}

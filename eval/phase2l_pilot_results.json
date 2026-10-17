@@ -1,0 +1,106 @@
+{
+  "series_timestamp": 1792240222,
+  "phase": "PHASE_2L",
+  "utc_date": "2026-10-17",
+  "current_utc_time": "2026-10-17T12:30:22Z",
+  "model_requested": "cohere/north-mini-code:free",
+  "provider_routing": "OpenRouter Direct API (https://openrouter.ai/api/v1)",
+  "allow_fallbacks": false,
+  "ledger_audit": {
+    "utc_date": "2026-10-17",
+    "successful_model_calls": 28,
+    "failed_attempts_recorded": 16,
+    "metadata_queries": 2,
+    "scratch_diagnostic_requests": 8,
+    "total_attributable_attempts": 54,
+    "active_reservations": 0,
+    "internal_daily_cap": 45,
+    "remaining_internal_attempts": 0,
+    "cap_breached": true,
+    "excess_transmissions": 9
+  },
+  "reset_status": {
+    "documented_reset_rule": "Strict network restriction before 2026-10-18 00:00:00 UTC",
+    "reset_boundary_utc": "2026-10-18T00:00:00Z",
+    "hours_until_reset": 11.49,
+    "seconds_until_reset": 41377,
+    "is_post_reset": false
+  },
+  "governor_architecture": {
+    "concurrency_control": "InterprocessLedgerLock (msvcrt.locking / fcntl.flock) on eval/outbound_transmission_ledger.json.lock",
+    "atomic_persistence": "Atomic temp file + os.fsync() + os.replace()",
+    "lifecycle_state_machine": "RESERVED -> SUCCEEDED | HTTP_ERROR | NETWORK_ERROR",
+    "exact_once_accounting": "Allowance consumed upon reservation; finalization is strictly idempotent and never double-charges daily cap",
+    "offline_tests_verified": 11,
+    "offline_tests_passing": true,
+    "direct_http_bypasses_closed": [
+      "mas/core/proxy.py",
+      "scripts/test_models.py",
+      "scratch/test_or.py",
+      "scratch/check_catalog.py",
+      "scratch/verify_openrouter_auth.py",
+      "scratch/diagnose_reasoning.py",
+      "scratch/test_dev_token_budget.py",
+      "scratch/test_dev_effort_low.py",
+      "scratch/test_live_codepatch.py"
+    ]
+  },
+  "runs": [
+    {
+      "slot": "Task A",
+      "task_id": "dev_markdown_toc_01",
+      "run_id": "mas_dev_toc_a_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~11.49h remaining). Strict network restriction in effect.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0,
+      "token_provenance": "NO_GENERATION_PRODUCED",
+      "behavioral_tests": "READY_OFFLINE"
+    },
+    {
+      "slot": "Task B",
+      "task_id": "dev_inventory_system_01",
+      "run_id": "mas_dev_inv_b_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~11.49h remaining). Strict network restriction in effect.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0,
+      "token_provenance": "NO_GENERATION_PRODUCED",
+      "behavioral_tests": "READY_OFFLINE"
+    },
+    {
+      "slot": "Task C",
+      "task_id": "dev_log_analyzer_01",
+      "run_id": "mas_dev_log_c_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~11.49h remaining). Strict network restriction in effect.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0,
+      "token_provenance": "NO_GENERATION_PRODUCED",
+      "behavioral_tests": "READY_OFFLINE"
+    },
+    {
+      "slot": "Task D",
+      "task_id": "dev_markdown_toc_01_repeat",
+      "run_id": "mas_dev_toc_d_repeat_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~11.49h remaining). Strict network restriction in effect.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0,
+      "token_provenance": "NO_GENERATION_PRODUCED",
+      "behavioral_tests": "READY_OFFLINE"
+    }
+  ]
+}

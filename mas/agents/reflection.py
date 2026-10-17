@@ -100,11 +100,11 @@ class AdaptiveStopper:
 
         # Condition 2: Marginal gain below epsilon for consecutive iterations
         if self.consecutive_low_gain >= self.patience:
-            return "STOP", f"marginal_gain: delta ({delta}) < {self.stop_epsilon} for {self.consecutive_low_gain} iterations", delta
+            return "STOP", f"marginal_gain_plateau: delta ({delta}) < {self.stop_epsilon} for {self.consecutive_low_gain} iterations (open_findings={has_critical_defects})", delta
 
         # Condition 3: Max iterations reached
         if iteration >= self.max_iterations:
-            return "STOP", f"max_iterations: reached limit of {self.max_iterations}", delta
+            return "STOP", f"max_iterations: reached limit of {self.max_iterations} (open_findings={has_critical_defects})", delta
 
         return "CONTINUE", f"continuing to iteration {iteration + 1} (delta={delta})", delta
 
@@ -142,28 +142,44 @@ class ReflectionAgent(BaseAgent):
             summary=f"Reflection calculating adaptive score for iteration {iteration}",
         )
 
-        # Gather internal signals
+        # Gather internal signals from actual execution, AST, and quality tools
         test_rep = state.get("mas_pytest_report", {})
         rev_rep = state.get("review_report", {})
+        q_rep = state.get("quality_report", {})
+        sandbox_exec = state.get("sandbox_execution", {})
+        ast_rep = state.get("ast_report", {})
+
+        ruff_viol = q_rep.get("ruff", {}).get("violations", 0) if isinstance(q_rep.get("ruff"), dict) else 0
+        bandit_h = q_rep.get("bandit", {}).get("high", 0) if isinstance(q_rep.get("bandit"), dict) else 0
+        bandit_m = q_rep.get("bandit", {}).get("medium", 0) if isinstance(q_rep.get("bandit"), dict) else 0
+        bandit_l = q_rep.get("bandit", {}).get("low", 0) if isinstance(q_rep.get("bandit"), dict) else 0
+        radon_mi = q_rep.get("radon", {}).get("mean_mi", 100.0) if isinstance(q_rep.get("radon"), dict) else 100.0
+        ast_cycles = len(ast_rep.get("cycles", [])) if isinstance(ast_rep.get("cycles"), list) else 0
+        exec_ok = 1.0 if sandbox_exec.get("is_success", False) else (0.0 if "is_success" in sandbox_exec else 1.0)
 
         signals = {
-            "internal_test": test_rep.get("pass_rate", 1.0),
-            "ruff_violations": 0,
-            "bandit_high": 0,
-            "bandit_medium": 0,
-            "bandit_low": 0,
-            "radon_mi": 100.0,
+            "internal_test": float(test_rep.get("pass_rate", 1.0 if exec_ok == 1.0 else 0.0)),
+            "ruff_violations": ruff_viol,
+            "bandit_high": bandit_h,
+            "bandit_medium": bandit_m,
+            "bandit_low": bandit_l,
+            "radon_mi": radon_mi,
             "reviewer_critical": rev_rep.get("critical_issues", 0),
             "reviewer_major": rev_rep.get("major_issues", 0),
             "completeness": 1.0,
-            "executability": 1.0,
+            "executability": exec_ok,
         }
 
         current_score = self.stopper.compute_score(signals)
         prev_score = state.get("previous_adaptive_score", 0.0)
 
-        has_critical = (signals["reviewer_critical"] > 0)
-        tests_pass = (signals["internal_test"] >= 1.0)
+        has_critical = (
+            signals["reviewer_critical"] > 0
+            or ast_cycles > 0
+            or exec_ok == 0.0
+            or rev_rep.get("status") == "FAILED"
+        )
+        tests_pass = (signals["internal_test"] >= 1.0 and exec_ok >= 1.0)
 
         decision, reason, delta = self.stopper.evaluate_stop(
             iteration=iteration,

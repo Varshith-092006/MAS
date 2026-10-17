@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0-DEV-PILOT",
+  "description": "Neutral Evaluator Level 2 Development Pilot Tasks Checks Specification.",
+  "is_example_specification": false,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "task_id": { "type": "string" },
+      "name": { "type": "string" },
+      "test_script": { "type": "string" },
+      "expected_exit_code": { "type": "integer" }
+    },
+    "required": ["task_id", "expected_exit_code"]
+  },
+  "checks": [
+    {
+      "task_id": "dev_csv_sales_01",
+      "name": "CSV Sales Summary CLI Level 2 Suite",
+      "test_script": "eval/checks/test_dev_csv_sales_01.py",
+      "expected_exit_code": 0,
+      "notes": "16 Level 2 assertions covering normal, malformed, empty, and CLI error handling."
+    },
+    {
+      "task_id": "dev_markdown_toc_01",
+      "name": "Markdown Table of Contents CLI Level 2 Suite",
+      "test_script": "eval/checks/test_dev_markdown_toc_01.py",
+      "expected_exit_code": 0,
+      "notes": "Level 2 assertions covering heading extraction, code block exclusion, indentation, slugs, and CLI error handling."
+    },
+    {
+      "task_id": "dev_inventory_system_01",
+      "name": "Multi-Module Inventory System Level 2 Suite",
+      "test_script": "eval/checks/test_dev_inventory_system_01.py",
+      "expected_exit_code": 0,
+      "notes": "Level 2 assertions covering modular architecture, model validation, persistence, operations, and corrupt data handling."
+    },
+    {
+      "task_id": "dev_log_analyzer_01",
+      "name": "Web Server Access Log Metrics CLI Level 2 Suite",
+      "test_script": "eval/checks/test_dev_log_analyzer_01.py",
+      "expected_exit_code": 0,
+      "notes": "Level 2 assertions covering log parsing, status distributions, bandwidth sums, error rate calculation, and malformed line handling."
+    },
+    {
+      "task_id": "dev_markdown_toc_01_repeat",
+      "name": "Markdown Table of Contents CLI Repeat Level 2 Suite",
+      "test_script": "eval/checks/test_dev_markdown_toc_01.py",
+      "expected_exit_code": 0,
+      "notes": "Identical frozen Level 2 assertions used for consistency assessment."
+    }
+  ]
+}

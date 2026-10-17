@@ -13,6 +13,7 @@ from mas.db.session import get_session
 
 class TesterAgent(BaseAgent):
     """Generates internal diagnostic tests for the code and reports test pass rate."""
+    __test__ = False
 
     def __init__(self, llm, **kwargs):
         super().__init__(name="tester", llm=llm, **kwargs)
@@ -27,47 +28,73 @@ class TesterAgent(BaseAgent):
             summary="Generating internal diagnostic tests",
         )
 
-        def produce_test_report(feedback=None):
-            messages = [
-                {
-                    "role": "system",
-                    "content": "You are TesterAgent. Return a TestReport JSON describing internal diagnostic test results.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Changed files: {state.get('changed_files', [])}\nFeedback: {feedback or 'None'}",
-                },
-            ]
-            res = self.llm.generate(
-                messages=messages,
-                response_schema=TestReport,
-                run_id=run_id,
-                agent_name="tester",
-            )
-            if res.parsed_json:
-                return res.parsed_json
-            return {
-                "total_tests": 2,
-                "passed_tests": 2,
-                "failed_tests": 0,
-                "pass_rate": 1.0,
-                "coverage": 95.0,
-                "details": ["test_core PASSED"],
-            }
-
-        report: TestReport = self.produce_valid_artifact("TestReport", produce_test_report, state, TestReport)
-
-        # Run code in Docker Sandbox
+        # Run code in Sandbox first to observe real execution
         from mas.analysis.sandbox import SandboxRunner
         sandbox = SandboxRunner()
         workspace_path = state.get("workspace_path", ".")
-        sandbox_res = sandbox.smoke_run(workspace_path)
+        sandbox_res = sandbox.smoke_run(workspace_path, allow_fallback=True)
         state["sandbox_execution"] = {
             "exit_code": sandbox_res.exit_code,
             "is_success": sandbox_res.is_success,
             "duration_ms": sandbox_res.duration_ms,
             "timed_out": sandbox_res.timed_out,
+            "stderr": sandbox_res.stderr,
         }
+
+        plan = state.get("artifacts", {}).get("TaskPlan", {})
+        acceptance_criteria = plan.get("acceptance_criteria", [])
+
+        def produce_test_report(feedback=None):
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are TesterAgent. Generate an honest TestReport based on actual acceptance criteria and sandbox execution outcomes. "
+                        "Do NOT fabricate passing tests if the code failed to execute. "
+                        "Return a valid TestReport JSON with total_tests, passed_tests, failed_tests, pass_rate (passed/total), coverage, and details."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Task: {state.get('requirement', '')}\n"
+                        f"Acceptance Criteria: {acceptance_criteria}\n"
+                        f"Changed Files: {state.get('changed_files', [])}\n"
+                        f"Sandbox Smoke Test Exit Code: {sandbox_res.exit_code} (Success: {sandbox_res.is_success})\n"
+                        f"Sandbox Stderr: {sandbox_res.stderr or 'None'}\n"
+                        f"Feedback: {feedback or 'None'}"
+                    ),
+                },
+            ]
+            target_model = state.get("model") or getattr(self.llm, "default_model", None)
+            res = self.llm.generate(
+                messages=messages,
+                model=target_model,
+                response_schema=TestReport,
+                run_id=run_id,
+                agent_name="tester",
+                max_tokens=3000,
+            )
+            data = res.parsed_json
+            if not data and res.text:
+                from mas.core.llm import extract_json
+                data = extract_json(res.text)
+
+            if data and isinstance(data, dict):
+                data = dict(data)
+                # If sandbox smoke test failed, ensure pass_rate reflects execution failure
+                if not sandbox_res.is_success and data.get("pass_rate", 0.0) == 1.0 and data.get("total_tests", 0) > 0:
+                    data["failed_tests"] = max(1, data.get("failed_tests", 0) + 1)
+                    data["pass_rate"] = round(data.get("passed_tests", 0) / (data["passed_tests"] + data["failed_tests"]), 4)
+                    data.setdefault("details", []).append(f"Sandbox smoke execution failed: {sandbox_res.stderr[:100]}")
+                return data
+
+            # Return error payload to trigger produce_valid_artifact retry mechanism
+            return {
+                "error": f"Tester LLM output could not be parsed as TestReport JSON: {res.text[:300]}"
+            }
+
+        report: TestReport = self.produce_valid_artifact("TestReport", produce_test_report, state, TestReport)
 
         state["mas_pytest_report"] = report.model_dump()
         state["artifacts"]["TestReport"] = report.model_dump()

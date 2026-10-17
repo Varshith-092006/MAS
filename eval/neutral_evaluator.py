@@ -13,7 +13,7 @@ from eval.scorers.icoder_metrics import (
 from eval.scorers.shared_test import SharedTestHarness
 from mas.analysis.quality_tools import QualityTools
 from mas.analysis.sandbox import SandboxRunner
-from mas.db.models import Metric, ConfigSnapshot
+from mas.db.models import Metric, ConfigSnapshot, Run
 from mas.db.session import get_session
 
 
@@ -28,11 +28,15 @@ def compute_checks_file_hash(checks_path: str = "eval/checks/level2_checks.json"
 class NeutralEvaluator:
     """Independent Neutral Evaluator executing outside the MAS generation loop."""
 
+    VERSION = "v1.3"
+
     def __init__(
         self,
         checks_path: str = "eval/checks/level2_checks.json",
         sandbox_runner: Optional[SandboxRunner] = None,
+        version: Optional[str] = None,
     ):
+        self.version = version or self.VERSION
         self.checks_path = checks_path
         self.sandbox = sandbox_runner or SandboxRunner()
         self.shared_harness = SharedTestHarness(checks_path=checks_path, sandbox_runner=self.sandbox)
@@ -55,7 +59,7 @@ class NeutralEvaluator:
             if any(skip in root for skip in [".git", "__pycache__", ".mas_snapshots"]):
                 continue
             for f in files:
-                if f.endswith(".py"):
+                if f.endswith((".py", ".js", ".html")):
                     try:
                         with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
                             code_snippets.append(fh.read())
@@ -65,7 +69,7 @@ class NeutralEvaluator:
 
         # 2. iCoder-style metrics
         completeness = calculate_completeness(abs_workspace)
-        executability = calculate_executability(abs_workspace, self.sandbox)
+        executability = calculate_executability(abs_workspace, self.sandbox, version=self.version)
         consistency = calculate_consistency(requirement, full_code)
         quality = calculate_quality(completeness, executability, consistency)
 
@@ -88,6 +92,7 @@ class NeutralEvaluator:
             "bandit_high": bandit_high,
             "radon_mi": radon_mi,
             "checks_file_hash": self.checks_hash,
+            "evaluator_version": self.version,
         }
 
         # 5. Persist to database with scope = 'neutral'
@@ -97,21 +102,31 @@ class NeutralEvaluator:
                     metric_rows = [
                         Metric(run_id=run_id, metric_name="completeness", metric_value=completeness, scope="neutral"),
                         Metric(run_id=run_id, metric_name="executability", metric_value=executability, scope="neutral"),
-                        Metric(run_id=run_id, metric_name="consistency", metric_value=consistency, scope="neutral"),
-                        Metric(run_id=run_id, metric_name="quality", metric_value=quality, scope="neutral"),
                         Metric(run_id=run_id, metric_name="shared_test", metric_value=shared_test_res["score"], scope="neutral"),
                         Metric(run_id=run_id, metric_name="ruff", metric_value=float(ruff_violations), scope="neutral"),
                         Metric(run_id=run_id, metric_name="bandit", metric_value=float(bandit_high), scope="neutral"),
                         Metric(run_id=run_id, metric_name="radon", metric_value=float(radon_mi), scope="neutral"),
                     ]
+                    if consistency is not None:
+                        metric_rows.append(Metric(run_id=run_id, metric_name="consistency", metric_value=consistency, scope="neutral"))
+                    if quality is not None:
+                        metric_rows.append(Metric(run_id=run_id, metric_name="quality", metric_value=quality, scope="neutral"))
                     session.add_all(metric_rows)
+
+                    # Update Run record with sandbox status and workspace path
+                    run_row = session.query(Run).filter(Run.run_id == run_id).first()
+                    if run_row:
+                        run_row.sandbox_status = "SUCCESS" if executability > 0.0 else "FAILED"
+                        if not run_row.workspace_path:
+                            run_row.workspace_path = abs_workspace
 
                     # Update config snapshot with checks file hash
                     snap = session.query(ConfigSnapshot).filter(ConfigSnapshot.run_id == run_id).first()
                     if snap:
                         snap.checks_file_hash = self.checks_hash
                     session.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("evaluator").error(f"Failed to persist neutral metrics: {e}")
 
         return results

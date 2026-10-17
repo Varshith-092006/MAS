@@ -1,0 +1,19 @@
+{
+  "task_id": "dev_log_analyzer_01",
+  "name": "Web Server Access Log Metrics CLI",
+  "description": "A log analyzer CLI tool that calculates summary statistics from web server access log files, computes status code counts, total bandwidth bytes, and error percentages, skipping malformed lines with warnings and handling empty files cleanly.",
+  "category": "DevelopmentPilot",
+  "subcategory": "CLI_DataProcessing",
+  "acceptance_criteria": [
+    "Parse standard web server access log lines containing IP, timestamp, method, path, HTTP status, and response size.",
+    "Compute total request count, status code frequency distribution (e.g., 200, 404, 500), and total bytes transferred.",
+    "Calculate error percentage ((4xx + 5xx) / total * 100) accurately.",
+    "Handle empty log files cleanly by exiting code 0 and outputting zero metrics.",
+    "Skip malformed or unparseable lines with a warning to stderr without crashing.",
+    "Exit with code 1 and error message on non-existent input log file.",
+    "Support standard CLI invocation via main.py with --help option exiting code 0.",
+    "Report usage error and exit code 2 when required log file argument is omitted.",
+    "Include automated behavioral unit tests in test_main.py covering valid, malformed, and empty logs."
+  ],
+  "frozen_benchmark": false
+}

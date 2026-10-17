@@ -2,9 +2,202 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #020617;
-  color: #f8fafc;
+/* ============================================================
+   MAS RESEARCH DASHBOARD — Global Design System
+   Premium dark-mode research interface
+   ============================================================ */
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    --color-bg: #020617;
+    --color-surface: #0f172a;
+    --color-border: #1e293b;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--color-bg);
+    color: #f8fafc;
+    line-height: 1.5;
+  }
+
+  code, pre, kbd, samp, .font-mono {
+    font-family: var(--font-mono) !important;
+  }
+
+  /* Custom scrollbar — thin, dark, research feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  /* Selection highlight */
+  ::selection {
+    background: rgba(6, 182, 212, 0.25);
+    color: #e2e8f0;
+  }
+
+  /* Focus rings */
+  :focus-visible {
+    outline: 2px solid rgba(6, 182, 212, 0.6);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* === Metric Cards === */
+  .metric-card {
+    @apply bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md
+           transition-all duration-200 hover:border-slate-700 hover:shadow-lg;
+  }
+
+  /* === Research Badges === */
+  .badge-reference {
+    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
+           bg-amber-950/80 text-amber-400 border border-amber-800/60;
+  }
+  .badge-experimental {
+    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
+           bg-indigo-950/80 text-indigo-400 border border-indigo-800/60;
+  }
+  .badge-live {
+    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
+           bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 animate-pulse;
+  }
+
+  /* === Table row hover === */
+  .table-row-hover {
+    @apply hover:bg-slate-800/40 transition-colors duration-100 cursor-pointer;
+  }
+
+  /* === Section headers === */
+  .section-heading {
+    @apply text-xs font-bold uppercase tracking-widest text-slate-400 mb-2;
+  }
+
+  /* === Input fields === */
+  .research-input {
+    @apply bg-slate-950 border border-slate-800 focus:border-cyan-500
+           rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none
+           transition-colors duration-150 placeholder-slate-600;
+  }
+
+  /* === Panel === */
+  .research-panel {
+    @apply bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg;
+  }
+
+  /* === Sidebar nav items === */
+  .nav-item-active {
+    @apply bg-gradient-to-r from-cyan-500/10 to-indigo-500/10
+           text-cyan-400 border border-cyan-500/30 shadow-sm;
+  }
+  .nav-item-idle {
+    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800/60
+           border border-transparent;
+  }
+}
+
+@layer utilities {
+  /* Gradient text */
+  .text-gradient-cyan {
+    background: linear-gradient(135deg, #06b6d4, #6366f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Subtle glow for active elements */
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.15), 0 0 40px rgba(6, 182, 212, 0.05);
+  }
+
+  /* Glassmorphism card */
+  .glass-card {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(30, 41, 59, 0.8);
+  }
+
+  /* Animated gradient background */
+  .animated-gradient-bg {
+    background: linear-gradient(
+      -45deg,
+      #020617,
+      #0a0f1e,
+      #020617,
+      #060b18
+    );
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  /* Fade-in animation */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  /* Slide-in from left */
+  .animate-slide-in {
+    animation: slide-in 0.2s ease-out forwards;
+  }
+}
+
+/* === Keyframe Animations === */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Progress bar shimmer for running tasks */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(6, 182, 212, 0.2) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
 }

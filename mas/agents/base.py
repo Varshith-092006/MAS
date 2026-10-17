@@ -4,7 +4,14 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel
 
-from mas.core.llm import LLMProvider
+from mas.core.llm import (
+    LLMProvider,
+    OpenRouterAPIError,
+    ModelMismatchError,
+    TokenCapExceededError,
+    DispatchCeilingExceededError,
+    DailyTransmissionsCeilingExceededError,
+)
 from mas.core.state import MASState
 from mas.core.validator import SchemaValidator, ValidationResult
 from mas.core.events import event_logger
@@ -31,6 +38,25 @@ class BaseAgent(ABC):
         """Executes the agent logic and returns updated MASState."""
         pass
 
+    def _record_artifact(self, run_id: str, artifact_type: str, iteration: int, parsed_artifact: BaseModel):
+        if not run_id or run_id == "unknown":
+            return
+        try:
+            from mas.db.models import Artifact
+            from mas.db.session import get_session
+            with get_session() as session:
+                art = Artifact(
+                    run_id=run_id,
+                    type=artifact_type,
+                    version=iteration,
+                    schema_valid=True,
+                    json_data=parsed_artifact.model_dump(),
+                )
+                session.add(art)
+                session.commit()
+        except Exception:
+            pass
+
     def produce_valid_artifact(
         self,
         artifact_type: str,
@@ -47,14 +73,21 @@ class BaseAgent(ABC):
         5. if still invalid, fail run
         """
         run_id = state.get("run_id", "unknown")
+        iteration = state.get("iteration", 1)
         cp_ref = None
         if self.checkpoint_manager:
             cp_ref = self.checkpoint_manager.save_checkpoint()
 
         # Step 1: Initial generation
-        candidate = producer_func(feedback=None)
+        try:
+            candidate = producer_func(feedback=None)
+        except (OpenRouterAPIError, ModelMismatchError, TokenCapExceededError, DispatchCeilingExceededError, DailyTransmissionsCeilingExceededError):
+            raise
+        except Exception as e:
+            candidate = {"__producer_exception__": str(e)}
         res = self.validator.validate_artifact(artifact_type, candidate)
         if res.is_valid and res.parsed_artifact:
+            self._record_artifact(run_id, artifact_type, iteration, res.parsed_artifact)
             return res.parsed_artifact
 
         # Record validation failure
@@ -68,7 +101,12 @@ class BaseAgent(ABC):
         )
 
         # Step 2: Retry producer once with feedback
-        retry_candidate = producer_func(feedback=f"Validation error: {err_msg}. Please return valid JSON.")
+        try:
+            retry_candidate = producer_func(feedback=f"Validation error: {err_msg}. Please return valid JSON conforming to {schema_model.__name__}.")
+        except (OpenRouterAPIError, ModelMismatchError, TokenCapExceededError, DispatchCeilingExceededError, DailyTransmissionsCeilingExceededError):
+            raise
+        except Exception as e:
+            retry_candidate = {"__producer_exception__": str(e)}
         res_retry = self.validator.validate_artifact(artifact_type, retry_candidate)
         if res_retry.is_valid and res_retry.parsed_artifact:
             event_logger.emit(
@@ -78,6 +116,7 @@ class BaseAgent(ABC):
                 status="success",
                 summary=f"Producer retry succeeded for {artifact_type}",
             )
+            self._record_artifact(run_id, artifact_type, iteration, res_retry.parsed_artifact)
             return res_retry.parsed_artifact
 
         # Step 3: Rollback to last valid checkpoint and rerun
@@ -91,9 +130,15 @@ class BaseAgent(ABC):
                 summary=f"Rolled back to checkpoint {cp_ref} after retry failure",
             )
 
-        rerun_candidate = producer_func(feedback=f"Strict compliance required for schema: {schema_model.model_json_schema()}")
+        try:
+            rerun_candidate = producer_func(feedback=f"Strict compliance required for schema: {schema_model.model_json_schema()}")
+        except (OpenRouterAPIError, ModelMismatchError, TokenCapExceededError, DispatchCeilingExceededError, DailyTransmissionsCeilingExceededError):
+            raise
+        except Exception as e:
+            rerun_candidate = {"__producer_exception__": str(e)}
         res_rerun = self.validator.validate_artifact(artifact_type, rerun_candidate)
         if res_rerun.is_valid and res_rerun.parsed_artifact:
+            self._record_artifact(run_id, artifact_type, iteration, res_rerun.parsed_artifact)
             return res_rerun.parsed_artifact
 
         event_logger.emit(
@@ -104,3 +149,4 @@ class BaseAgent(ABC):
             summary=f"Permanent validation failure for {artifact_type} after retry and rollback",
         )
         raise ValueError(f"Producer {self.name} failed to produce valid {artifact_type}: {res_rerun.error_summary()}")
+

@@ -1,0 +1,38 @@
+{
+  "runs": [
+    {
+      "slot": "Task A",
+      "task_id": "dev_markdown_toc_01",
+      "run_id": "mas_dev_toc_a_p2m_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~9.95h remaining). Strict pre-reset network freeze in effect.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0,
+      "token_provenance": "NO_GENERATION_PRODUCED",
+      "behavioral_tests": "READY_OFFLINE"
+    }
+  ],
+  "current_utc_time": "2026-10-17T14:02:45Z",
+  "reset_status": {
+    "reset_boundary_utc": "2026-10-18T00:00:00Z",
+    "boundary_passed": false,
+    "hours_until_reset": 9.95,
+    "seconds_until_reset": 35834
+  },
+  "ledger_audit": {
+    "utc_date": "2026-10-17",
+    "successful_model_calls": 28,
+    "failed_attempts_recorded": 16,
+    "metadata_queries": 2,
+    "scratch_diagnostic_requests": 8,
+    "total_attributable_attempts": 54,
+    "active_reservations": 0,
+    "internal_daily_cap": 45,
+    "remaining_internal_attempts": 0,
+    "cap_breached": true,
+    "excess_transmissions": 9
+  }
+}

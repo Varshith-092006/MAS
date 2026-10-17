@@ -1,0 +1,92 @@
+{
+  "run_id": "mas_dev_csv_sales_1792211451",
+  "task_id": "dev_csv_sales_01",
+  "model_id": "cohere/north-mini-code:free",
+  "duration_seconds": 135.32,
+  "status": "FAILED",
+  "complexity": null,
+  "complexity_score": null,
+  "total_calls": 4,
+  "total_input_tokens": 3216,
+  "total_output_tokens": 12147,
+  "total_cost": 0.0,
+  "calls": [
+    {
+      "index": 1,
+      "agent": "manager",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211451-rig6Qz8ozji1LTKRScbt",
+      "cost": 0.0,
+      "prompt_tokens": 572,
+      "completion_tokens": 1647,
+      "reasoning_tokens": 1210,
+      "visible_tokens": 437,
+      "total_tokens": 2219
+    },
+    {
+      "index": 2,
+      "agent": "developer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211473-Dc7LibC8yyHcQS5dHF1O",
+      "cost": 0.0,
+      "prompt_tokens": 810,
+      "completion_tokens": 3500,
+      "reasoning_tokens": 4131,
+      "visible_tokens": 0,
+      "total_tokens": 4310
+    },
+    {
+      "index": 3,
+      "agent": "developer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211527-9zCEM22D8zL436GTdi2s",
+      "cost": 0.0,
+      "prompt_tokens": 839,
+      "completion_tokens": 3500,
+      "reasoning_tokens": 4063,
+      "visible_tokens": 0,
+      "total_tokens": 4339
+    },
+    {
+      "index": 4,
+      "agent": "developer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211558-PAJ6RTvZGYCt2G1xvaew",
+      "cost": 0.0,
+      "prompt_tokens": 995,
+      "completion_tokens": 3500,
+      "reasoning_tokens": 4011,
+      "visible_tokens": 0,
+      "total_tokens": 4495
+    }
+  ],
+  "workspace_files": [],
+  "behavioral_results": {
+    "task_id": "dev_csv_sales_01",
+    "task_name": "CSV Sales Summary CLI",
+    "test_suite_version": "1.0.0-DEV-PILOT",
+    "assertions": {
+      "module_import": false
+    },
+    "all_passed": false,
+    "logs": [
+      "FAIL: No Python source files found in workspace."
+    ]
+  },
+  "neutral_evaluation": {
+    "completeness": 0.0,
+    "executability": 0.0,
+    "consistency": null,
+    "quality": null,
+    "shared_test": 0.0,
+    "ruff_violations": 0,
+    "bandit_high": 0,
+    "radon_mi": 100.0,
+    "checks_file_hash": "fb3843c41ec04694acc406437735c5a56b7c943c6702a2579e9f8c6a1fa71354",
+    "evaluator_version": "v1.2"
+  }
+}

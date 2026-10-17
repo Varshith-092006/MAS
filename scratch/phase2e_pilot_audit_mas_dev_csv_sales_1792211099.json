@@ -1,0 +1,153 @@
+{
+  "run_id": "mas_dev_csv_sales_1792211099",
+  "task_id": "dev_csv_sales_01",
+  "model_id": "cohere/north-mini-code:free",
+  "duration_seconds": 157.29,
+  "status": "FAILED",
+  "complexity": null,
+  "complexity_score": null,
+  "total_calls": 8,
+  "total_input_tokens": 8245,
+  "total_output_tokens": 14415,
+  "total_cost": 0.0,
+  "calls": [
+    {
+      "index": 1,
+      "agent": "manager",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211099-46Acc36xz4mjwxRwZcYN",
+      "cost": 0.0,
+      "prompt_tokens": 572,
+      "completion_tokens": 1998,
+      "reasoning_tokens": 1829,
+      "visible_tokens": 169,
+      "total_tokens": 2570
+    },
+    {
+      "index": 2,
+      "agent": "manager",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211126-yahGGFVZPaS6r2ijmJDf",
+      "cost": 0.0,
+      "prompt_tokens": 611,
+      "completion_tokens": 1733,
+      "reasoning_tokens": 1428,
+      "visible_tokens": 305,
+      "total_tokens": 2344
+    },
+    {
+      "index": 3,
+      "agent": "developer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211155-ndoes8rmqcOjO5Hi7RKy",
+      "cost": 0.0,
+      "prompt_tokens": 855,
+      "completion_tokens": 1056,
+      "reasoning_tokens": 1056,
+      "visible_tokens": 0,
+      "total_tokens": 1911
+    },
+    {
+      "index": 4,
+      "agent": "developer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211163-dZRloxZw139u1ctyjg8k",
+      "cost": 0.0,
+      "prompt_tokens": 735,
+      "completion_tokens": 3500,
+      "reasoning_tokens": 3991,
+      "visible_tokens": 0,
+      "total_tokens": 4235
+    },
+    {
+      "index": 5,
+      "agent": "tester",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211203-O0h5Ch606G9JrviJJZzZ",
+      "cost": 0.0,
+      "prompt_tokens": 703,
+      "completion_tokens": 375,
+      "reasoning_tokens": 112,
+      "visible_tokens": 263,
+      "total_tokens": 1078
+    },
+    {
+      "index": 6,
+      "agent": "reviewer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211206-D4gGtJiK76TrnEFeCQuM",
+      "cost": 0.0,
+      "prompt_tokens": 1499,
+      "completion_tokens": 753,
+      "reasoning_tokens": 516,
+      "visible_tokens": 237,
+      "total_tokens": 2252
+    },
+    {
+      "index": 7,
+      "agent": "reviewer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211216-5Tv8t3LA9HApQfBUbEAL",
+      "cost": 0.0,
+      "prompt_tokens": 1516,
+      "completion_tokens": 2500,
+      "reasoning_tokens": 2757,
+      "visible_tokens": 0,
+      "total_tokens": 4016
+    },
+    {
+      "index": 8,
+      "agent": "reviewer",
+      "requested_model": "cohere/north-mini-code:free",
+      "actual_model": "cohere/north-mini-code:free",
+      "request_id": "gen-1792211236-ZA7GEr8j2QrR0ivWM0hJ",
+      "cost": 0.0,
+      "prompt_tokens": 1754,
+      "completion_tokens": 2500,
+      "reasoning_tokens": 2866,
+      "visible_tokens": 0,
+      "total_tokens": 4254
+    }
+  ],
+  "workspace_files": [
+    "main.py"
+  ],
+  "behavioral_results": {
+    "task_id": "dev_csv_sales_01",
+    "task_name": "CSV Sales Summary CLI",
+    "test_suite_version": "1.0.0-DEV-PILOT",
+    "assertions": {
+      "module_import": true,
+      "normal_calculation": false,
+      "empty_csv_handling": false,
+      "malformed_data_handling": true
+    },
+    "all_passed": false,
+    "logs": [
+      "PASS: Found entry point main.py",
+      "WARN: CLI direct run returned code 2: Error: Missing required column(s): product name, unit price\n",
+      "FAIL: Empty CSV resulted in returncode 2: Error: Missing required column(s): product name, unit price\n",
+      "PASS: Malformed rows handled without unhandled crash."
+    ],
+    "pass_rate": 0.5
+  },
+  "neutral_evaluation": {
+    "completeness": 1.0,
+    "executability": 0.0,
+    "consistency": 0.3654,
+    "quality": 0.0,
+    "shared_test": 0.0,
+    "ruff_violations": 0,
+    "bandit_high": 0,
+    "radon_mi": 100.0,
+    "checks_file_hash": "fb3843c41ec04694acc406437735c5a56b7c943c6702a2579e9f8c6a1fa71354",
+    "evaluator_version": "v1.2"
+  }
+}

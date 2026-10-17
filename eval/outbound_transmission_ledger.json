@@ -1,0 +1,131 @@
+{
+  "2026-10-17": {
+    "utc_date": "2026-10-17",
+    "generation_calls_successful": 28,
+    "generation_attempts_failed_retries": 12,
+    "generation_probes_failed": 4,
+    "scratch_diagnostic_requests": 8,
+    "metadata_queries": 2,
+    "total_outbound_http_transmissions": 54,
+    "internal_daily_cap": 45,
+    "cap_breached": true,
+    "breach_excess_transmissions": 9,
+    "breach_percentage": 20.0,
+    "permanent_audit_record": "Recorded per Phase 2I/2J audit: 52 free-model generation attempts (28 Phase 2E live calls + 16 Phase 2G 429 attempts + 8 scratch diagnostics) + 2 key metadata queries = 54 outbound HTTP transmissions, exceeding internal 45-request ceiling by 9 attempts.",
+    "events": [
+      {
+        "seq": 1,
+        "time_utc": "2026-10-17T02:37:22Z",
+        "type": "SCRATCH_GENERATION",
+        "target": "qwen/qwen-2.5-coder-32b-instruct:free",
+        "source": "scratch/test_pilot_qwen.py",
+        "status": 200
+      },
+      {
+        "seq": 2,
+        "time_utc": "2026-10-17T03:04:47Z",
+        "type": "SCRATCH_GENERATION",
+        "target": "cohere/north-mini-code:free",
+        "source": "scratch/test_pilot_live_smoke.py",
+        "status": 200
+      },
+      {
+        "seq": 3,
+        "time_utc": "2026-10-17T03:03:53Z",
+        "type": "SCRATCH_GENERATION",
+        "target": "cohere/north-mini-code:free",
+        "source": "scratch/test_live_codepatch.py",
+        "status": 200
+      },
+      {
+        "seq": 4,
+        "time_utc": "2026-10-17T03:43:07Z",
+        "type": "SCRATCH_GENERATION",
+        "target": "cohere/north-mini-code:free",
+        "source": "scratch/diagnose_reasoning.py",
+        "status": 200,
+        "count": 5
+      },
+      {
+        "seq": 5,
+        "time_utc": "2026-10-17T03:47:28Z",
+        "type": "LIVE_MAS_RUN",
+        "target": "cohere/north-mini-code:free",
+        "run_id": "mas_dev_csv_sales_1792208848",
+        "status": 200,
+        "count": 4
+      },
+      {
+        "seq": 6,
+        "time_utc": "2026-10-17T04:24:59Z",
+        "type": "LIVE_MAS_RUN",
+        "target": "cohere/north-mini-code:free",
+        "run_id": "mas_dev_csv_sales_1792211099",
+        "status": 200,
+        "count": 8
+      },
+      {
+        "seq": 7,
+        "time_utc": "2026-10-17T04:30:51Z",
+        "type": "LIVE_MAS_RUN",
+        "target": "cohere/north-mini-code:free",
+        "run_id": "mas_dev_csv_sales_1792211451",
+        "status": 200,
+        "count": 4
+      },
+      {
+        "seq": 8,
+        "time_utc": "2026-10-17T04:34:49Z",
+        "type": "LIVE_MAS_RUN",
+        "target": "cohere/north-mini-code:free",
+        "run_id": "mas_dev_csv_sales_1792211689",
+        "status": 200,
+        "count": 12
+      },
+      {
+        "seq": 9,
+        "time_utc": "2026-10-17T06:50:40Z",
+        "type": "PHASE_2G_ATTEMPT_1",
+        "target": "cohere/north-mini-code:free",
+        "runs": [
+          "mas_dev_toc_a_1792219840",
+          "mas_dev_inv_b_1792219846",
+          "mas_dev_log_c_1792219852",
+          "mas_dev_toc_d_repeat_1792219859"
+        ],
+        "status": 429,
+        "count": 12
+      },
+      {
+        "seq": 10,
+        "time_utc": "2026-10-17T06:53:29Z",
+        "type": "PHASE_2G_ATTEMPT_2",
+        "target": "cohere/north-mini-code:free",
+        "runs": [
+          "mas_dev_toc_a_1792220009",
+          "mas_dev_inv_b_1792220015",
+          "mas_dev_log_c_1792220021",
+          "mas_dev_toc_d_repeat_1792220026"
+        ],
+        "status": 429,
+        "count": 4
+      },
+      {
+        "seq": 11,
+        "time_utc": "2026-10-17T08:00:01Z",
+        "type": "KEY_METADATA",
+        "endpoint": "/api/v1/auth/key",
+        "status": 200,
+        "count": 1
+      },
+      {
+        "seq": 12,
+        "time_utc": "2026-10-17T08:03:59Z",
+        "type": "KEY_METADATA",
+        "endpoint": "/api/v1/auth/key",
+        "status": 200,
+        "count": 1
+      }
+    ]
+  }
+}

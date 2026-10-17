@@ -50,8 +50,21 @@ class Run(Base):
     evaluation_id = Column(String(50), ForeignKey("evaluations.evaluation_id", ondelete="CASCADE"), nullable=True)
     system = Column(String(20), nullable=False, default="mas")  # mas or chatdev
     model = Column(String(40), nullable=False, default="gpt-4o")
+    execution_mode = Column(String(20), nullable=False, default="LIVE_API")  # LIVE_API, SIMULATED, FAILED, INCOMPLETE
+    actual_model = Column(String(80), nullable=True)
+    provider_request_id = Column(String(80), nullable=True)
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+    token_provenance = Column(String(30), nullable=False, default="UNAVAILABLE")  # PROVIDER_REPORTED, SIMULATED, UNAVAILABLE
+    estimated_cost = Column(Float, nullable=False, default=0.0)
+    failure_reason = Column(Text, nullable=True)
+    skip_reason = Column(Text, nullable=True)
+    workspace_path = Column(String(255), nullable=True)
+    artifacts_manifest = Column(JSON, nullable=True)
+    sandbox_status = Column(String(30), nullable=True)  # PASSED, FAILED, UNAVAILABLE
     seed = Column(Integer, nullable=False, default=42)
-    status = Column(String(20), nullable=False, default="CREATED")  # CREATED, RUNNING, COMPLETED, FAILED, CANCELLED
+    status = Column(String(60), nullable=False, default="CREATED")  # CREATED, RUNNING, COMPLETED, COMPLETED_QUALITY_GATE, STOPPED_MAX_ITERATIONS_WITH_OPEN_FINDINGS, FAILED, CANCELLED
     started_at = Column(DateTime, default=datetime.utcnow)
     finished_at = Column(DateTime, nullable=True)
 
@@ -119,11 +132,15 @@ class ModelCall(Base):
     run_id = Column(String(40), ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False, index=True)
     agent = Column(String(30), nullable=False)
     model = Column(String(40), nullable=False)
+    requested_model = Column(String(80), nullable=True)
+    actual_model = Column(String(80), nullable=True)
+    request_id = Column(String(80), nullable=True)
+    raw_metadata = Column(JSON, nullable=True)
     input_tokens = Column(Integer, nullable=False, default=0)
     output_tokens = Column(Integer, nullable=False, default=0)
     total_tokens = Column(Integer, nullable=False, default=0)
     latency_ms = Column(Integer, nullable=False, default=0)
-    cost = Column(Float, nullable=False, default=0.0)
+    cost = Column(Float, nullable=True, default=0.0)
 
     run = relationship("Run", back_populates="model_calls")
 

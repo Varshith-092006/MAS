@@ -1,19 +1,28 @@
 {
-  "version": "1.0",
-  "description": "Neutral Evaluator Level 2 Fixed Task Checks Specification (Example template). Real task checks to be provided by benchmark owners.",
-  "is_example_specification": true,
+  "version": "1.1.0-FROZEN",
+  "description": "Neutral Evaluator Level 2 Fixed Task Checks Specification for SRDD Benchmark.",
+  "is_example_specification": false,
   "schema": {
     "type": "object",
     "properties": {
       "task_id": { "type": "string" },
+      "name": { "type": "string" },
       "command": { "type": "array", "items": { "type": "string" } },
+      "test_script": { "type": "string" },
       "stdin_input": { "type": "string" },
       "expected_stdout_contains": { "type": "array", "items": { "type": "string" } },
       "expected_exit_code": { "type": "integer" }
     },
-    "required": ["task_id", "command", "expected_exit_code"]
+    "required": ["task_id", "expected_exit_code"]
   },
   "checks": [
+    {
+      "task_id": "srdd_educ_01",
+      "name": "Science Question Solver Canonical Neutral Test Suite",
+      "test_script": "eval/checks/test_srdd_educ_01.py",
+      "expected_exit_code": 0,
+      "notes": "Exercises Module Import, Object Instantiation, Multi-domain Science Problem Solving, and Clean Execution Lifecycle without GUI loop hang."
+    },
     {
       "task_id": "example_cli_calc",
       "name": "CLI Calculator Basic Addition Test",
@@ -31,15 +40,6 @@
       "expected_stdout_contains": ["<h1>Title</h1>"],
       "expected_exit_code": 0,
       "notes": "Example CLI argument conversion test"
-    },
-    {
-      "task_id": "example_api_health",
-      "name": "API Service Smoke Check",
-      "command": ["python", "-c", "import main; print(hasattr(main, 'app') or hasattr(main, 'run'))"],
-      "stdin_input": "",
-      "expected_stdout_contains": ["True"],
-      "expected_exit_code": 0,
-      "notes": "Example module export smoke test"
     }
   ]
 }

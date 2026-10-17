@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from mas.core.llm import (
     ModelResult,
     calculate_model_cost,
+    is_model_match,
     resolve_openrouter_model,
     token_logger,
 )
@@ -23,12 +24,25 @@ OPENROUTER_UPSTREAM_URL = os.environ.get(
 )
 
 
+@proxy_app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @proxy_app.post("/v1/chat/completions")
 async def chat_completions(request: Request, authorization: str = Header(None)):
     body = await request.json()
     raw_model = body.get("model", "openrouter/free")
     model = resolve_openrouter_model(raw_model)
     body["model"] = model
+    # Strictly disable fallbacks for research integrity
+    body["provider"] = {
+        "allow_fallbacks": False,
+    }
+    if "max_tokens" in body:
+        body["max_tokens"] = min(int(body["max_tokens"]), 2000)
+    else:
+        body["max_tokens"] = 2000
 
     run_id = request.headers.get("X-Run-ID", "global-run")
     agent_name = request.headers.get("X-Agent-Name", "chatdev_or_external")
@@ -41,6 +55,25 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
         api_key = authorization.split("Bearer ")[1].strip()
 
     if api_key and api_key != "dummy-key" and not api_key.startswith("mock") and not api_key.startswith("sk-1234"):
+        stage_budget_str = os.environ.get("MAS_STAGE_MAX_SPEND")
+        if stage_budget_str:
+            try:
+                stage_budget = float(stage_budget_str)
+                current_spend = token_logger.get_stage_spend()
+                conservative_call_cost = 0.035
+                if current_spend + conservative_call_cost > stage_budget:
+                    return JSONResponse(
+                        status_code=402,
+                        content={
+                            "error": {
+                                "message": f"Stage budget cap reached: current spend (${current_spend:.4f}) + projected call cost (${conservative_call_cost:.4f}) exceeds authorized limit of ${stage_budget:.2f}.",
+                                "code": "BUDGET_CAP_EXCEEDED",
+                            }
+                        },
+                    )
+            except ValueError:
+                pass
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -48,16 +81,27 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
             "X-Title": "MAS Multi-Agent Software Engineering Team",
         }
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                resp = await client.post(
+            from mas.core.governor import GovernedHTTPClient, DailyTransmissionsCeilingExceededError
+            with GovernedHTTPClient(
+                timeout=90.0,
+                request_type="LIVE_GENERATION",
+                target=model,
+                source=f"{run_id}:{agent_name}",
+            ) as client:
+                resp = client.post(
                     f"{OPENROUTER_UPSTREAM_URL.rstrip('/')}/chat/completions",
                     json=body,
                     headers=headers,
                 )
-                latency = int((time.time() - t0) * 1000)
-                if resp.status_code != 200:
-                    return JSONResponse(status_code=resp.status_code, content=resp.json())
-                data = resp.json()
+            latency = int((time.time() - t0) * 1000)
+            if resp.status_code != 200:
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            data = resp.json()
+        except DailyTransmissionsCeilingExceededError as e:
+            return JSONResponse(
+                status_code=429,
+                content={"error": {"message": str(e), "code": "DAILY_TRANSMISSIONS_CEILING_EXCEEDED"}},
+            )
         except httpx.ConnectError as e:
             return JSONResponse(
                 status_code=502,
@@ -99,23 +143,65 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
 
     # Extract strictly provider-reported usage fields
     usage = data.get("usage", {})
-    in_tok = usage.get("prompt_tokens", 0)
-    out_tok = usage.get("completion_tokens", 0)
-    tot_tok = usage.get("total_tokens", in_tok + out_tok)
+    in_tok = usage.get("prompt_tokens", 0) if usage else 0
+    out_tok = usage.get("completion_tokens", 0) if usage else 0
+    tot_tok = usage.get("total_tokens", in_tok + out_tok) if usage else 0
 
-    cost = calculate_model_cost(model, in_tok, out_tok)
+    actual_model = data.get("model")
+    cost = calculate_model_cost(actual_model, in_tok, out_tok)
 
-    # Record model call
+    raw_meta = {
+        "id": data.get("id"),
+        "model": actual_model,
+        "system_fingerprint": data.get("system_fingerprint"),
+        "usage": usage,
+    }
+
+    # Check for strict model match
+    if not actual_model or not is_model_match(model, actual_model):
+        res = ModelResult(
+            text=data.get("choices", [{}])[0].get("message", {}).get("content", ""),
+            model_name=actual_model or "UNKNOWN",
+            requested_model=model,
+            provider_model_version=data.get("system_fingerprint", actual_model or "UNKNOWN"),
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            total_tokens=tot_tok,
+            latency_ms=latency,
+            request_id=data.get("id", "req-proxy"),
+            estimated_cost=cost,
+            raw_metadata=raw_meta,
+            execution_mode="LIVE_API" if (api_key and not api_key.startswith("mock") and not api_key.startswith("sk-1234")) else "SIMULATED",
+            token_provenance="PROVIDER_REPORTED" if usage else "UNAVAILABLE",
+        )
+        token_logger.record_call(run_id=run_id, agent=agent_name, result=res)
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {
+                    "message": f"Model mismatch error: Requested '{model}', but upstream returned '{actual_model}'. Fallbacks are disabled.",
+                    "code": "MODEL_MISMATCH",
+                    "requested_model": model,
+                    "actual_model": actual_model,
+                }
+            },
+        )
+
+    # Record matched model call
     res = ModelResult(
         text=data["choices"][0]["message"]["content"],
-        model_name=data.get("model", model),
-        provider_model_version=data.get("system_fingerprint", model),
+        model_name=actual_model,
+        requested_model=model,
+        provider_model_version=data.get("system_fingerprint", actual_model),
         input_tokens=in_tok,
         output_tokens=out_tok,
         total_tokens=tot_tok,
         latency_ms=latency,
         request_id=data.get("id", "req-proxy"),
         estimated_cost=cost,
+        raw_metadata=raw_meta,
+        execution_mode="LIVE_API" if (api_key and not api_key.startswith("mock") and not api_key.startswith("sk-1234")) else "SIMULATED",
+        token_provenance="PROVIDER_REPORTED" if usage else "UNAVAILABLE",
     )
 
     token_logger.record_call(run_id=run_id, agent=agent_name, result=res)

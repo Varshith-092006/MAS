@@ -1,0 +1,18 @@
+{
+  "task_id": "dev_csv_sales_01",
+  "name": "CSV Sales Summary CLI",
+  "description": "A command-line tool that parses sales CSV files containing product name, quantity, and unit price, validates data integrity, computes per-product and total revenues, handles malformed/empty files gracefully, and outputs formatted sales summaries.",
+  "category": "DevelopmentPilot",
+  "subcategory": "CLI_DataProcessing",
+  "acceptance_criteria": [
+    "Read a CSV containing product name, quantity, and unit price columns.",
+    "Validate required columns and numeric inputs (quantity >= 0, unit_price >= 0.0).",
+    "Compute per-product revenue (quantity * unit_price) and total revenue correctly.",
+    "Handle an empty CSV file cleanly without unhandled exceptions.",
+    "Handle malformed rows without silently inventing data.",
+    "Provide a usable command-line entry point executable via main.py.",
+    "Include automated behavioral tests for normal and failure cases.",
+    "Use the Python standard library."
+  ],
+  "frozen_benchmark": false
+}

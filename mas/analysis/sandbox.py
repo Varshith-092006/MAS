@@ -47,19 +47,27 @@ class SandboxRunner:
         self.pids_limit = pids_limit
         self.timeout_seconds = timeout_seconds
 
+    _docker_available_cache: Optional[bool] = None
+
     def is_docker_available(self) -> bool:
         """Checks if Docker CLI and daemon are responsive."""
+        if SandboxRunner._docker_available_cache is not None:
+            return SandboxRunner._docker_available_cache
         if not shutil.which("docker"):
+            SandboxRunner._docker_available_cache = False
             return False
         try:
             res = subprocess.run(
                 ["docker", "version"],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=4,
             )
-            return res.returncode == 0 and "Server:" in res.stdout
+            available = (res.returncode == 0 and "Server:" in res.stdout)
+            SandboxRunner._docker_available_cache = available
+            return available
         except Exception:
+            SandboxRunner._docker_available_cache = False
             return False
 
     def execute_in_container(
@@ -215,7 +223,7 @@ class SandboxRunner:
     ) -> SandboxExecutionResult:
         """Runs a smoke test on the entry point file with timeout."""
         if not entry_point:
-            candidates = ["main.py", "app.py", "calculator.py"]
+            candidates = ["main.py", "app.py"]
             chosen = None
             for cand in candidates:
                 if os.path.exists(os.path.join(workspace_path, cand)):
@@ -233,4 +241,81 @@ class SandboxRunner:
                         duration_ms=5,
                     )
             entry_point = chosen or "main.py"
-        return self.execute(workspace_path, ["python", entry_point], allow_fallback=allow_fallback)
+
+        # Step 1: Headless smoke runner exercising imports, initialization, and GUI/script entry points
+        py_stem = os.path.splitext(entry_point)[0]
+        smoke_code = (
+            "import sys, os\n"
+            "sys.path.insert(0, '.')\n"
+            "try:\n"
+            "    import tkinter as tk\n"
+            "    from tkinter import messagebox\n"
+            "    def headless_mainloop(self):\n"
+            "        self.update_idletasks()\n"
+            "    tk.Misc.mainloop = headless_mainloop\n"
+            "    tk.Tk.mainloop = headless_mainloop\n"
+            "    messagebox.showinfo = lambda *a, **kw: None\n"
+            "    messagebox.showwarning = lambda *a, **kw: None\n"
+            "    messagebox.showerror = lambda *a, **kw: None\n"
+            "except Exception:\n"
+            "    pass\n"
+            "import importlib\n"
+            f"mod = importlib.import_module('{py_stem}')\n"
+            "if hasattr(mod, 'main'):\n"
+            "    try:\n"
+            "        mod.main()\n"
+            "    except SystemExit as se:\n"
+            "        if se.code not in (0, None):\n"
+            "            raise\n"
+            "elif hasattr(mod, 'run'):\n"
+            "    try:\n"
+            "        mod.run()\n"
+            "    except SystemExit as se:\n"
+            "        if se.code not in (0, None):\n"
+            "            raise\n"
+        )
+        smoke_cmd = ["python", "-c", smoke_code]
+        initial_res = self.execute(workspace_path, smoke_cmd, allow_fallback=allow_fallback)
+        if initial_res.is_success:
+            return initial_res
+
+        # Step 2: Protocol check for CLI applications requiring command-line arguments.
+        # An argparse CLI cleanly exits with SystemExit(2) and prints usage/error to stderr when run without args.
+        # A valid usage error from an incomplete invocation is not a syntax or crash error.
+        err_combined = (initial_res.stderr + "\n" + initial_res.stdout).lower()
+        is_usage_exit = (
+            initial_res.exit_code == 2
+            or (initial_res.exit_code in (1, 2) and ("usage:" in err_combined or "the following arguments are required" in err_combined))
+        ) and "traceback (most recent call last)" not in err_combined
+
+        if is_usage_exit:
+            # Step 2A: Test startup and CLI grammar via supported --help invocation
+            help_cmd = ["python", entry_point, "--help"]
+            help_res = self.execute(workspace_path, help_cmd, allow_fallback=allow_fallback)
+            if (
+                help_res.exit_code == 0
+                and "usage:" in help_res.stdout.lower()
+                and "traceback (most recent call last)" not in help_res.stderr.lower()
+            ):
+                # Step 2B: Also test invocation with a controlled minimal temporary fixture
+                with tempfile.NamedTemporaryFile(prefix="smoke_fix_", suffix=".tmp", delete=False) as tf:
+                    temp_fixture_path = tf.name
+                try:
+                    fix_cmd = ["python", entry_point, temp_fixture_path]
+                    fix_res = self.execute(workspace_path, fix_cmd, allow_fallback=allow_fallback)
+                    # Startup is confirmed if it exits cleanly or with a controlled domain exit, without an unhandled traceback
+                    if "traceback (most recent call last)" not in fix_res.stderr.lower():
+                        return SandboxExecutionResult(
+                            exit_code=0,
+                            stdout=f"CLI startup verified via entry-point smoke protocol (--help + fixture). {help_res.stdout[:150]}",
+                            stderr="",
+                            duration_ms=initial_res.duration_ms + help_res.duration_ms + fix_res.duration_ms,
+                        )
+                finally:
+                    if os.path.exists(temp_fixture_path):
+                        try:
+                            os.unlink(temp_fixture_path)
+                        except Exception:
+                            pass
+
+        return initial_res

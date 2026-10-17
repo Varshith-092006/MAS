@@ -1,0 +1,147 @@
+{
+  "series_timestamp": 1792224239,
+  "phase": "PHASE_2H",
+  "model_requested": "cohere/north-mini-code:free",
+  "reconciliation": {
+    "local_ledger": {
+      "utc_date": "2026-10-17",
+      "successful_model_calls": 28,
+      "failed_attempts_recorded": 11,
+      "total_attributable_attempts": 39,
+      "internal_daily_cap": 45,
+      "remaining_internal_attempts": 6,
+      "runs_count_today": 12
+    },
+    "upstream_provider": {
+      "is_free_tier": true,
+      "free_models_used": 52,
+      "free_models_limit": 50,
+      "free_models_remaining": 0,
+      "is_quota_exhausted": true,
+      "usage_daily_usd": 0.00054855,
+      "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+      "seconds_until_utc_midnight": 57361,
+      "hours_until_utc_midnight": 15.93,
+      "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+    },
+    "discrepancy_explanation": "Local ledger accounts for 39 attempts attributable to this workspace today (28 successful Phase 2E calls + 16 failed/probe requests during Phase 2G). Provider reports 52 total free-model daily requests across the account/key (cap is 50, remaining is 0). Difference of 13 calls reflects external/diagnostic key requests."
+  },
+  "governor_state": {
+    "stopped_for_day": true,
+    "stopped_reason": "Upstream free-model daily quota exhausted: 52/50 requests used (0 remaining). Reset in ~15.93h at 00:00:00 UTC.",
+    "reset_metadata": {
+      "is_free_tier": true,
+      "free_models_used": 52,
+      "free_models_limit": 50,
+      "free_models_remaining": 0,
+      "is_quota_exhausted": true,
+      "usage_daily_usd": 0.00054855,
+      "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+      "seconds_until_utc_midnight": 57361,
+      "hours_until_utc_midnight": 15.93,
+      "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+    }
+  },
+  "runs": [
+    {
+      "slot": "Task A",
+      "task_id": "dev_markdown_toc_01",
+      "run_id": "mas_dev_toc_a_governor_stopped",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Upstream free-model daily quota exhausted: 52/50 requests used (0 remaining). Reset in ~15.93h at 00:00:00 UTC.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0.0,
+      "reset_metadata": {
+        "is_free_tier": true,
+        "free_models_used": 52,
+        "free_models_limit": 50,
+        "free_models_remaining": 0,
+        "is_quota_exhausted": true,
+        "usage_daily_usd": 0.00054855,
+        "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+        "seconds_until_utc_midnight": 57361,
+        "hours_until_utc_midnight": 15.93,
+        "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+      }
+    },
+    {
+      "slot": "Task B",
+      "task_id": "dev_inventory_system_01",
+      "run_id": "mas_dev_inv_b_governor_stopped",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Upstream free-model daily quota exhausted: 52/50 requests used (0 remaining). Reset in ~15.93h at 00:00:00 UTC.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0.0,
+      "reset_metadata": {
+        "is_free_tier": true,
+        "free_models_used": 52,
+        "free_models_limit": 50,
+        "free_models_remaining": 0,
+        "is_quota_exhausted": true,
+        "usage_daily_usd": 0.00054855,
+        "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+        "seconds_until_utc_midnight": 57361,
+        "hours_until_utc_midnight": 15.93,
+        "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+      }
+    },
+    {
+      "slot": "Task C",
+      "task_id": "dev_log_analyzer_01",
+      "run_id": "mas_dev_log_c_governor_stopped",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Upstream free-model daily quota exhausted: 52/50 requests used (0 remaining). Reset in ~15.93h at 00:00:00 UTC.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0.0,
+      "reset_metadata": {
+        "is_free_tier": true,
+        "free_models_used": 52,
+        "free_models_limit": 50,
+        "free_models_remaining": 0,
+        "is_quota_exhausted": true,
+        "usage_daily_usd": 0.00054855,
+        "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+        "seconds_until_utc_midnight": 57361,
+        "hours_until_utc_midnight": 15.93,
+        "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+      }
+    },
+    {
+      "slot": "Task D",
+      "task_id": "dev_markdown_toc_01_repeat",
+      "run_id": "mas_dev_toc_d_repeat_governor_stopped",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Upstream free-model daily quota exhausted: 52/50 requests used (0 remaining). Reset in ~15.93h at 00:00:00 UTC.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0.0,
+      "reset_metadata": {
+        "is_free_tier": true,
+        "free_models_used": 52,
+        "free_models_limit": 50,
+        "free_models_remaining": 0,
+        "is_quota_exhausted": true,
+        "usage_daily_usd": 0.00054855,
+        "response_date": "Sat, 17 Oct 2026 08:03:59 GMT",
+        "seconds_until_utc_midnight": 57361,
+        "hours_until_utc_midnight": 15.93,
+        "provider_reset_rule": "Daily reset at 00:00:00 UTC for free model daily request limits"
+      }
+    }
+  ]
+}

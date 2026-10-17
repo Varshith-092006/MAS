@@ -1,0 +1,446 @@
+=== PAGE 11 ===
+Y. You et al.
+software store platforms, while ensuring the originality and diversity of 
+the dataset. SRDD consists of 1200 carefully selected software require-
+ments, systematically divided into five major categories—Education, 
+Work, Life, Games, and Creation. Each category is further subdivided 
+into eight subcategories, resulting in a total of 40 distinct subcategories, 
+with each subcategory containing 30 unique task instances.
+From the perspective of task complexity, the software requirements 
+in the SRDD dataset exhibit clear hierarchical characteristics in terms 
+of requirement description length and potential implementation scale. 
+The average length of requirement descriptions in the dataset is 56.37 
+words, with most requirements concentrated between 40 and 80 words. 
+Shorter requirements typically describe a single function or a sim-
+ple application scenario, whereas longer requirements often include 
+multiple functional specifications or more comprehensive system be-
+haviors. In terms of implementation scale, the code size corresponding 
+to different tasks also varies. Simple tasks usually involve only basic 
+functional logic, with an implementation scale of approximately 30 
+to 200 lines of code. Tasks of moderate complexity typically include 
+multiple functional modules or basic data processing logic, with an im-
+plementation scale generally ranging from 200 to 400 LOC. In contrast, 
+tasks with more comprehensive requirement descriptions and richer 
+functionalities often have an implementation scale exceeding 400 LOC.
+For example, in simple tasks, the requirement description of Astro-
+Viewer mainly focuses on night sky exploration and celestial object 
+visualization. The system is required to provide a database of celestial 
+objects such as stars, planets, and constellations, support users in 
+searching for specific objects, enable real-time visualization of their 
+positions in the sky based on the user’s location, and provide time-
+lapse animation as well as adjustable parameters such as time, date, 
+and brightness. Although the system includes search and visualization 
+functionalities, it is primarily centered on information presentation 
+and basic interaction, resulting in a relatively clear requirement struc-
+ture and an implementation scale typically ranging from 30 to 200 
+LOC. In contrast, the requirement description of BookLift involves 
+multiple functional modules, including user account and preference 
+management, book rating, personalized recommendation generation, 
+and book information display. The system is required to support user 
+profile creation, allow users to input preferred book genres, enable 
+book rating, and generate personalized recommendation lists based 
+on user data, while also providing detailed book information and 
+exploration of popular book lists. As a result, the requirement text 
+is longer and the system structure is more complex, with an imple-
+mentation scale typically ranging from 200 to 400 LOC. Furthermore, 
+the requirement description of BudgetOptimizer includes a more com-
+prehensive financial management workflow, covering modules such 
+as income recording, expense categorization, budget goal setting, and 
+consumption behavior analysis. Users can input monthly income and 
+expense data, and the system is required to analyze the data, gener-
+ate optimization suggestions, and present consumption patterns and 
+budget achievement status through reports and visualizations. Such 
+requirements involve not only data management but also data analysis 
+and visualization functionalities, leading to a more complex system 
+structure and an implementation scale typically exceeding 400 LOC. 
+These examples demonstrate that tasks in the SRDD dataset exhibit 
+a progressive increase in both requirement description length and 
+implementation scale, thereby effectively supporting the evaluation of 
+software development tasks across different levels of complexity.
+4.3. Metrics
+In iCoder, the reasoning and code generation capabilities of all 
+agents are driven by large language models. In the experiments, we 
+adopt GPT-3.5 Turbo and GPT-4o as the underlying models and access 
+them via the OpenAI API. All experiments are conducted using the 
+default generation parameter settings of the official API.
+To improve the transparency and reproducibility of the experiments, 
+representative prompt template examples used by different agents are 
+provided in the appendix. These examples illustrate how requirement 
+descriptions, contextual information, and intermediate artifacts are 
+organized within prompts to guide the large language model in com-
+pleting tasks across stages such as requirements analysis, architectural 
+design, code generation, and code review.
+To ensure consistency across experiments, all software code is writ-
+ten in Python. For evaluating the quality of the generated software 
+code, we use three quantifiable dimensions, which together form a com-
+prehensive evaluation metric to provide a more holistic performance 
+assessment:
+• Completeness: Completeness measures the extent to which code 
+implementation is finished during the automated development 
+process and is used to evaluate the system’s coverage at the 
+functional realization level. Specifically, this metric is computed 
+based on the presence of unimplemented placeholder segments in 
+the generated code. If a function body contains a pass statement, 
+or if the code includes a ‘‘TODO’’ marker, the corresponding 
+segment is regarded as incomplete. Completeness is defined as 
+the proportion of implemented code segments relative to the 
+total generated code. A higher value indicates fewer unfinished 
+fragments and a greater potential for autonomous execution.
+Assume that there are 𝑀 generated projects. The 𝑖th project 
+contains a total of 𝑁(𝑖)
+total functions, among which 𝑁(𝑖)
+unimplemented
+functions are unimplemented. The overall completeness is defined 
+as:
+𝐶𝑜𝑚𝑝𝑙𝑒𝑡𝑒𝑛𝑒𝑠𝑠 = 1 −
+∑𝑀
+𝑖=1 𝑁(𝑖)
+unimplemented
+∑𝑀
+𝑖=1 𝑁(𝑖)
+total
+where:
+– ∑𝑀
+𝑖=1 𝑁(𝑖)
+total denotes the total number of functions across all 
+generated projects;
+– ∑𝑀
+𝑖=1 𝑁(𝑖)
+unimplemented denotes the total number of functions 
+containing pass statements or ‘‘TODO’’ markers across all 
+projects;
+– 𝑀 denotes the number of generated projects.
+This statistical formulation aggregates function counts across all 
+projects and computes completeness based on the overall propor-
+tion of implemented functions, which reduces the influence of 
+differences in project scale on the final metric. When all functions 
+are implemented, the completeness value equals 1. When none of 
+the functions are implemented, the value equals 0.
+• Executability: Executability measures the capability of automat-
+ically generated software to run successfully in a standard ex-
+ecution environment. It reflects the overall performance of the 
+generated code in terms of syntactic correctness, dependency 
+completeness, and runtime stability. This metric is computed by 
+conducting automated execution tests on each generated project 
+and aggregating the execution outcomes.
+Assume that there are 𝑀 generated projects. Let 𝑁exec denote the 
+number of projects that successfully complete execution, and let 
+𝑁error denote the number of projects that terminate abnormally 
+or encounter runtime errors during automated execution. The 
+overall executability is defined as:
+𝐸𝑥𝑒𝑐𝑢𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦 = 1 −𝑁error
+𝑁exec
+where:
+– 𝑁exec denotes the number of generated projects participat-
+ing in automated execution testing;
+– 𝑁error denotes the number of projects that produce runtime 
+exceptions or execution failures during testing.
+Information and Software Technology 198 (2026) 108224 
+11 
+
+=== PAGE 12 ===
+Y. You et al.
+This metric aggregates execution outcomes across all generated 
+projects to reflect the overall execution success rate in large-scale 
+generation scenarios. When all tested projects execute success-
+fully, the executability value equals 1. When all tested projects 
+fail during execution, the value equals 0. A higher value indi-
+cates stronger runtime stability and practical deployability of the 
+generated system.
+• Consistency: Consistency evaluates the degree of semantic align-
+ment between generated software and the original natural lan-
+guage requirements. It measures whether the system implements 
+the intended functionalities specified in the requirements. This 
+metric is quantified by computing the semantic similarity between 
+the requirement text and the generated code.
+Assume that the requirement text corresponding to the 𝑖th gener-
+ated project is denoted as 𝑇𝑖, and the generated code is denoted 
+as 𝐶𝑖. A semantic embedding function 𝑓(⋅) is applied to map text 
+into a vector space, yielding:
+𝐭𝑖 = 𝑓(𝑇𝑖), 𝐜𝑖 = 𝑓(𝐶𝑖)
+The consistency of a single project is defined as the cosine similar-
+ity between the text embedding vector and the code embedding 
+vector:
+𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦𝑖 = 𝐭𝑖 ⋅ 𝐜𝑖
+‖𝐭𝑖‖‖𝐜𝑖‖
+where:
+– 𝐭𝑖 denotes the embedding vector of the requirement text;
+– 𝐜𝑖 denotes the embedding vector of the generated code;
+– ⋅ denotes the dot product between vectors;
+– ‖ ⋅ ‖ denotes the 𝓁2 norm of a vector.
+The value of this metric lies within [−1, 1]. To maintain consis-
+tency with the evaluation ranges of Completeness and Executabil-
+ity and to facilitate the computation of the composite Quality 
+metric, the Consistency score is further normalized to the range 
+[0,1] using min–max normalization. A higher value indicates a 
+stronger semantic match between the generated code and the 
+original requirements.
+For an overall evaluation set containing 𝑀 generated projects, the 
+system-level consistency is defined as the arithmetic mean of the 
+consistency values across all projects:
+𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦 = 1
+𝑀
+𝑀∑
+𝑖=1
+𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦𝑖
+where 𝑀 denotes the number of projects included in the evalua-
+tion.
+This statistical formulation computes consistency based on the 
+overall distribution across all generated projects, reflecting the 
+system’s semantic alignment capability in batch generation sce-
+narios. Higher values indicate stronger alignment between re-
+quirement understanding and implementation.
+• Quality: Quality provides a comprehensive evaluation of gen-
+erated software in terms of structural completeness, execution 
+capability, and semantic alignment. It is computed through a joint 
+modeling of completeness, executability, and consistency.
+Assume that for the 𝑖th generated project, completeness, exe-
+cutability, and consistency are denoted as
+𝐶𝑜𝑚𝑝𝑙𝑒𝑡𝑒𝑛𝑒𝑠𝑠𝑖, 𝐸𝑥𝑒𝑐𝑢𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦 𝑖, 𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦 𝑖.
+The quality of a single project is defined as the product of these 
+three components:
+𝑄𝑢𝑎𝑙𝑖𝑡𝑦𝑖 = 𝐶𝑜𝑚𝑝𝑙𝑒𝑡𝑒𝑛𝑒𝑠𝑠𝑖 × 𝐸𝑥𝑒𝑐𝑢𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦𝑖 × 𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦𝑖.
+where:
+– 𝐶𝑜𝑚𝑝𝑙𝑒𝑡𝑒𝑛𝑒𝑠𝑠𝑖 ∈ [0, 1];
+Table 1
+Code generation metrics of iCoder and baseline models under GPT3.5Turbo.
+ Completeness Executability Consistency assesses Quality  
+ ChatDev 0.90219378 0.81 0.808389 0.590626  
+ Co-learning 0.93503937 0.83 0.808434 0.627359  
+ iCoder 0.95206186 0.88 0.823800 0.690192 
+Table 2
+Code generation metrics of iCoder and baseline models under GPT4o.
+ Completeness Executability Consistency assesses Quality  
+ ChatDev 1 0.8 0.818738 0.654990  
+ Co-learning 0.99392097 0.95 0.814404 0.768981  
+ AutoGen[v0.7] 0.99386503 0.85 0.768735 0.649416  
+ MetaGPT 0.98830409 0.85 0.852535 0.716179  
+ EvoAgentX 0.91318328 0.70 0.918428 0.587085  
+ iCoder 0.99599198 0.95 0.837460 0.792398 
+– 𝐸𝑥𝑒𝑐𝑢𝑡𝑎𝑏𝑖𝑙𝑖𝑡𝑦𝑖 ∈ [0, 1];
+– 𝐶𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦𝑖 ∈ [0, 1].
+This multiplicative formulation imposes a constraint property. 
+When either completeness or executability equals 0, the overall 
+quality automatically becomes 0. This ensures that consistency 
+contributes to the final score only when the system satisfies 
+basic engineering feasibility in terms of structural integrity and 
+successful execution.
+For an evaluation set containing 𝑀 generated projects, the overall 
+quality is defined as the arithmetic mean across all projects:
+𝑄𝑢𝑎𝑙𝑖𝑡𝑦 = 1
+𝑀
+𝑀∑
+𝑖=1
+𝑄𝑢𝑎𝑙𝑖𝑡𝑦𝑖.
+where 𝑀 denotes the number of projects included in the evalua-
+tion.
+This metric reflects the overall engineering capability of the sys-
+tem under batch generation settings. Higher values indicate better 
+performance in structural completeness, execution stability, and 
+requirement alignment.
+Among them, the computation of the Quality metric is adopted 
+from ChatDev [16], which evaluates overall software quality by jointly 
+considering completeness, executability, and consistency. Following the 
+same evaluation philosophy, we employ the product of these three 
+metrics to assess the overall quality of the generated knowledge base. 
+A higher Quality score indicates a more complete, executable, and 
+semantically consistent knowledge base.
+In addition, for each of the existing software generation agents, we 
+compare the resources consumed and the lines of code generated.
+We use GPT-3.5 Turbo and GPT-4o as the baseline large models for 
+experimentation. In the GPT-3.5 Turbo experiment, we randomly se-
+lected 20 requirements from each major category of the SRDD dataset, 
+forming a dataset of 100 software requirements for testing. In the 
+GPT-4o experiment, we randomly selected 4 requirements from each 
+major category of the SRDD dataset, forming a dataset of 20 software 
+requirements for testing.
+4.4. Result
+4.4.1. Overall performance
+As shown in Tables  1, 2, 3, and 4, iCoder demonstrates stable 
+and competitive overall performance across different base models. 
+With GPT-3.5-turbo, iCoder significantly outperforms baseline methods 
+Information and Software Technology 198 (2026) 108224 
+12 
+
+=== PAGE 13 ===
+Y. You et al.
+Table 3
+Code generation overhead of iCoder and two multi-agent software develop-
+ment frameworks under GPT3.5Turbo.
+ LOC Duration Token  
+ ChatDev 113.93 439.59 22 327.02  
+ Co-learning 108.37 419.1 30 070.82  
+ iCoder 168.92 2700.43 411 144.62 
+Table 4
+Code generation overhead of iCoder and two multi-agent software develop-
+ment frameworks under GPT4o.
+ LOC Duration Token  
+ ChatDev 125.95 1058.7 30 416.6  
+ Co-learning 133.9 463.85 41 682.75 
+ AutoGen[v0.7] 96 41.88 39 663.2  
+ MetaGPT 635.8 123.6 61 578  
+ EvoAgentX 150.15 134.59 19 232.90 
+ iCoder 216.15 1620.05 104 883.2 
+in the four metrics of completeness, executability, consistency, and 
+quality. Particularly in terms of code quality, iCoder shows substan-
+tial improvement over ChatDev and Co-learning, indicating that even 
+under the condition of a mid-level model, it can still generate more 
+structurally sound and functionally complete code. This suggests that 
+iCoder’s multi-agent collaboration mechanism effectively compensates 
+for the limitations of the base model’s capabilities, enhancing the over-
+all generation performance through task decomposition and iterative 
+optimization.
+Under GPT-4o, the overall performance of all methods improves, but 
+iCoder still maintains a strong competitive advantage. It is worth noting 
+that, in this setting, we further introduce more current representative 
+multi-agent software development frameworks as baseline methods to 
+enhance the comprehensiveness and persuasiveness of the comparison. 
+On this basis, iCoder achieves the optimal performance in the two key 
+metrics of executability and quality, while also outperforming most 
+baseline methods in terms of consistency. Although ChatDev reaches 
+a completeness score of 1, its performance in executability and quality 
+still falls short of iCoder, indicating that simple structural completeness 
+does not guarantee the code’s functionality and practicality. Further-
+more, while EvoAgentX shows relatively high consistency, it exhibits 
+significant shortcomings in executability and quality, whereas iCoder 
+achieves a more balanced performance across multiple metrics.
+From a computational overhead perspective, iCoder exhibits higher 
+time consumption and token usage, whether using GPT-3.5-turbo or 
+GPT-4o. For instance, under GPT-3.5-turbo, its token consumption is 
+significantly higher than other methods, and under GPT-4o, it reaches 
+104 883.2. This indicates that iCoder, through multi-stage decomposi-
+tion, Sprint iteration, and code review mechanisms, introduces addi-
+tional reasoning overhead. However, this overhead translates into sig-
+nificant performance improvements, especially in terms of code quality 
+and executability. From a software engineering practice perspective, 
+this strategy of trading computational resources for higher quality and 
+greater stability is both reasonable and necessary in complex software 
+development tasks.
+Moreover, according to the experimental logs, most Sprints are 
+completed within 1 to 3 internal iterations, with each iteration in-
+volving only the context within a single Sprint. Compared to directly 
+generating the entire requirement in one go, the Sprint mechanism 
+significantly reduces the context length and the complexity of cross-
+module dependencies, while effectively preventing the propagation of 
+errors across the entire system, thereby enhancing the stability of the 
+overall generation process and the quality of the code. This indicates 
+that the Sprint mechanism can effectively alleviate the model load 
+in complex task scenarios and improve the reliability of system-level 
+software generation.
+Table 5
+Ablation experiments for iCoder(Uniformized data).
+ Completeness Executability Consistency 
+assesses
+Quality 
+ Without Subsytem 0.98 1.00 0.98 0.97  
+ Without UML 0.90 1.10 0.98 0.98  
+ Without R-DCGG 0.88 1.00 0.99 0.88  
+ Baseline 1.00 1.00 1.00 1.00  
+We conducted prompt robustness validation based on the actual 
+performance of the generated projects. First, when faced with under-
+specified or semantically ambiguous user requirements, the generated 
+results maintained alignment with the intended requirements and did 
+not exhibit semantic drift. Second, during the iterative process of multi-
+agent collaboration, tasks typically converged to an executable state 
+within one to three interaction rounds, without persistent divergence or 
+repetitive correction cycles. Third, the generated projects demonstrated 
+stable performance in terms of structural consistency and requirement 
+satisfaction, achieving a continuous mapping from requirements to ar-
+chitecture and subsequently to implementation. These results indicate 
+that the current prompt structure exhibits satisfactory convergence 
+behavior and adaptability in practical application scenarios.
+In addition, a qualitative analysis of the prompt structure indi-
+cates that different modules exert a direct influence on output quality. 
+The absence of clearly defined role responsibilities and quality objec-
+tives reduces the stability of output boundaries. The lack of design 
+model information weakens the mapping between code and architec-
+ture. Insufficient chain of thought articulation affects the coherence 
+of the generation logic and the completeness of implementation steps. 
+These observations further demonstrate that the design of the prompt 
+structure has a substantive impact on generation outcomes.
+4.4.2. Ablation
+We designed ablation experiments for three cognitive alignment 
+enhancement methods, with results shown in Table  5. The values 
+reported represent relative scores with respect to the complete iCoder 
+system. Specifically, each value is computed as the ratio between the 
+score obtained by an ablation configuration and the corresponding 
+score of the full system. For example, a Completeness value of 0.98 in 
+the ‘‘Without Subsystem’’ setting indicates that the generated software 
+project achieves 98% of the Completeness achieved by the complete 
+iCoder system. Likewise, a value greater than 1.00 indicates a higher 
+score than the baseline under the corresponding evaluation metric. 
+All values are reported with two decimal places. The actual scores 
+before ratio calculation remain within the valid range defined for each 
+evaluation metric.
+After removing the subsystems decomposition and iterative
+development-related mechanisms, the overall quality metrics showed 
+varying degrees of decline, indicating that, in the absence of itera-
+tive boundaries and demand layering constraints, the ability of large 
+models to manage software complexity is significantly weakened. On 
+the other hand, removing the UML architecture constraints primarily 
+impacted code completeness and structural specification, suggesting 
+that software architecture design plays a crucial role in constraining 
+the generation process and maintaining system-level consistency. Fur-
+thermore, when the DCGG (Dynamic Code Graph Generation) reverse 
+code dependency generation review mechanism was removed, the 
+decline in code quality metrics was most significant, particularly in the 
+completeness and executability dimensions, validating the core value 
+of reverse dependency modeling and structured review in ensuring 
+multi agent code generation quality. These ablation results indicate 
+that iterative development and architecture design practices primarily 
+impact complexity management, while reverse code dependency gen-
+eration and code review practices play a decisive role in improving 
+code quality. Thus, these findings systematically support the two key 
+conclusions presented in this paper at the experimental level.
+Information and Software Technology 198 (2026) 108224 
+13 
+
+=== PAGE 14 ===
+Y. You et al.
+Fig. A.1. Agent definition prompt.
+5. Conclusion
+This paper addresses the issues of software complexity control and 
+code quality assurance in large model-driven automated software devel-
+opment. It investigates the applicability and effectiveness of classical 
+software engineering practices in multi agent development scenarios. 
+By integrating iterative development and software architecture design 
+into the automated development process, the overall capability of large 
+models to manage software complexity was enhanced. Simultaneously, 
+a quality assurance feedback loop for generated results was established 
+through the combination of reverse code dependency generation and 
+code review mechanisms. Based on this design, the paper presents the 
+one-stop multi agent software development platform iCoder, which 
+was systematically evaluated in different large model environments. 
+Experimental and ablation results indicate that the introduced software 
+engineering practices play a crucial role in both complexity manage-
+ment and code quality improvement, providing a verifiable engineering 
+pathway for system-level AI-Augmented Software Engineering.
+CRediT authorship contribution statement
+Yuxuan You: Writing – original draft, Validation, Software, 
+Methodology, Investigation, Formal analysis, Data curation, Con-
+ceptualization. Dejun Ning: Writing – review & editing, Supervision, 
+Methodology, Funding acquisition. Shaohao Cai: Writing – review 
+& editing, Software, Methodology, Conceptualization. Junqi Bai: 
+Writing – review & editing, Investigation. Jiacheng Zheng: Writing 
+– review & editing, Resources. Jiyan Chen: Writing – review & 
+editing, Project administration.
+Declaration of competing interest
+The authors declare that they have no known competing financial 
+interests or personal relationships that could have appeared to 
+influence the work reported in this paper.
+Appendix A. Prompt example
+A.1. Agent definition prompt
+See Fig.  A.1.
+A.2. RABot’s workflow prompt
+See Fig.  A.2.
+A.3. UMLBot process example prompt
+See Fig.  A.3.
+A.4. Example prompts for the iterative process of DevBot and ReviewBot
+See Fig.  A.4.
+Appendix B. Dataset example
+See Fig.  B.5 and Table  B.1.
+Data availability
+Data will be made available on request.
+Information and Software Technology 198 (2026) 108224 
+14 
+

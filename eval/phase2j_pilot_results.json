@@ -1,0 +1,77 @@
+{
+  "series_timestamp": 1792225578,
+  "phase": "PHASE_2J",
+  "utc_date": "2026-10-17",
+  "current_utc_time": "2026-10-17T08:26:18Z",
+  "model_requested": "cohere/north-mini-code:free",
+  "provider_routing": "OpenRouter Direct API (https://openrouter.ai/api/v1)",
+  "allow_fallbacks": false,
+  "ledger_audit": {
+    "utc_date": "2026-10-17",
+    "successful_model_calls": 28,
+    "failed_attempts_recorded": 18,
+    "metadata_queries": 2,
+    "scratch_diagnostic_requests": 8,
+    "total_attributable_attempts": 56,
+    "internal_daily_cap": 45,
+    "remaining_internal_attempts": 0,
+    "cap_breached": true,
+    "excess_transmissions": 11
+  },
+  "reset_status": {
+    "documented_reset_rule": "Daily reset at 00:00:00 UTC",
+    "hours_until_reset": 15.56,
+    "seconds_until_reset": 56022,
+    "is_post_reset": false
+  },
+  "runs": [
+    {
+      "slot": "Task A",
+      "task_id": "dev_markdown_toc_01",
+      "run_id": "mas_dev_toc_a_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 00:00:00 UTC daily reset (~15.56h remaining). Upstream free-model daily quota exhausted on 2026-10-17.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0
+    },
+    {
+      "slot": "Task B",
+      "task_id": "dev_inventory_system_01",
+      "run_id": "mas_dev_inv_b_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 00:00:00 UTC daily reset (~15.56h remaining). Upstream free-model daily quota exhausted on 2026-10-17.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0
+    },
+    {
+      "slot": "Task C",
+      "task_id": "dev_log_analyzer_01",
+      "run_id": "mas_dev_log_c_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 00:00:00 UTC daily reset (~15.56h remaining). Upstream free-model daily quota exhausted on 2026-10-17.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0
+    },
+    {
+      "slot": "Task D",
+      "task_id": "dev_markdown_toc_01_repeat",
+      "run_id": "mas_dev_toc_d_repeat_governor_paused",
+      "status": "STOPPED_PROVIDER_QUOTA",
+      "stop_reason": "Execution paused pending 00:00:00 UTC daily reset (~15.56h remaining). Upstream free-model daily quota exhausted on 2026-10-17.",
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "verified_cost": 0.0
+    }
+  ]
+}

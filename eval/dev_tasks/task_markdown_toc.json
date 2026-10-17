@@ -1,0 +1,18 @@
+{
+  "task_id": "dev_markdown_toc_01",
+  "name": "Markdown Table of Contents Generator CLI",
+  "description": "A command-line tool that parses Markdown files, extracts headings, generates a formatted table of contents with anchor links, ignores code blocks, handles malformed/empty files, and outputs to stdout or file.",
+  "category": "DevelopmentPilot",
+  "subcategory": "CLI_TextProcessing",
+  "acceptance_criteria": [
+    "Parse Markdown file and extract level 1 to level 3 headings (#, ##, ###).",
+    "Generate a formatted markdown list with properly indented anchor links (e.g. - [Title](#title)).",
+    "Properly ignore heading markers occurring inside fenced code blocks (```).",
+    "Handle empty input files gracefully by exiting cleanly (code 0) without exceptions.",
+    "Handle non-existent input files cleanly by reporting an error to stderr and exiting with code 1.",
+    "Support standard CLI invocation via main.py with --help option exiting code 0.",
+    "Report usage error and exit code 2 when required file argument is missing.",
+    "Include automated behavioral unit tests in test_main.py covering normal and edge cases."
+  ],
+  "frozen_benchmark": false
+}

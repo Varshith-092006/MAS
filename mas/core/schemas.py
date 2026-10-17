@@ -1,7 +1,7 @@
 """Pydantic models and JSON Schema generation for inter-agent artifacts."""
 
-from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, List, Literal, Optional, Union
+from pydantic import BaseModel, Field, field_validator
 
 
 class TaskPlan(BaseModel):
@@ -19,6 +19,21 @@ class TaskPlan(BaseModel):
     sprint_goals: List[str] = Field(
         default_factory=list, description="High-level goals for iteration"
     )
+    acceptance_criteria: List[str] = Field(
+        default_factory=list, description="Explicit, objectively testable acceptance criteria"
+    )
+    ambiguities: List[str] = Field(
+        default_factory=list, description="Identified requirement ambiguities or missing constraints"
+    )
+
+    @field_validator("files", "sprint_goals", "acceptance_criteria", "ambiguities", mode="before")
+    @classmethod
+    def normalize_string_lists(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
+
+
 
 
 class UserStory(BaseModel):
@@ -34,6 +49,13 @@ class UserStory(BaseModel):
         default="medium", description="Story priority"
     )
     estimate: int = Field(default=1, ge=1, description="Story point estimate")
+
+    @field_validator("acceptance_criteria", mode="before")
+    @classmethod
+    def normalize_acceptance_criteria(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
 
 
 class Architecture(BaseModel):
@@ -51,6 +73,13 @@ class Architecture(BaseModel):
         default_factory=dict, description="Module to imported local modules mapping"
     )
 
+    @field_validator("file_structure", mode="before")
+    @classmethod
+    def normalize_file_structure(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
+
 
 class CodePatch(BaseModel):
     """Code patch produced by Developer."""
@@ -62,6 +91,20 @@ class CodePatch(BaseModel):
     tests_expected: List[str] = Field(
         default_factory=list, description="Key behaviors expected to pass in testing"
     )
+
+    @field_validator("files", mode="before")
+    @classmethod
+    def normalize_files(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
+
+    @field_validator("tests_expected", mode="before")
+    @classmethod
+    def normalize_tests_expected(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
 
 
 class ReviewReport(BaseModel):
@@ -76,6 +119,26 @@ class ReviewReport(BaseModel):
         default_factory=list, description="Actionable findings or bugs detected"
     )
     summary: str = Field(default="", description="Summary of review observations")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        if isinstance(v, str):
+            clean = v.strip().upper()
+            if "PASS" in clean:
+                return "PASSED"
+            if "FAIL" in clean:
+                return "FAILED"
+            if "REVIS" in clean or "NEED" in clean:
+                return "NEEDS_REVISION"
+        return v
+
+    @field_validator("findings", mode="before")
+    @classmethod
+    def normalize_findings(cls, v):
+        if isinstance(v, str):
+            return [v.strip()]
+        return v
 
 
 class TestReport(BaseModel):

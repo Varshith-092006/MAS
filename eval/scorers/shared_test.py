@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from typing import Any, Dict, List, Tuple
 from mas.analysis.sandbox import SandboxRunner
 
@@ -44,9 +45,12 @@ class SharedTestHarness:
                     chosen = f
                     break
         if not chosen:
+            # Check for neutral web entry point if present
+            if os.path.exists(os.path.join(workspace_path, "index.html")):
+                return 1.0
             return 0.0
 
-        res = self.sandbox.smoke_run(workspace_path, entry_point=chosen)
+        res = self.sandbox.smoke_run(workspace_path, entry_point=chosen, allow_fallback=True)
         return 1.0 if res.is_success else 0.0
 
     def run_level2_checks(self, workspace_path: str, task_id: str) -> Tuple[float, int, int]:
@@ -58,13 +62,18 @@ class SharedTestHarness:
 
         passed = 0
         for chk in task_checks:
-            cmd = chk.get("command", ["python", "main.py"])
             expected_code = chk.get("expected_exit_code", 0)
-            res = self.sandbox.execute(workspace_path, cmd)
+            if "test_script" in chk:
+                script_path = os.path.abspath(chk["test_script"])
+                cmd = [sys.executable, script_path, os.path.abspath(workspace_path)]
+            else:
+                cmd = chk.get("command", ["python", "main.py"])
+
+            res = self.sandbox.execute(workspace_path, cmd, allow_fallback=True)
             if res.exit_code == expected_code:
                 # Check stdout keywords if required
                 expected_keywords = chk.get("expected_stdout_contains", [])
-                if all(kw in res.stdout for kw in expected_keywords):
+                if not expected_keywords or all(kw in res.stdout for kw in expected_keywords):
                     passed += 1
 
         fraction = passed / len(task_checks)

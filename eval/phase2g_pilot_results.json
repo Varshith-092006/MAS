@@ -1,0 +1,168 @@
+{
+  "series_timestamp": 1792220009,
+  "model_requested": "cohere/north-mini-code:free",
+  "runs": [
+    {
+      "slot": "Task A",
+      "task_id": "dev_markdown_toc_01",
+      "run_id": "mas_dev_toc_a_1792220009",
+      "status": "STOPPED_BUDGET_CEILING",
+      "stop_reason": "RATE_LIMIT_429: Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+      "duration_seconds": 0.86,
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0,
+      "call_details": [],
+      "complexity_path": "STRUCTURED",
+      "artifacts_generated": [],
+      "iterations": 1,
+      "reviewer_status": "UNKNOWN",
+      "reviewer_critical": 0,
+      "reviewer_major": 0,
+      "reviewer_minor": 0,
+      "reviewer_findings": [],
+      "evaluator_scores": {
+        "completeness": 0.0,
+        "executability": 0.0,
+        "consistency": null,
+        "quality": null,
+        "version": "v1.3"
+      },
+      "level2_behavioral": {
+        "all_passed": false,
+        "pass_rate": 0.0,
+        "passed_assertions": 0,
+        "total_assertions": 0,
+        "assertions": {
+          "module_import": false
+        }
+      }
+    },
+    {
+      "slot": "Task B",
+      "task_id": "dev_inventory_system_01",
+      "run_id": "mas_dev_inv_b_1792220015",
+      "status": "STOPPED_BUDGET_CEILING",
+      "stop_reason": "RATE_LIMIT_429: Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+      "duration_seconds": 0.33,
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0,
+      "call_details": [],
+      "complexity_path": "STRUCTURED",
+      "artifacts_generated": [],
+      "iterations": 1,
+      "reviewer_status": "UNKNOWN",
+      "reviewer_critical": 0,
+      "reviewer_major": 0,
+      "reviewer_minor": 0,
+      "reviewer_findings": [],
+      "evaluator_scores": {
+        "completeness": 0.0,
+        "executability": 0.0,
+        "consistency": null,
+        "quality": null,
+        "version": "v1.3"
+      },
+      "level2_behavioral": {
+        "all_passed": false,
+        "pass_rate": 0.0,
+        "passed_assertions": 0,
+        "total_assertions": 0,
+        "assertions": {
+          "module_import": false
+        }
+      }
+    },
+    {
+      "slot": "Task C",
+      "task_id": "dev_log_analyzer_01",
+      "run_id": "mas_dev_log_c_1792220021",
+      "status": "STOPPED_BUDGET_CEILING",
+      "stop_reason": "RATE_LIMIT_429: Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+      "duration_seconds": 0.41,
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0,
+      "call_details": [],
+      "complexity_path": "SIMPLE",
+      "artifacts_generated": [],
+      "iterations": 1,
+      "reviewer_status": "UNKNOWN",
+      "reviewer_critical": 0,
+      "reviewer_major": 0,
+      "reviewer_minor": 0,
+      "reviewer_findings": [],
+      "evaluator_scores": {
+        "completeness": 0.0,
+        "executability": 0.0,
+        "consistency": null,
+        "quality": null,
+        "version": "v1.3"
+      },
+      "level2_behavioral": {
+        "all_passed": false,
+        "pass_rate": 0.0,
+        "passed_assertions": 0,
+        "total_assertions": 0,
+        "assertions": {
+          "module_import": false
+        }
+      }
+    },
+    {
+      "slot": "Task D (Repeat of Task A)",
+      "task_id": "dev_markdown_toc_01_repeat",
+      "run_id": "mas_dev_toc_d_repeat_1792220026",
+      "status": "STOPPED_BUDGET_CEILING",
+      "stop_reason": "RATE_LIMIT_429: Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+      "duration_seconds": 0.29,
+      "calls_dispatched": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reasoning_tokens_diagnostic": 0,
+      "verified_cost": 0,
+      "call_details": [],
+      "complexity_path": "STRUCTURED",
+      "artifacts_generated": [],
+      "iterations": 1,
+      "reviewer_status": "UNKNOWN",
+      "reviewer_critical": 0,
+      "reviewer_major": 0,
+      "reviewer_minor": 0,
+      "reviewer_findings": [],
+      "evaluator_scores": {
+        "completeness": 0.0,
+        "executability": 0.0,
+        "consistency": null,
+        "quality": null,
+        "version": "v1.3"
+      },
+      "level2_behavioral": {
+        "all_passed": false,
+        "pass_rate": 0.0,
+        "passed_assertions": 0,
+        "total_assertions": 0,
+        "assertions": {
+          "module_import": false
+        }
+      }
+    }
+  ],
+  "budget_limits": {
+    "max_calls_per_run": 15,
+    "max_tokens_per_run": 60000,
+    "max_daily_transmissions": 45,
+    "max_pilot_runs": 4
+  }
+}

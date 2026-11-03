@@ -118,6 +118,7 @@ class SandboxRunner:
                 docker_cmd,
                 capture_output=True,
                 text=True,
+                stdin=subprocess.DEVNULL,
                 timeout=self.timeout_seconds,
             )
             duration = int((time.time() - t0) * 1000)
@@ -157,6 +158,8 @@ class SandboxRunner:
             "PATH": os.environ.get("PATH", ""),
             "PYTHONPATH": abs_workspace,
             "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
         }
         if env_vars:
             for k, v in env_vars.items():
@@ -171,6 +174,7 @@ class SandboxRunner:
                 env=clean_env,
                 capture_output=True,
                 text=True,
+                stdin=subprocess.DEVNULL,
                 timeout=self.timeout_seconds,
             )
             duration = int((time.time() - t0) * 1000)

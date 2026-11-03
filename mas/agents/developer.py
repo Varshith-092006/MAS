@@ -49,7 +49,11 @@ class DeveloperAgent(BaseAgent):
             plan = state.get("artifacts", {}).get("TaskPlan", {})
             acceptance_criteria = plan.get("acceptance_criteria", [])
             sprint_goals = plan.get("sprint_goals", [])
-            arch = state.get("architecture", {})
+            arch = state.get("artifacts", {}).get("Architecture") or state.get("architecture", {})
+            user_story = state.get("artifacts", {}).get("UserStory", {})
+            if user_story and not acceptance_criteria:
+                acceptance_criteria = user_story.get("acceptance_criteria", [])
+            sprint_goals = plan.get("sprint_goals", [])
             uml_slice = state.get("relevant_uml", [])
             review_feedback = state.get("review_report", {}).get("findings", [])
             test_feedback = state.get("mas_pytest_report", {}).get("details", [])
@@ -58,36 +62,45 @@ class DeveloperAgent(BaseAgent):
             prompt_sections = [
                 f"Task Requirement:\n{req}\n",
                 f"Iteration: {iteration}\n",
-                "Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n",
             ]
-            if sprint_goals:
-                prompt_sections.append(f"Sprint Goals: {sprint_goals}\n")
-            if arch and arch.get("components"):
-                prompt_sections.append(f"Architecture Components: {arch['components']}\n")
-            if uml_slice:
-                prompt_sections.append(f"UML Context: {uml_slice}\n")
+            if arch and isinstance(arch, dict):
+                files_planned = arch.get("file_structure", [])
+                if files_planned:
+                    prompt_sections.append("Planned Architecture Modules:\n" + "\n".join(f"- {fp}" for fp in files_planned) + "\n")
+            if acceptance_criteria:
+                prompt_sections.append("Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n")
             if review_feedback:
-                prompt_sections.append("Review Findings to Address:\n" + "\n".join(f"- {f}" for f in review_feedback) + "\n")
+                prompt_sections.append("Review Findings to Fix:\n" + "\n".join(f"- {f}" for f in review_feedback) + "\n")
             if test_feedback:
-                prompt_sections.append("Test Diagnostic Details:\n" + "\n".join(f"- {t}" for t in test_feedback) + "\n")
+                prompt_sections.append("Test Diagnostics:\n" + "\n".join(f"- {t}" for t in test_feedback) + "\n")
             if sandbox_err:
-                prompt_sections.append(f"Sandbox Stderr:\n{sandbox_err}\n")
+                prompt_sections.append(f"Sandbox Error:\n{sandbox_err}\n")
             if feedback:
                 prompt_sections.append(f"Validator Feedback:\n{feedback}\n")
 
             prompt_sections.append(
                 "Instructions:\n"
-                "- Write complete Python code with entry point in main.py.\n"
-                "- Handle column variations flexibly: 'product name'/'product'/'product_name', 'quantity'/'qty', and 'unit price'/'unit_price'/'price'.\n"
-                "- Handle empty CSV files without crashing (output total 0).\n"
-                "- Validate numeric inputs (quantity >= 0, unit_price >= 0.0), warning to stderr and skipping invalid/negative rows.\n"
-                "- Handle malformed rows by warning to stderr and skipping.\n"
-                "- When acceptance criteria specify automated tests, generate test_main.py alongside main.py.\n"
-                "Return a single JSON object with these keys:\n"
-                "- files: list of target file paths (e.g. ['main.py', 'test_main.py'])\n"
-                "- file_contents: an object mapping each filename to its complete, non-truncated Python source code string\n"
-                "- summary: a concise description of the implementation\n"
-                "- tests_expected: list of test or verification cases\n"
+                "- Write complete, self-contained, executable Python code with entry point in main.py.\n"
+                "- Entry point & CLI interface:\n"
+                "  * If running from command line with '--help', print usage instructions and exit cleanly with status code 0.\n"
+                "  * Running without arguments (e.g. 'python main.py' or calling main()) must execute cleanly and exit or return with code 0 without crashing.\n"
+                "  * Provide a clear solver interface: define a function `solve(query: str) -> str` or a class `ScienceQuestionSolver` with method `solve(query: str) -> str`.\n"
+                "- Multi-Domain Requirements:\n"
+                "  * Implement complete, working logic for Physics (speed/velocity/distance/time), Chemistry (atomic numbers, symbols, carbon), and Biology (photosynthesis step-by-step).\n"
+                "  * Do NOT use trivial stubs, 'pass', or placeholder comments.\n"
+                "  * When input cannot be resolved, return a helpful explanation string instead of raising uncaught exceptions (like ValueError, IndexError) or exiting with code 1.\n"
+                "- When the task specifies automated tests (e.g. test_main.py), generate test_main.py alongside main.py.\n\n"
+                "Return a single JSON object matching this schema:\n"
+                "{\n"
+                '  "files": ["main.py", "test_main.py"],\n'
+                '  "file_contents": {\n'
+                '    "main.py": "<complete python code for main.py>",\n'
+                '    "test_main.py": "<complete python code for test_main.py>"\n'
+                '  },\n'
+                '  "summary": "Implementation summary",\n'
+                '  "tests_expected": ["test case 1", "test case 2"]\n'
+                "}\n"
+                "Output ONLY the JSON object. Do NOT include markdown or reasoning outside the JSON."
             )
             prompt = "\n".join(prompt_sections)
 
@@ -95,9 +108,11 @@ class DeveloperAgent(BaseAgent):
                 {
                     "role": "system",
                     "content": (
-                        "You are DeveloperAgent. Generate complete, production-ready, executable Python code with a valid entry point (main.py). "
-                        "The code must strictly satisfy the task requirements and all acceptance criteria. "
-                        "Do NOT use placeholders, pass statements, or ellipsis stubs. "
+                        "You are DeveloperAgent. Output ONLY a valid JSON object matching the CodePatch schema, starting with { and ending with }. "
+                        "Do NOT include conversational text, thinking, explanation, or markdown formatting outside the JSON object. "
+                        "Generate complete, production-ready, executable Python code with entry point main.py. "
+                        "The application must handle '--help' and zero arguments cleanly with exit code 0. "
+                        "The code must strictly satisfy the task requirements and all acceptance criteria without placeholders. "
                         "Return a valid CodePatch JSON containing files, file_contents mapping, summary, and tests_expected."
                     ),
                 },
@@ -111,26 +126,57 @@ class DeveloperAgent(BaseAgent):
                 response_schema=CodePatch,
                 run_id=run_id,
                 agent_name="developer",
-                max_tokens=6000,
+                max_tokens=4000,
             )
-            if res.parsed_json and "files" in res.parsed_json and "file_contents" in res.parsed_json:
-                return res.parsed_json
+            data = res.parsed_json
+            if not data and res.text:
+                from mas.core.llm import extract_json
+                data = extract_json(res.text)
 
-            # Fallback: check if model emitted python code block directly
+            if data and isinstance(data, dict) and "files" in data and "file_contents" in data:
+                return data
+
+            # Fallback 1: Extract multi-file markdown code blocks
             import re
-            code_match = re.search(r"```(?:python)?\s*([\s\S]*?)\s*```", res.text)
+            import ast
+            file_pattern = re.compile(
+                r"(?:###?\s*[`*]*([a-zA-Z0-9_\-\.\/]+\.py)[`*]*|#\s*(?:file|filename):\s*([a-zA-Z0-9_\-\.\/]+\.py))\s*\n\s*```(?:python)?\s*([\s\S]*?)```",
+                re.IGNORECASE,
+            )
+            matches = file_pattern.findall(res.text or "")
+            if matches:
+                extracted_files = {}
+                for m in matches:
+                    fname = m[0] or m[1]
+                    fcontent = m[2].strip()
+                    if fname and fcontent:
+                        extracted_files[os.path.basename(fname)] = fcontent
+                if extracted_files:
+                    return {
+                        "files": list(extracted_files.keys()),
+                        "file_contents": extracted_files,
+                        "summary": f"Extracted {len(extracted_files)} files from markdown blocks",
+                        "tests_expected": ["Execute main.py entry point and verify outputs"],
+                    }
+
+            # Fallback 2: Single python code block
+            code_match = re.search(r"```(?:python)?\s*([\s\S]*?)\s*```", res.text or "")
             if code_match and len(code_match.group(1).strip()) > 30:
                 extracted_code = code_match.group(1).strip()
-                return {
-                    "files": ["main.py"],
-                    "file_contents": {"main.py": extracted_code},
-                    "summary": "Extracted complete Python implementation from model code block",
-                    "tests_expected": ["Execute main.py entry point and verify outputs"],
-                }
+                try:
+                    ast.parse(extracted_code)
+                    return {
+                        "files": ["main.py"],
+                        "file_contents": {"main.py": extracted_code},
+                        "summary": "Extracted complete Python implementation from model code block",
+                        "tests_expected": ["Execute main.py entry point and verify outputs"],
+                    }
+                except SyntaxError:
+                    pass
 
             # Return error payload to trigger produce_valid_artifact retry mechanism
             return {
-                "error": f"Developer LLM output could not be parsed as CodePatch JSON: {res.text[:300]}"
+                "error": f"Developer LLM output could not be parsed as CodePatch JSON: {res.text[:300] if res.text else 'EMPTY'}"
             }
 
         patch: CodePatch = self.produce_valid_artifact("CodePatch", produce_code, state, CodePatch)

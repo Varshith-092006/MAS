@@ -73,7 +73,7 @@ class TesterAgent(BaseAgent):
                 response_schema=TestReport,
                 run_id=run_id,
                 agent_name="tester",
-                max_tokens=3000,
+                max_tokens=1500,
             )
             data = res.parsed_json
             if not data and res.text:

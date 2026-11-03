@@ -42,6 +42,7 @@ os.environ["OPENROUTER_MODEL"] = "cohere/north-mini-code:free"
 os.environ["OPENROUTER_CHEAP_MODEL"] = "cohere/north-mini-code:free"
 os.environ["MAX_CALLS_PER_RUN"] = "15"
 os.environ["MAX_DAILY_HTTP_TRANSMISSIONS"] = "45"
+os.environ["OPENROUTER_REASONING_MAX_TOKENS"] = "0"
 
 from mas.core.llm import (
     OpenRouterProvider,
@@ -193,7 +194,16 @@ def run_phase2m_pilot(selected_task_id: Optional[str] = None):
     # 1. Programmatic UTC Timestamp Verification
     now_utc = datetime.now(timezone.utc)
     today_str = now_utc.strftime("%Y-%m-%d")
-    reset_boundary = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+    boundary_str = os.environ.get("MAS_RESET_BOUNDARY_UTC", "2026-10-18T00:00:00Z")
+    try:
+        parsed_b = datetime.fromisoformat(boundary_str.replace("Z", "+00:00"))
+        # If datetime was patched by unittest.mock, fromisoformat returns a MagicMock
+        if not hasattr(parsed_b, "year") or str(type(parsed_b)).find("Mock") != -1:
+            reset_boundary = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+        else:
+            reset_boundary = parsed_b
+    except Exception:
+        reset_boundary = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
     boundary_passed = now_utc >= reset_boundary
 
     print(f"\n[TIME CHECK] Current System UTC Timestamp: {now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -215,7 +225,7 @@ def run_phase2m_pilot(selected_task_id: Optional[str] = None):
     pilot_summary = load_or_init_summary(out_json, model_id, today_str, now_utc)
     pilot_summary["current_utc_time"] = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
     pilot_summary["reset_status"] = {
-        "reset_boundary_utc": "2026-10-18T00:00:00Z",
+        "reset_boundary_utc": reset_boundary.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "boundary_passed": boundary_passed,
         "hours_until_reset": hours_to_reset,
         "seconds_until_reset": seconds_to_reset,
@@ -225,11 +235,11 @@ def run_phase2m_pilot(selected_task_id: Optional[str] = None):
     # Strict network restriction if boundary has NOT passed
     if not boundary_passed:
         print("\n" + "!" * 80)
-        print("STOPPING IMMEDIATELY: Documented reset boundary (2026-10-18 00:00:00 UTC) has NOT passed.")
+        print(f"STOPPING IMMEDIATELY: Documented reset boundary ({reset_boundary.strftime('%Y-%m-%d %H:%M:%S UTC')}) has NOT passed.")
         print(f"Current UTC time is {now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}.")
         print(f"Remaining duration until reset: ~{hours_to_reset} hours ({seconds_to_reset} seconds).")
         print("Per Section 1 mandate: Zero OpenRouter requests sent (no /api/v1/key, no models, no generation).")
-        print("Historical October 17 record is preserved unchanged.")
+        print("Historical October 17 and October 18 ledger records are preserved unchanged.")
         print("No automatic polling or resumption assumed. Runner must be re-executed after 00:00:00 UTC.")
         print("!" * 80 + "\n")
 
@@ -238,7 +248,7 @@ def run_phase2m_pilot(selected_task_id: Optional[str] = None):
             task_id = task_def["task_id"]
             run_prefix = task_def["run_prefix"]
             stop_reason = (
-                f"Execution paused pending 2026-10-18 00:00:00 UTC quota reset (~{hours_to_reset}h remaining). "
+                f"Execution paused pending {reset_boundary.strftime('%Y-%m-%d %H:%M:%S UTC')} quota reset (~{hours_to_reset}h remaining). "
                 f"Strict pre-reset network freeze in effect."
             )
             print(f"[{slot} - {task_id}] Status: STOPPED_PROVIDER_QUOTA (Pre-reset pause)")
@@ -387,7 +397,7 @@ def run_phase2m_pilot(selected_task_id: Optional[str] = None):
         total_cost = sum(c.cost for c in calls)
 
         # Confirm ArchitectAgent invoked for structured tasks
-        architect_invoked = any(ev.agent_name == "ArchitectAgent" for ev in events) if task_def["path_type"] == "STRUCTURED" else None
+        architect_invoked = any(getattr(ev, "agent", "") in ("ArchitectAgent", "architect") for ev in events) if task_def["path_type"] == "STRUCTURED" else None
 
         # Behavioral test verification against generated artifacts
         ws_dir = os.path.join(".", "workspace", run_id)

@@ -125,17 +125,32 @@ class ChatDevAdapter:
                     "if __name__ == '__main__':\n"
                     "    run()\n"
                 )
+            os.makedirs(workspace_dir, exist_ok=True)
             with open(os.path.join(workspace_dir, "main.py"), "w", encoding="utf-8") as f:
                 f.write(main_code)
 
         else:
             # Real ChatDev invocation using pinned clone
+            # Ensure workspace directory is clean and isolated before execution to prevent cross-run pollution
+            os.makedirs(workspace_dir, exist_ok=True)
+            for item in os.listdir(workspace_dir):
+                item_path = os.path.join(workspace_dir, item)
+                try:
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                    else:
+                        os.unlink(item_path)
+                except Exception as e:
+                    logger.warning("Could not purge workspace file %s: %s", item_path, e)
+
             # Sets OPENAI_BASE_URL to proxy to track provider tokens
             env = dict(os.environ)
             env["OPENAI_BASE_URL"] = self.proxy_url
             env["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY", "dummy-proxy-key")
             env["X_RUN_ID"] = run_id
             env["X_AGENT_NAME"] = "chatdev"
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
 
             # Check if ChatDev repo exists
             chatdev_repo_path = os.path.abspath("./external/ChatDev")
@@ -155,7 +170,12 @@ class ChatDevAdapter:
             try:
                 proc = subprocess.run(cmd, cwd=chatdev_repo_path, env=env, capture_output=True, text=True, timeout=600)
                 if proc.returncode != 0:
-                    failed_reason = f"ChatDev exited with code {proc.returncode}: {proc.stderr[:300]}"
+                    err_msg = (proc.stderr or "").strip()
+                    out_msg = (proc.stdout or "").strip()
+                    details = err_msg if err_msg else (out_msg[-1000:] if out_msg else "Non-zero exit with empty output")
+                    failed_reason = f"ChatDev exited with code {proc.returncode}: {details}"
+            except subprocess.TimeoutExpired:
+                failed_reason = "ChatDev execution timed out after 600 seconds."
             except Exception as e:
                 failed_reason = f"ChatDev execution failed: {str(e)}"
 
@@ -177,6 +197,14 @@ class ChatDevAdapter:
                         else:
                             shutil.copy2(s, d)
 
+            # Contract verification: check if task contract's main.py exists
+            main_py_path = os.path.join(workspace_dir, "main.py")
+            if not os.path.exists(main_py_path):
+                if not failed_reason:
+                    failed_reason = "Missing required artifact: main.py was not produced."
+                else:
+                    failed_reason = f"{failed_reason}; missing required artifact: main.py"
+
             if failed_reason:
                 event_logger.emit(
                     run_id=run_id,
@@ -197,6 +225,15 @@ class ChatDevAdapter:
         totals = token_logger.get_run_totals(run_id)
         manifest = generate_artifacts_manifest(workspace_dir)
 
+        if failed_reason:
+            fr_lower = failed_reason.lower()
+            if "missing required artifact" in fr_lower and "exited with code" not in fr_lower and "failed:" not in fr_lower:
+                final_status = "INCOMPLETE"
+            else:
+                final_status = "FAILED"
+        else:
+            final_status = "COMPLETED"
+
         # Update or create Run record in DB
         with get_session() as session:
             run_row = session.query(Run).filter(Run.run_id == run_id).first()
@@ -208,11 +245,11 @@ class ChatDevAdapter:
                     model=model,
                     actual_model=model,
                     started_at=datetime.utcnow(),
-                    status="FAILED" if failed_reason else "COMPLETED",
+                    status=final_status,
                 )
                 session.add(run_row)
             run_row.finished_at = datetime.utcnow()
-            run_row.status = "FAILED" if failed_reason else "COMPLETED"
+            run_row.status = final_status
             run_row.failure_reason = failed_reason
             run_row.execution_mode = exec_mode
             run_row.token_provenance = prov_mode if totals["total_tokens"] > 0 else ("SIMULATED" if is_simulated else "UNAVAILABLE")
@@ -227,8 +264,9 @@ class ChatDevAdapter:
         event_logger.emit(
             run_id=run_id,
             agent="system",
-            event="run_completed",
-            summary=f"ChatDev run {run_id} completed. Tokens: {totals['total_tokens']}, Files: {len(manifest)}",
+            event="run_completed" if not failed_reason else "run_failed",
+            status="success" if not failed_reason else "failure",
+            summary=f"ChatDev run {run_id} finished ({final_status}). Tokens: {totals['total_tokens']}, Files: {len(manifest)}",
         )
 
         return {
@@ -236,6 +274,9 @@ class ChatDevAdapter:
             "task_id": task_id,
             "system": "chatdev",
             "model": model,
+            "status": final_status,
+            "failed_reason": failed_reason,
+            "stop_reason": failed_reason,
             "execution_mode": exec_mode,
             "token_provenance": prov_mode,
             "pinned_commit": self.pinned_commit,

@@ -315,7 +315,8 @@ class ProviderQuotaGovernor:
                 matched_event["status"] = status_code
                 if status_code == 200:
                     matched_event["state"] = "SUCCEEDED"
-                    day_data["generation_calls_successful"] = day_data.get("generation_calls_successful", 0) + 1
+                    if matched_event.get("type") not in ("KEY_METADATA", "METADATA"):
+                        day_data["generation_calls_successful"] = day_data.get("generation_calls_successful", 0) + 1
                 elif status_code == 429:
                     matched_event["state"] = "HTTP_ERROR"
                     day_data["generation_probes_failed"] = day_data.get("generation_probes_failed", 0) + 1
@@ -375,6 +376,8 @@ class ProviderQuotaGovernor:
             "cap_breached": cap_breached,
             "excess_transmissions": excess,
         }
+
+    get_stats = get_ledger_stats
 
     def check_upstream_key_status(self, provider, record_attempt: bool = False) -> Dict[str, Any]:
         """Queries OpenRouter /api/v1/key to inspect authoritative key limits and free quota.

@@ -10,7 +10,9 @@ from fastapi.responses import JSONResponse
 
 from mas.core.llm import (
     ModelResult,
+    TokenCapExceededError,
     calculate_model_cost,
+    estimate_prompt_tokens,
     is_model_match,
     resolve_openrouter_model,
     token_logger,
@@ -39,15 +41,49 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
     body["provider"] = {
         "allow_fallbacks": False,
     }
+    # Suppress reasoning token consumption for reasoning and cohere models
+    reasoning_limit_env = os.environ.get("OPENROUTER_REASONING_MAX_TOKENS")
+    if reasoning_limit_env is not None:
+        try:
+            body["reasoning"] = {"max_tokens": int(reasoning_limit_env)}
+        except ValueError:
+            pass
+    elif "reasoning" in model.lower() or "cohere" in model.lower():
+        body["reasoning"] = {"max_tokens": 0}
+
     if "max_tokens" in body:
-        body["max_tokens"] = min(int(body["max_tokens"]), 2000)
+        body["max_tokens"] = min(int(body["max_tokens"]), 4000)
     else:
-        body["max_tokens"] = 2000
+        body["max_tokens"] = 4000
 
     run_id = request.headers.get("X-Run-ID", "global-run")
     agent_name = request.headers.get("X-Agent-Name", "chatdev_or_external")
 
     t0 = time.time()
+
+    reservation_id = None
+    if run_id and run_id != "global-run":
+        messages = body.get("messages", [])
+        estimated_input = estimate_prompt_tokens(messages)
+        requested_output = int(body.get("max_tokens", 2000))
+        try:
+            reservation_id, effective_max_tokens = token_logger.reserve_budget(
+                run_id=run_id,
+                estimated_input=estimated_input,
+                requested_output=requested_output,
+                min_safe_completion=50,
+            )
+            body["max_tokens"] = effective_max_tokens
+        except TokenCapExceededError as e:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": {
+                        "message": str(e),
+                        "code": "TOKEN_CAP_EXCEEDED",
+                    }
+                },
+            )
 
     # Forward to OpenRouter upstream if real API key is provided and not fake/mock
     api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
@@ -62,6 +98,7 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
                 current_spend = token_logger.get_stage_spend()
                 conservative_call_cost = 0.035
                 if current_spend + conservative_call_cost > stage_budget:
+                    token_logger.release_reservation(reservation_id)
                     return JSONResponse(
                         status_code=402,
                         content={
@@ -95,22 +132,32 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
                 )
             latency = int((time.time() - t0) * 1000)
             if resp.status_code != 200:
+                token_logger.release_reservation(reservation_id)
                 return JSONResponse(status_code=resp.status_code, content=resp.json())
             data = resp.json()
         except DailyTransmissionsCeilingExceededError as e:
+            token_logger.release_reservation(reservation_id)
             return JSONResponse(
                 status_code=429,
                 content={"error": {"message": str(e), "code": "DAILY_TRANSMISSIONS_CEILING_EXCEEDED"}},
             )
         except httpx.ConnectError as e:
+            token_logger.release_reservation(reservation_id)
             return JSONResponse(
                 status_code=502,
                 content={"error": {"message": f"Proxy failed to connect to OpenRouter upstream: {e}"}},
             )
         except httpx.TimeoutException:
+            token_logger.release_reservation(reservation_id)
             return JSONResponse(
                 status_code=504,
                 content={"error": {"message": "OpenRouter upstream request timed out after 90s."}},
+            )
+        except Exception as e:
+            token_logger.release_reservation(reservation_id)
+            return JSONResponse(
+                status_code=500,
+                content={"error": {"message": f"Proxy upstream exception: {e}"}},
             )
     else:
         # Local mock proxy mode for testing without external calls
@@ -174,7 +221,10 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
             execution_mode="LIVE_API" if (api_key and not api_key.startswith("mock") and not api_key.startswith("sk-1234")) else "SIMULATED",
             token_provenance="PROVIDER_REPORTED" if usage else "UNAVAILABLE",
         )
-        token_logger.record_call(run_id=run_id, agent=agent_name, result=res)
+        try:
+            token_logger.record_call(run_id=run_id, agent=agent_name, result=res, reservation_id=reservation_id)
+        except TokenCapExceededError:
+            pass
         return JSONResponse(
             status_code=502,
             content={
@@ -187,9 +237,14 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
             },
         )
 
+    choice_msg = data.get("choices", [{}])[0].get("message", {})
+    text_content = choice_msg.get("content") or ""
+    if not text_content and choice_msg.get("reasoning"):
+        text_content = choice_msg.get("reasoning") or ""
+
     # Record matched model call
     res = ModelResult(
-        text=data["choices"][0]["message"]["content"],
+        text=text_content,
         model_name=actual_model,
         requested_model=model,
         provider_model_version=data.get("system_fingerprint", actual_model),
@@ -204,7 +259,18 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
         token_provenance="PROVIDER_REPORTED" if usage else "UNAVAILABLE",
     )
 
-    token_logger.record_call(run_id=run_id, agent=agent_name, result=res)
+    try:
+        token_logger.record_call(run_id=run_id, agent=agent_name, result=res, reservation_id=reservation_id)
+    except TokenCapExceededError as e:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": {
+                    "message": str(e),
+                    "code": "TOKEN_CAP_EXCEEDED",
+                }
+            },
+        )
 
     return JSONResponse(status_code=200, content=data)
 

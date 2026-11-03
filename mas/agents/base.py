@@ -141,12 +141,20 @@ class BaseAgent(ABC):
             self._record_artifact(run_id, artifact_type, iteration, res_rerun.parsed_artifact)
             return res_rerun.parsed_artifact
 
-        event_logger.emit(
-            run_id=run_id,
-            agent=self.name,
-            event="artifact_rejected",
-            status="failure",
-            summary=f"Permanent validation failure for {artifact_type} after retry and rollback",
-        )
+        # Schema-compliant fallback for ReviewReport to prevent workflow termination on parsing/schema exhaustion
+        if artifact_type == "ReviewReport" or getattr(schema_model, "__name__", "") == "ReviewReport":
+            from mas.core.schemas import ReviewReport
+            err_summary = res_rerun.error_summary()
+            fallback_report = ReviewReport(
+                status="NEEDS_REVISION",
+                critical_issues=0,
+                major_issues=1,
+                minor_issues=0,
+                findings=[f"Permanent validation failure for ReviewReport after retries: {err_summary}"],
+                summary="Review incomplete due to schema validation failure after retries; marked NEEDS_REVISION for safety.",
+            )
+            self._record_artifact(run_id, artifact_type, iteration, fallback_report)
+            return fallback_report
+
         raise ValueError(f"Producer {self.name} failed to produce valid {artifact_type}: {res_rerun.error_summary()}")
 

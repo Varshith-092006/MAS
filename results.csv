@@ -1,1 +1,14 @@
 run_id,task_id,system,model,repeat_no,ablation,quality,quality_per_1k_tokens,completeness,executability,consistency,shared_test,ruff,bandit,radon,tokens,cost,pytest_pass_rate,coverage,status
+sim_mas_srdd_educ_01_r1,srdd_educ_01,mas,fake,1,A0,0.0,0.0,1.0,1.0,0.0,0.5,0,0,100.0,1626,0.0,,,SIMULATION_ONLY
+sim_cd_srdd_educ_01_r1,srdd_educ_01,chatdev,fake,1,A0,0.4286,0.1429,1.0,1.0,0.4286,0.5,0,0,100.0,3000,0.0,,,SIMULATION_ONLY
+mas_srdd_educ_01_r1,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,,,,,,,,,,51682,0.0,,,FAILED
+mas_srdd_educ_01_r1_attempt2,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.4286,0.0068,1.0,1.0,0.4286,0.5,0,0,100.0,62871,0.0,,,STOPPED_BUDGET_CEILING
+cd_srdd_educ_01_r1,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,5228,0.0,,,FAILED
+mas_srdd_educ_01_r2,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,0.0,0.0,1.0,0.0,0.5714,0.0,0,0,100.0,62178,0.0,,,STOPPED_BUDGET_CEILING
+cd_srdd_educ_01_r2,srdd_educ_01,chatdev,cohere/north-mini-code:free,2,A0,,,,,,,0,0,,4290,0.0,,,FAILED
+mas_test_pair_r1,srdd_test_01,mas,cohere/north-mini-code:free,1,A0,,,,,,,,,,45000,0.0,,,COMPLETED
+cd_test_pair_r1,srdd_test_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,4200,0.0,,,FAILED
+mas_srdd_educ_01_r1_attempt3,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.0,0.0,1.0,0.0,0.2857,0.0,0,0,100.0,58690,0.0,,,STOPPED_BUDGET_CEILING
+cd_srdd_educ_01_r1_attempt2,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,4385,0.0,,,FAILED
+mas_srdd_educ_01_r1_attempt4,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.3636,0.0064,1.0,1.0,0.3636,1.0,0,0,100.0,57053,0.0,,,COMPLETED
+cd_srdd_educ_01_r1_attempt3,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,3251,0.0,,,FAILED

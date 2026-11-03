@@ -47,7 +47,8 @@ class ManagerAgent(BaseAgent):
                         "1. Translate task description into explicit requirements and objectively testable acceptance criteria.\n"
                         "2. Identify ambiguities or missing constraints explicitly in 'ambiguities' rather than inventing unstated requirements.\n"
                         "3. Specify all required source files (must include main.py or app.py as the primary entry point).\n"
-                        "4. Return a valid TaskPlan JSON with keys: id, task_id, name, description, complexity, files, sprint_goals, acceptance_criteria, ambiguities."
+                        "4. For command-line tools or solvers, explicitly include acceptance criteria requiring '--help' and zero-argument runs to exit cleanly with exit code 0.\n"
+                        "5. Return a valid TaskPlan JSON with keys: id, task_id, name, description, complexity, files, sprint_goals, acceptance_criteria, ambiguities."
                     ),
                 },
                 {"role": "user", "content": f"Requirement: {raw_req}\nDetermined Complexity: {label} (Score: {score})\nFeedback: {feedback or 'None'}"},
@@ -59,7 +60,7 @@ class ManagerAgent(BaseAgent):
                 response_schema=TaskPlan,
                 run_id=run_id,
                 agent_name="manager",
-                max_tokens=3000,
+                max_tokens=1500,
             )
             data = result.parsed_json
             if not data and result.text:

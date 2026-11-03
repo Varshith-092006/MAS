@@ -6,9 +6,10 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 import uuid
 
 import httpx
@@ -270,6 +271,42 @@ def calculate_model_cost(
     return round((in_tokens * price_entry["input"]) + (out_tokens * price_entry["output"]), 6)
 
 
+def estimate_prompt_tokens(
+    messages: List[Dict[str, Any]],
+    safety_margin_pct: float = 0.20,
+    fixed_overhead: int = 30,
+) -> int:
+    """Estimates serialized prompt tokens using a local tokenizer with an explicit safety margin.
+
+    Uses tiktoken cl100k_base when available; falls back to a conservative character heuristic
+    (1 token / 3 chars). Applies an explicit safety margin (default 20%) and fixed overhead
+    (default 30 tokens for chat envelope / system framing) to strictly bound provider tokenization
+    variance and ensure fail-closed budget pre-allocation.
+    """
+    total_tokens = 0
+    try:
+        import tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        for msg in messages:
+            if isinstance(msg, dict):
+                content = str(msg.get("content", "") or "")
+                role = str(msg.get("role", "") or "")
+                total_tokens += len(enc.encode(content)) + len(enc.encode(role)) + 4
+            else:
+                total_tokens += len(enc.encode(str(msg))) + 4
+    except Exception:
+        for msg in messages:
+            if isinstance(msg, dict):
+                content = str(msg.get("content", "") or "")
+                role = str(msg.get("role", "") or "")
+                total_tokens += (len(content) + len(role)) // 3 + 4
+            else:
+                total_tokens += len(str(msg)) // 3 + 4
+
+    buffered = int(total_tokens * (1.0 + safety_margin_pct)) + fixed_overhead
+    return max(buffered, fixed_overhead)
+
+
 def extract_json(content: str) -> Optional[Dict[str, Any]]:
     """Extracts valid JSON object from model output, handling markdown blocks."""
     if not content:
@@ -355,6 +392,66 @@ class TokenLogger:
     def __init__(self, max_tokens_per_run: int = 60000):
         self.max_tokens_per_run = max_tokens_per_run
         self._run_totals: Dict[str, Dict[str, Any]] = {}
+        self._reservations: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
+
+    def get_active_reservation_tokens(self, run_id: str) -> int:
+        """Returns the sum of currently active in-flight reserved tokens for a given run."""
+        with self._lock:
+            return sum(r["tokens"] for r in self._reservations.values() if r.get("run_id") == run_id)
+
+    def reserve_budget(
+        self,
+        run_id: str,
+        estimated_input: int,
+        requested_output: int,
+        min_safe_completion: int = 50,
+    ) -> Tuple[str, int]:
+        """Atomically reserves estimated input-plus-output tokens before network dispatch.
+
+        Fail-closed:
+        1. Determines remaining run budget from authoritative cap (60,000) minus current recorded tokens
+           and any active in-flight reservations.
+        2. Computes completion allowance after reserving estimated input tokens.
+        3. If available completion allowance < min_safe_completion (default 50), blocks the request
+           before dispatch by raising TokenCapExceededError. Never forces max_tokens=1.
+        4. Clamps completion allowance to the lesser of requested_output and available_for_completion.
+        5. Atomically records the reservation and returns (reservation_id, effective_output).
+        """
+        with self._lock:
+            run_totals = self.get_run_totals(run_id)
+            current_tokens = run_totals.get("total_tokens", 0)
+            active_reserved = sum(r["tokens"] for r in self._reservations.values() if r.get("run_id") == run_id)
+
+            remaining_budget = self.max_tokens_per_run - (current_tokens + active_reserved)
+            available_for_completion = remaining_budget - estimated_input
+
+            if available_for_completion < min_safe_completion:
+                raise TokenCapExceededError(
+                    f"Run {run_id} reached per-run token ceiling of {self.max_tokens_per_run} tokens: "
+                    f"budget gate blocked request before dispatch: remaining budget ({remaining_budget} tokens, "
+                    f"current={current_tokens}, reserved={active_reserved}) is insufficient for estimated prompt "
+                    f"({estimated_input} tokens) plus minimum safe completion allowance ({min_safe_completion} tokens)."
+                )
+
+            effective_output = min(requested_output, available_for_completion)
+            total_reserved = estimated_input + effective_output
+            reservation_id = f"res_{uuid.uuid4().hex[:12]}"
+            self._reservations[reservation_id] = {
+                "run_id": run_id,
+                "tokens": total_reserved,
+                "estimated_input": estimated_input,
+                "reserved_output": effective_output,
+                "created_at": time.time(),
+            }
+            return reservation_id, effective_output
+
+    def release_reservation(self, reservation_id: Optional[str]):
+        """Releases an active budget reservation (e.g. on dispatch failure, network error, or abort)."""
+        if not reservation_id:
+            return
+        with self._lock:
+            self._reservations.pop(reservation_id, None)
 
     def get_run_totals(self, run_id: str, db_session=None) -> Dict[str, Any]:
         """Returns accurate provider-reported token usage and cost, querying DB if needed."""
@@ -423,90 +520,94 @@ class TokenLogger:
             return sum(self.get_run_totals(rid).get("estimated_cost", 0.0) for rid in run_ids)
         return sum(totals.get("estimated_cost", 0.0) for totals in self._run_totals.values())
 
-    def record_call(self, run_id: str, agent: str, result: ModelResult, db_session=None):
-        if run_id not in self._run_totals:
-            self._run_totals[run_id] = {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0,
-                "estimated_cost": 0.0,
-                "call_count": 0,
-                "token_provenance": result.token_provenance,
-            }
+    def record_call(self, run_id: str, agent: str, result: ModelResult, reservation_id: Optional[str] = None, db_session=None):
+        with self._lock:
+            if reservation_id:
+                self._reservations.pop(reservation_id, None)
 
-        in_val = result.input_tokens or 0
-        out_val = result.output_tokens or 0
-        tot_val = result.total_tokens or (in_val + out_val)
+            if run_id not in self._run_totals:
+                self._run_totals[run_id] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "estimated_cost": 0.0,
+                    "call_count": 0,
+                    "token_provenance": result.token_provenance,
+                }
 
-        totals = self._run_totals[run_id]
-        totals["input_tokens"] += in_val
-        totals["output_tokens"] += out_val
-        totals["total_tokens"] += tot_val
-        if result.estimated_cost is not None:
-            totals["estimated_cost"] = round(totals["estimated_cost"] + result.estimated_cost, 6)
-        totals["call_count"] += 1
-        totals["token_provenance"] = result.token_provenance
+            in_val = result.input_tokens or 0
+            out_val = result.output_tokens or 0
+            tot_val = result.total_tokens or (in_val + out_val)
 
-        # Persist to database
-        own_session = False
-        if db_session is None:
-            db_session = get_session()
-            own_session = True
+            totals = self._run_totals[run_id]
+            totals["input_tokens"] += in_val
+            totals["output_tokens"] += out_val
+            totals["total_tokens"] += tot_val
+            if result.estimated_cost is not None:
+                totals["estimated_cost"] = round(totals["estimated_cost"] + result.estimated_cost, 6)
+            totals["call_count"] += 1
+            totals["token_provenance"] = result.token_provenance
 
-        try:
-            call_obj = ModelCall(
-                run_id=run_id,
-                agent=agent,
-                model=result.model_name,
-                requested_model=result.requested_model,
-                actual_model=result.model_name,
-                request_id=result.request_id,
-                raw_metadata=result.raw_metadata,
-                input_tokens=in_val,
-                output_tokens=out_val,
-                total_tokens=tot_val,
-                latency_ms=result.latency_ms,
-                cost=result.estimated_cost,
-            )
-            db_session.add(call_obj)
+            # Persist to database
+            own_session = False
+            if db_session is None:
+                db_session = get_session()
+                own_session = True
 
-            # Update Run record with latest aggregates
-            from mas.db.models import Run
-            run_row = db_session.query(Run).filter(Run.run_id == run_id).first()
-            if run_row:
-                run_row.input_tokens = totals["input_tokens"]
-                run_row.output_tokens = totals["output_tokens"]
-                run_row.total_tokens = totals["total_tokens"]
-                if totals.get("estimated_cost") is not None:
-                    run_row.estimated_cost = round(totals["estimated_cost"], 6)
-                run_row.token_provenance = result.token_provenance
-                run_row.execution_mode = result.execution_mode
-                if result.model_name:
-                    run_row.actual_model = result.model_name
-                if result.request_id:
-                    run_row.provider_request_id = result.request_id
+            try:
+                call_obj = ModelCall(
+                    run_id=run_id,
+                    agent=agent,
+                    model=result.model_name,
+                    requested_model=result.requested_model,
+                    actual_model=result.model_name,
+                    request_id=result.request_id,
+                    raw_metadata=result.raw_metadata,
+                    input_tokens=in_val,
+                    output_tokens=out_val,
+                    total_tokens=tot_val,
+                    latency_ms=result.latency_ms,
+                    cost=result.estimated_cost,
+                )
+                db_session.add(call_obj)
 
-                # Flag model mismatch on run record
-                req_model = result.requested_model or run_row.model
-                if req_model and result.model_name and not is_model_match(req_model, result.model_name):
-                    run_row.status = "MODEL_MISMATCH_DIAGNOSTIC"
-                    run_row.failure_reason = (
-                        f"MODEL_MISMATCH_DIAGNOSTIC: Requested '{req_model}' but served by '{result.model_name}'. "
-                        f"Retained for audit, excluded from research aggregates."
-                    )
+                # Update Run record with latest aggregates
+                from mas.db.models import Run
+                run_row = db_session.query(Run).filter(Run.run_id == run_id).first()
+                if run_row:
+                    run_row.input_tokens = totals["input_tokens"]
+                    run_row.output_tokens = totals["output_tokens"]
+                    run_row.total_tokens = totals["total_tokens"]
+                    if totals.get("estimated_cost") is not None:
+                        run_row.estimated_cost = round(totals["estimated_cost"], 6)
+                    run_row.token_provenance = result.token_provenance
+                    run_row.execution_mode = result.execution_mode
+                    if result.model_name:
+                        run_row.actual_model = result.model_name
+                    if result.request_id:
+                        run_row.provider_request_id = result.request_id
 
-            db_session.commit()
-        except Exception:
-            db_session.rollback()
-        finally:
-            if own_session:
-                db_session.close()
+                    # Flag model mismatch on run record
+                    req_model = result.requested_model or run_row.model
+                    if req_model and result.model_name and not is_model_match(req_model, result.model_name):
+                        run_row.status = "MODEL_MISMATCH_DIAGNOSTIC"
+                        run_row.failure_reason = (
+                            f"MODEL_MISMATCH_DIAGNOSTIC: Requested '{req_model}' but served by '{result.model_name}'. "
+                            f"Retained for audit, excluded from research aggregates."
+                        )
 
-        # Check token cap
-        if totals["total_tokens"] > self.max_tokens_per_run:
-            raise TokenCapExceededError(
-                f"Run {run_id} exceeded token cap: {totals['total_tokens']} > {self.max_tokens_per_run}"
-            )
+                db_session.commit()
+            except Exception:
+                db_session.rollback()
+            finally:
+                if own_session:
+                    db_session.close()
+
+            # Check token cap
+            if totals["total_tokens"] > self.max_tokens_per_run:
+                raise TokenCapExceededError(
+                    f"Run {run_id} exceeded token cap: {totals['total_tokens']} > {self.max_tokens_per_run}"
+                )
 
 
 token_logger = TokenLogger()
@@ -545,6 +646,17 @@ class FakeLLMProvider(LLMProvider):
         agent_name: str = "agent",
         max_tokens: int = 2000,
     ) -> ModelResult:
+        reservation_id = None
+        effective_max_tokens = max_tokens
+        if run_id:
+            estimated_input = estimate_prompt_tokens(messages)
+            reservation_id, effective_max_tokens = token_logger.reserve_budget(
+                run_id=run_id,
+                estimated_input=estimated_input,
+                requested_output=max_tokens,
+                min_safe_completion=50,
+            )
+
         self.call_count += 1
         t0 = time.time()
 
@@ -709,7 +821,7 @@ class FakeLLMProvider(LLMProvider):
         )
 
         if run_id:
-            token_logger.record_call(run_id=run_id, agent=agent_name, result=res)
+            token_logger.record_call(run_id=run_id, agent=agent_name, result=res, reservation_id=reservation_id)
 
         return res
 
@@ -808,7 +920,7 @@ class OpenRouterProvider(LLMProvider):
             except ValueError:
                 pass
 
-        # 1. Enforce per-run dispatch and token ceilings
+        # 1. Enforce per-run dispatch ceiling and atomic fail-closed token budget reservation
         if run_id:
             run_totals = token_logger.get_run_totals(run_id)
             calls_cap_env = os.environ.get("MAX_CALLS_PER_RUN")
@@ -821,10 +933,6 @@ class OpenRouterProvider(LLMProvider):
                         )
                 except ValueError:
                     pass
-            if run_totals.get("total_tokens", 0) >= 60000:
-                raise TokenCapExceededError(
-                    f"Run {run_id} reached per-run token ceiling of 60,000 tokens ({run_totals.get('total_tokens', 0)} tokens recorded)."
-                )
 
         # 2. Enforce UTC daily outbound HTTP transmission ceiling across ALL request types
         daily_cap_env = os.environ.get("MAX_DAILY_HTTP_TRANSMISSIONS")
@@ -848,25 +956,39 @@ class OpenRouterProvider(LLMProvider):
 
         processed_messages = list(messages)
         if response_schema:
-            schema_instruction = (
-                f"\n\nCRITICAL INSTRUCTION: You MUST return a single JSON object conforming exactly to this JSON Schema:\n"
-                f"{json.dumps(response_schema.model_json_schema())}\n"
-                f"Do NOT include any explanatory text outside the JSON object."
+            last_content = processed_messages[-1]["content"] if (processed_messages and processed_messages[-1]["role"] == "user") else ""
+            if "matching this schema" not in last_content and "JSON Schema" not in last_content:
+                schema_instruction = (
+                    f"\n\nCRITICAL INSTRUCTION: You MUST return a single JSON object conforming exactly to this JSON Schema:\n"
+                    f"{json.dumps(response_schema.model_json_schema())}\n"
+                    f"Do NOT include any explanatory text outside the JSON object."
+                )
+                if processed_messages and processed_messages[-1]["role"] == "user":
+                    processed_messages[-1] = {
+                        "role": "user",
+                        "content": processed_messages[-1]["content"] + schema_instruction,
+                    }
+                else:
+                    processed_messages.append({"role": "user", "content": schema_instruction})
+
+        reservation_id = None
+        if run_id:
+            estimated_input = estimate_prompt_tokens(processed_messages)
+            reservation_id, effective_max_tokens = token_logger.reserve_budget(
+                run_id=run_id,
+                estimated_input=estimated_input,
+                requested_output=max_tokens,
+                min_safe_completion=50,
             )
-            if processed_messages and processed_messages[-1]["role"] == "user":
-                processed_messages[-1] = {
-                    "role": "user",
-                    "content": processed_messages[-1]["content"] + schema_instruction,
-                }
-            else:
-                processed_messages.append({"role": "user", "content": schema_instruction})
+        else:
+            effective_max_tokens = max_tokens
 
         payload: Dict[str, Any] = {
             "model": target_model,
             "messages": processed_messages,
             "temperature": temperature,
             "seed": 42,
-            "max_tokens": max_tokens,
+            "max_tokens": effective_max_tokens,
             "provider": {
                 "allow_fallbacks": False,
             },
@@ -882,7 +1004,7 @@ class OpenRouterProvider(LLMProvider):
         elif "reasoning" in target_model.lower() or "cohere" in target_model.lower():
             payload["reasoning"] = {"max_tokens": 0}
 
-        if response_schema:
+        if response_schema and "cohere" not in target_model.lower():
             payload["response_format"] = {"type": "json_object"}
 
         headers = {
@@ -903,18 +1025,25 @@ class OpenRouterProvider(LLMProvider):
             ) as client:
                 resp = client.post(url, json=payload, headers=headers)
         except DailyTransmissionsCeilingExceededError:
+            token_logger.release_reservation(reservation_id)
             raise
         except httpx.ConnectError as e:
+            token_logger.release_reservation(reservation_id)
             raise RuntimeError(
                 f"Failed to connect to OpenRouter at {url}. "
                 f"Please verify your network connection or OPENROUTER_BASE_URL. Details: {e}"
             ) from e
         except httpx.TimeoutException as e:
+            token_logger.release_reservation(reservation_id)
             raise RuntimeError(
                 f"Request to OpenRouter timed out after 90s for model {target_model}. Details: {e}"
             ) from e
+        except Exception:
+            token_logger.release_reservation(reservation_id)
+            raise
 
         if resp.status_code != 200:
+            token_logger.release_reservation(reservation_id)
             parsed_err: Dict[str, Any] = {}
             raw_text = ""
             try:
@@ -999,7 +1128,9 @@ class OpenRouterProvider(LLMProvider):
         latency = int((time.time() - t0) * 1000)
         choice = data["choices"][0]
         msg_obj = choice.get("message", {})
-        content = msg_obj.get("content") or msg_obj.get("reasoning") or ""
+        content = msg_obj.get("content") or msg_obj.get("text") or ""
+        if not content and msg_obj.get("reasoning"):
+            content = msg_obj.get("reasoning")
         usage = data.get("usage")
 
         if usage and isinstance(usage, dict) and any(k in usage for k in ("prompt_tokens", "completion_tokens", "total_tokens")):
@@ -1055,7 +1186,7 @@ class OpenRouterProvider(LLMProvider):
         )
 
         if run_id:
-            token_logger.record_call(run_id=run_id, agent=agent_name, result=result)
+            token_logger.record_call(run_id=run_id, agent=agent_name, result=result, reservation_id=reservation_id)
 
         # Strict model enforcement check
         if not actual_model:

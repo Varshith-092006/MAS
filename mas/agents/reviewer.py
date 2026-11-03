@@ -62,7 +62,11 @@ class ReviewerAgent(BaseAgent):
         quality_rep = state.get("quality_report", {})
         ast_rep = state.get("ast_report", {})
 
+        attempt_count = 0
+
         def produce_review(feedback=None):
+            nonlocal attempt_count
+            attempt_count += 1
             review_prompt = (
                 f"Task Requirement:\n{req}\n\n"
                 f"Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n\n"
@@ -91,6 +95,7 @@ class ReviewerAgent(BaseAgent):
                     "content": (
                         "You are ReviewerAgent. Perform objective, evidence-based code and requirement review. "
                         "Examine the actual code, test execution results, and static analysis findings. "
+                        "Keep findings concise (1-2 sentences each). Output ONLY a compact JSON object starting with { and ending with }. "
                         "Return a valid ReviewReport JSON with: status ('PASSED', 'FAILED', or 'NEEDS_REVISION'), "
                         "critical_issues (int), major_issues (int), minor_issues (int), findings (list of strings), and summary (string)."
                     ),
@@ -104,12 +109,28 @@ class ReviewerAgent(BaseAgent):
                 response_schema=ReviewReport,
                 run_id=run_id,
                 agent_name="reviewer",
-                max_tokens=5000,
+                max_tokens=1500,
             )
             data = res.parsed_json
             if not data and res.text:
                 from mas.core.llm import extract_json
                 data = extract_json(res.text)
+
+            if not data and res.text:
+                # Truncation recovery: attempt to close open brackets/quotes if status or findings are partially present
+                raw = res.text.strip()
+                s_idx = raw.find("{")
+                if s_idx != -1 and ('"status"' in raw or "'status'" in raw):
+                    cand = raw[s_idx:]
+                    for suffix in ['"}', '"]}', '", "findings": []}', '"}', '}']:
+                        try:
+                            import json
+                            p = json.loads(cand + suffix)
+                            if isinstance(p, dict) and "status" in p:
+                                data = p
+                                break
+                        except Exception:
+                            pass
 
             if data and isinstance(data, dict):
                 data = dict(data)
@@ -119,9 +140,23 @@ class ReviewerAgent(BaseAgent):
                     data["status"] = "PASSED" if (crit == 0 and maj == 0) else "NEEDS_REVISION"
                 return data
 
-            # Return error payload to trigger produce_valid_artifact retry mechanism
+            # For attempts 1 and 2, return error payload to trigger produce_valid_artifact bounded retry
+            if attempt_count < 3 and not (feedback and "strict compliance" in feedback.lower()):
+                return {
+                    "error": f"Reviewer LLM output could not be parsed as ReviewReport JSON: {res.text[:300] if res.text else 'EMPTY'}"
+                }
+
+            # On retry exhaustion (attempt >= 3): return valid typed ReviewReport marking NEEDS_REVISION
+            raw_snippet = (res.text[:200] if res.text else "EMPTY").strip()
             return {
-                "error": f"Reviewer LLM output could not be parsed as ReviewReport JSON: {res.text[:300]}"
+                "status": "NEEDS_REVISION",
+                "critical_issues": 0,
+                "major_issues": 1,
+                "minor_issues": 0,
+                "findings": [
+                    f"Reviewer output could not be parsed as valid ReviewReport JSON after {attempt_count} attempts: {raw_snippet}"
+                ],
+                "summary": f"Review incomplete: LLM output was malformed, truncated, or invalid JSON after {attempt_count} attempts. Marked NEEDS_REVISION for safety.",
             }
 
         report: ReviewReport = self.produce_valid_artifact("ReviewReport", produce_review, state, ReviewReport)
@@ -172,9 +207,20 @@ class ReviewerAgent(BaseAgent):
                 if ("revenue" in sb_stdout.lower() or "total" in sb_stdout.lower()) and len(sb_stdout.strip()) > 10:
                     verified_critical = max(0, verified_critical - 1)
                     grounded_findings.append(f"[DISPOSITIONED: FALSE POSITIVE - Sandbox execution output confirmed revenue display]: {f_str}")
-                    continue
-
             grounded_findings.append(f_str)
+
+        # Grounded sanity check: If any file in workspace has actual syntax error, record as critical
+        actual_syntax_err = None
+        for fname, code in code_snippets.items():
+            try:
+                import ast
+                ast.parse(code, filename=fname)
+            except SyntaxError as se:
+                actual_syntax_err = f"Syntax error in {fname}: {se}"
+                break
+        if actual_syntax_err:
+            verified_critical = max(1, verified_critical)
+            grounded_findings.append(f"[DETERMINISTIC VERIFICATION]: {actual_syntax_err}")
 
         # Grounded status determination
         grounded_status = report.status

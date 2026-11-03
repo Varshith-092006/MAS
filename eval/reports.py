@@ -33,7 +33,27 @@ def generate_stats_markdown_report(
     chatdev_runs: List[Dict[str, Any]],
     output_path: str = "eval/stats_report.md",
 ) -> str:
-    """Produces the formatted experimental statistics markdown report."""
+    """Produces the formatted experimental statistics markdown report for live benchmark runs only."""
+    # Filter strictly to verified live runs
+    mas_live = [r for r in mas_runs if r.get("execution_mode") == "LIVE_API" and r.get("status") == "COMPLETED"]
+    cd_live = [r for r in chatdev_runs if r.get("execution_mode") == "LIVE_API" and r.get("status") == "COMPLETED"]
+
+    if not mas_live or not cd_live:
+        md = """# MAS Empirical Evaluation Statistics Report
+
+## Primary Experimental Metrics (Paired Permutation Test)
+
+**Status**: No completed live benchmark runs yet (N=0). Simulation-only runs are strictly excluded from empirical statistics.
+
+> **Note on Research Comparison**:
+> Live benchmark data requires real provider execution under governed transport.
+> Simulation runs (`SIMULATION_ONLY`) and test mocks are preserved for offline pipeline validation but are strictly excluded from empirical hypothesis testing or superiority claims.
+"""
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(md)
+        return md
+
     # Group task-level averages
     def get_task_metric_means(runs: List[Dict[str, Any]], metric_key: str) -> Dict[str, float]:
         task_vals: Dict[str, List[float]] = {}
@@ -44,12 +64,23 @@ def generate_stats_markdown_report(
             task_vals.setdefault(tid, []).append(val)
         return {tid: sum(vals) / len(vals) for tid, vals in task_vals.items()}
 
-    mas_q = get_task_metric_means(mas_runs, "quality")
-    cd_q = get_task_metric_means(chatdev_runs, "quality")
-    mas_q_per_1k = get_task_metric_means(mas_runs, "quality_per_1k_tokens")
-    cd_q_per_1k = get_task_metric_means(chatdev_runs, "quality_per_1k_tokens")
+    mas_q = get_task_metric_means(mas_live, "quality")
+    cd_q = get_task_metric_means(cd_live, "quality")
+    mas_q_per_1k = get_task_metric_means(mas_live, "quality_per_1k_tokens")
+    cd_q_per_1k = get_task_metric_means(cd_live, "quality_per_1k_tokens")
 
     common_tasks = sorted(list(set(mas_q.keys()) & set(cd_q.keys())))
+    if not common_tasks:
+        md = """# MAS Empirical Evaluation Statistics Report
+
+## Primary Experimental Metrics (Paired Permutation Test)
+
+**Status**: No common paired tasks completed between MAS and ChatDev (N=0).
+"""
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(md)
+        return md
 
     mas_q_list = [mas_q[t] for t in common_tasks]
     cd_q_list = [cd_q[t] for t in common_tasks]

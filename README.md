@@ -2,6 +2,16 @@
 
 MAS is a cost-aware multi-agent software engineering research platform designed to reduce token overhead while retaining high software generation quality.
 
+> 🎓 **Final Year Project Submission Bundle:**  
+> Complete documentation, architecture diagrams, testing evidence, and dissertation report are available in the **[`submission/`](./submission/README.md)** directory:
+> - [Project Overview & Problem Statement](./submission/PROJECT_OVERVIEW.md)
+> - [System Architecture & Workflow Specification](./submission/SYSTEM_ARCHITECTURE.md)
+> - [Agent Roles & Responsibilities](./submission/AGENT_RESPONSIBILITIES.md)
+> - [Installation & Operations Manual](./submission/INSTALLATION_AND_OPERATIONS.md)
+> - [Testing Methodology & 201-Test Verification Report](./submission/TESTING_AND_VERIFICATION.md)
+> - [Benchmark Methodology & Empirical Results](./submission/BENCHMARK_METHODOLOGY_AND_RESULTS.md)
+> - [Final Project Report / Dissertation](./submission/FINAL_PROJECT_REPORT.md)
+
 ---
 
 ## 1. Research Objective & System Architecture

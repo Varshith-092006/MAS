@@ -46,12 +46,18 @@ class ComplexityRouter:
     def score(self, requirement: str) -> Tuple[int, Dict[str, Any]]:
         """Calculates complexity score and returns matched features."""
         normalized = requirement.strip().lower()
+        # Disambiguate common non-architectural idioms:
+        # "table of contents" is document structure, not database persistence
+        # "report [usage] error" is error handling, not analytics reporting
+        features_text = re.sub(r"\btable\s+of\s+contents\b", "toc", normalized)
+        features_text = re.sub(r"\breports?\s+(?:an?\s+)?(?:usage\s+)?error\b", "display error", features_text)
+
         score = 0
         matched_features: Dict[str, Any] = {}
 
         # 1. Feature pattern rules (1 point each)
         for feature_name, regex in self.FEATURE_RULES.items():
-            matches = regex.findall(normalized)
+            matches = regex.findall(features_text)
             if matches:
                 score += 1
                 matched_features[feature_name] = list(set(matches))

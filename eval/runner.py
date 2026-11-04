@@ -738,7 +738,7 @@ class EvaluationRunner:
 
                             main_py_exists = os.path.exists(os.path.join(cd_out["workspace_dir"], "main.py"))
 
-                            if cd_status in ("FAILED", "INCOMPLETE", "STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE"):
+                            if cd_status in ("FAILED", "INCOMPLETE", "STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE", "TIMEOUT"):
                                 actual_cd_status = cd_status
                                 actual_cd_exec_mode = cd_status
                             elif not main_py_exists:

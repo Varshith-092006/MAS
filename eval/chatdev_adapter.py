@@ -17,7 +17,7 @@ from mas.core.events import event_logger
 from mas.core.workflow import generate_artifacts_manifest
 
 # Pinned commit of ChatDev repository for strict experimental reproducibility
-CHATDEV_PINNED_COMMIT = "v1.0.0"  # v1.0.0 stable release
+CHATDEV_PINNED_COMMIT = "c1c31e28864df6b8b0394683b8286436ce41b5ce"  # Pinned commit with null-content fix and review bounds
 CHATDEV_REPO_URL = "https://github.com/OpenBMB/ChatDev.git"
 
 
@@ -29,10 +29,12 @@ class ChatDevAdapter:
         proxy_url: str = "http://127.0.0.1:8000/proxy/v1",
         pinned_commit: str = CHATDEV_PINNED_COMMIT,
         llm: Optional[LLMProvider] = None,
+        default_timeout: int = 900,
     ):
         self.proxy_url = proxy_url
         self.pinned_commit = pinned_commit
         self.llm = llm or FakeLLMProvider()
+        self.default_timeout = default_timeout
 
     def run_task(
         self,
@@ -43,6 +45,7 @@ class ChatDevAdapter:
         seed: int = 42,
         run_id: Optional[str] = None,
         use_fake: bool = True,
+        timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Executes a ChatDev task, routing all model calls through the logging proxy.
 
@@ -149,6 +152,7 @@ class ChatDevAdapter:
             env["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY", "dummy-proxy-key")
             env["X_RUN_ID"] = run_id
             env["X_AGENT_NAME"] = "chatdev"
+            env["CHATDEV_MODEL"] = model
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
 
@@ -167,15 +171,31 @@ class ChatDevAdapter:
                 "--model", model,
             ]
             failed_reason = None
+            timeout_val = timeout if timeout is not None else self.default_timeout
             try:
-                proc = subprocess.run(cmd, cwd=chatdev_repo_path, env=env, capture_output=True, text=True, timeout=600)
+                proc = subprocess.run(
+                    cmd,
+                    cwd=chatdev_repo_path,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=timeout_val,
+                )
                 if proc.returncode != 0:
                     err_msg = (proc.stderr or "").strip()
                     out_msg = (proc.stdout or "").strip()
                     details = err_msg if err_msg else (out_msg[-1000:] if out_msg else "Non-zero exit with empty output")
                     failed_reason = f"ChatDev exited with code {proc.returncode}: {details}"
-            except subprocess.TimeoutExpired:
-                failed_reason = "ChatDev execution timed out after 600 seconds."
+            except subprocess.TimeoutExpired as exc:
+                out_msg = exc.stdout or ""
+                err_msg = exc.stderr or ""
+                if isinstance(out_msg, bytes):
+                    out_msg = out_msg.decode("utf-8", errors="replace")
+                if isinstance(err_msg, bytes):
+                    err_msg = err_msg.decode("utf-8", errors="replace")
+                failed_reason = f"ChatDev execution timed out after {timeout_val} seconds."
             except Exception as e:
                 failed_reason = f"ChatDev execution failed: {str(e)}"
 

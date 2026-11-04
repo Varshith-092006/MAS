@@ -1,0 +1,48 @@
+{
+  "audit_phase": "Phase 2AM",
+  "timestamp_utc": "2026-11-04T15:25:00Z",
+  "evaluator_version": "v1.3",
+  "canonical_task_id": "srdd_educ_01",
+  "canonical_requirement": "Step-by-step science question solver providing explanations and solutions.",
+  "formula": "Quality = Completeness * Executability * Consistency",
+  "discrepancy_investigation": {
+    "reported_mas_metrics": {
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.7143,
+      "reported_quality": 0.3636,
+      "expected_quality_under_formula": 0.7143
+    },
+    "root_cause": "During Phase 2AG, mas.db received two evaluation passes: Pass 1 (rowids 348-355) evaluated under v1.2 with C=1.0, E=0.0, S=0.7143, Q=0.0. Pass 2 (rowids 362-369) evaluated under v1.3 with C=1.0, E=1.0, S=0.3636, Q=0.3636. When benchmark_manifest.json and results.csv were compiled, fields were mixed between Pass 1 (copying consistency 0.7143) and Pass 2 (copying quality 0.3636). Recomputing directly from saved artifacts under canonical NeutralEvaluator v1.3 confirms Completeness=1.0, Executability=1.0, Consistency=0.7143, yielding Quality=0.7143."
+  },
+  "recomputed_values": {
+    "mas_srdd_educ_01_r1_attempt4": {
+      "tokens": 57053,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.7143,
+      "quality": 0.7143,
+      "quality_per_1k_tokens": 0.0125,
+      "shared_test": 1.0,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "historical_unreconciled_quality": 0.3636,
+      "historical_unreconciled_q1k": 0.0064
+    },
+    "cd_srdd_educ_01_r1_attempt7": {
+      "tokens": 57453,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.8571,
+      "quality": 0.8571,
+      "quality_per_1k_tokens": 0.0149,
+      "shared_test": 0.5,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "historical_unreconciled_quality": 0.8571,
+      "historical_unreconciled_q1k": 0.0149
+    }
+  }
+}

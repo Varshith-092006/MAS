@@ -292,8 +292,8 @@
       "model": "cohere/north-mini-code:free",
       "repeat_no": 1,
       "ablation": "A0",
-      "quality": 0.3636,
-      "quality_per_1k_tokens": 0.0064,
+      "quality": 0.7143,
+      "quality_per_1k_tokens": 0.0125,
       "completeness": 1.0,
       "executability": 1.0,
       "consistency": 0.7143,
@@ -309,7 +309,10 @@
       "is_live_benchmark": true,
       "timestamp_utc": "2026-10-23T10:13:30Z",
       "is_paired_complete": true,
-      "paired_counterpart_run_id": "cd_srdd_educ_01_r1_attempt7"
+      "paired_counterpart_run_id": "cd_srdd_educ_01_r1_attempt7",
+      "reconciled_in_phase": "Phase 2AM",
+      "historical_unreconciled_quality": 0.3636,
+      "reconciliation_audit": "Resolved DB metric pass field mismatch; recomputed under canonical NeutralEvaluator v1.3"
     },
     {
       "run_id": "cd_srdd_educ_01_r1_attempt3",

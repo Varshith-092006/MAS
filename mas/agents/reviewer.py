@@ -109,7 +109,7 @@ class ReviewerAgent(BaseAgent):
                 response_schema=ReviewReport,
                 run_id=run_id,
                 agent_name="reviewer",
-                max_tokens=1500,
+                max_tokens=3000,
             )
             data = res.parsed_json
             if not data and res.text:
@@ -143,7 +143,7 @@ class ReviewerAgent(BaseAgent):
             # For attempts 1 and 2, return error payload to trigger produce_valid_artifact bounded retry
             if attempt_count < 3 and not (feedback and "strict compliance" in feedback.lower()):
                 return {
-                    "error": f"Reviewer LLM output could not be parsed as ReviewReport JSON: {res.text[:300] if res.text else 'EMPTY'}"
+                    "error": "Reviewer LLM output could not be parsed as ReviewReport JSON. Return a valid JSON object matching the ReviewReport schema."
                 }
 
             # On retry exhaustion (attempt >= 3): return valid typed ReviewReport marking NEEDS_REVISION

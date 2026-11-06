@@ -60,7 +60,7 @@ class ManagerAgent(BaseAgent):
                 response_schema=TaskPlan,
                 run_id=run_id,
                 agent_name="manager",
-                max_tokens=2000,
+                max_tokens=2500,
             )
             data = result.parsed_json
             if not data and result.text:
@@ -89,7 +89,7 @@ class ManagerAgent(BaseAgent):
 
             # Return error payload to trigger produce_valid_artifact retry mechanism
             return {
-                "error": f"Manager LLM output could not be parsed as TaskPlan JSON: {result.text[:200]}"
+                "error": "Manager LLM output could not be parsed as TaskPlan JSON. Return a valid JSON object matching the TaskPlan schema."
             }
 
         plan: TaskPlan = self.produce_valid_artifact("TaskPlan", produce_plan, state, TaskPlan)

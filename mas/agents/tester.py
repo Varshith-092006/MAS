@@ -78,7 +78,7 @@ class TesterAgent(BaseAgent):
                 response_schema=TestReport,
                 run_id=run_id,
                 agent_name="tester",
-                max_tokens=2000,
+                max_tokens=3500,
             )
             data = res.parsed_json
             if not data and res.text:
@@ -96,7 +96,7 @@ class TesterAgent(BaseAgent):
 
             # Return error payload to trigger produce_valid_artifact retry mechanism
             return {
-                "error": f"Tester LLM output could not be parsed as TestReport JSON: {res.text[:300]}"
+                "error": "Tester LLM output could not be parsed as TestReport JSON. Return a valid JSON object matching the TestReport schema."
             }
 
         report: TestReport = self.produce_valid_artifact("TestReport", produce_test_report, state, TestReport)

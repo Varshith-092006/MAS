@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-05T15:38:54Z",
+  "last_updated_utc": "2026-11-06T16:18:06Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -532,6 +532,34 @@
       "token_provenance": "PROVIDER_REPORTED",
       "is_live_benchmark": true,
       "timestamp_utc": "2026-11-05T15:38:54Z",
+      "is_paired_complete": false,
+      "paired_counterpart_run_id": null
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r2_attempt3",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 2,
+      "ablation": "A0",
+      "quality": null,
+      "quality_per_1k_tokens": null,
+      "completeness": null,
+      "executability": null,
+      "consistency": null,
+      "shared_test": null,
+      "ruff": null,
+      "bandit": null,
+      "radon": null,
+      "tokens": 6446,
+      "cost": 0.0,
+      "status": "FAILED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-06T16:18:06Z",
+      "error": "Producer manager failed to produce valid TaskPlan: ('id',): Field required; ('task_id',): Field required; ('name',): Field required; ('description',): Field required",
       "is_paired_complete": false,
       "paired_counterpart_run_id": null
     }

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-06T18:26:50Z",
+  "last_updated_utc": "2026-11-06T19:20:34Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -616,6 +616,34 @@
       "is_live_benchmark": true,
       "timestamp_utc": "2026-11-06T18:26:50Z",
       "error": "Producer developer failed to produce valid CodePatch: Developer LLM output could not be parsed as CodePatch JSON: We need to produce a CodePatch JSON with files main.py and test_main.py. The code must implement a step-by-step science question solver providing explanations and solutions. It must handle '--help', zero arguments, valid science question via command line, invalid input gracefully.\n\nWe need to implem",
+      "is_paired_complete": false,
+      "paired_counterpart_run_id": null
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r2_attempt6",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 2,
+      "ablation": "A0",
+      "quality": null,
+      "quality_per_1k_tokens": null,
+      "completeness": null,
+      "executability": null,
+      "consistency": null,
+      "shared_test": null,
+      "ruff": null,
+      "bandit": null,
+      "radon": null,
+      "tokens": 22400,
+      "cost": 0.0,
+      "status": "FAILED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-06T19:20:34Z",
+      "error": "Producer tester failed to produce valid TestReport: Tester LLM output could not be parsed as TestReport JSON: We need to generate a TestReport JSON based on acceptance criteria and sandbox execution outcomes. The sandbox smoke test exit code is 0 (Success: True). Stderr is None. The changed file is main.py. The acceptance criteria list includes:\n\n1. Running `python main.py --help` prints usage information a",
       "is_paired_complete": false,
       "paired_counterpart_run_id": null
     }

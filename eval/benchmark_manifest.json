@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-06T19:20:34Z",
+  "last_updated_utc": "2026-11-06T19:29:15Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -532,8 +532,8 @@
       "token_provenance": "PROVIDER_REPORTED",
       "is_live_benchmark": true,
       "timestamp_utc": "2026-11-05T15:38:54Z",
-      "is_paired_complete": false,
-      "paired_counterpart_run_id": null
+      "is_paired_complete": true,
+      "paired_counterpart_run_id": "mas_srdd_educ_01_r2_attempt7"
     },
     {
       "run_id": "mas_srdd_educ_01_r2_attempt3",
@@ -646,13 +646,40 @@
       "error": "Producer tester failed to produce valid TestReport: Tester LLM output could not be parsed as TestReport JSON: We need to generate a TestReport JSON based on acceptance criteria and sandbox execution outcomes. The sandbox smoke test exit code is 0 (Success: True). Stderr is None. The changed file is main.py. The acceptance criteria list includes:\n\n1. Running `python main.py --help` prints usage information a",
       "is_paired_complete": false,
       "paired_counterpart_run_id": null
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r2_attempt7",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 2,
+      "ablation": "A0",
+      "quality": 0.5714,
+      "quality_per_1k_tokens": 0.0337,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.5714,
+      "shared_test": 1.0,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "tokens": 16959,
+      "cost": 0.0,
+      "status": "COMPLETED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-06T19:29:15Z",
+      "is_paired_complete": true,
+      "paired_counterpart_run_id": "cd_srdd_educ_01_r2_attempt2"
     }
   ],
   "summary": {
     "total_canonical_tasks": 20,
     "required_repeats": 3,
-    "completed_paired_repeats": 1,
-    "mas_completed_live_runs": 1,
+    "completed_paired_repeats": 2,
+    "mas_completed_live_runs": 2,
     "chatdev_completed_live_runs": 2,
     "simulation_runs_excluded": 3,
     "non_canonical_test_runs_excluded": 2,

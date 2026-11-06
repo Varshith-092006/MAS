@@ -80,3 +80,4 @@ def test_extract_json_handles_truncated_and_code_fence_json():
     parsed = extract_json(fenced)
     assert parsed is not None
     assert parsed["id"] == "plan-2"
+

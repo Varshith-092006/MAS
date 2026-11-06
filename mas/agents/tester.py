@@ -49,9 +49,13 @@ class TesterAgent(BaseAgent):
                 {
                     "role": "system",
                     "content": (
-                        "You are TesterAgent. Generate an honest TestReport based on actual acceptance criteria and sandbox execution outcomes. "
-                        "Do NOT fabricate passing tests if the code failed to execute. "
-                        "Return a valid TestReport JSON with total_tests, passed_tests, failed_tests, pass_rate (passed/total), coverage, and details."
+                        "You are TesterAgent. Generate an honest, structured TestReport based on actual acceptance criteria and sandbox execution outcomes.\n"
+                        "Mandatory instructions:\n"
+                        "1. Return ONLY a single valid JSON object matching the TestReport schema.\n"
+                        "2. Required JSON keys: 'total_tests', 'passed_tests', 'failed_tests', 'pass_rate' (passed_tests / total_tests), 'coverage', and 'details'.\n"
+                        "3. Do NOT output any introductory commentary, conversational preamble, chain-of-thought analysis, or markdown text outside the JSON object.\n"
+                        "4. Do NOT fabricate passing tests if the code failed to execute.\n"
+                        "5. Ensure the complete JSON object is closed properly."
                     ),
                 },
                 {
@@ -62,7 +66,8 @@ class TesterAgent(BaseAgent):
                         f"Changed Files: {state.get('changed_files', [])}\n"
                         f"Sandbox Smoke Test Exit Code: {sandbox_res.exit_code} (Success: {sandbox_res.is_success})\n"
                         f"Sandbox Stderr: {sandbox_res.stderr or 'None'}\n"
-                        f"Feedback: {feedback or 'None'}"
+                        f"Feedback: {feedback or 'None'}\n\n"
+                        f"Generate the TestReport JSON now starting immediately with '{{' and ending with '}}':"
                     ),
                 },
             ]
@@ -73,7 +78,7 @@ class TesterAgent(BaseAgent):
                 response_schema=TestReport,
                 run_id=run_id,
                 agent_name="tester",
-                max_tokens=1500,
+                max_tokens=2000,
             )
             data = res.parsed_json
             if not data and res.text:

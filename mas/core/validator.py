@@ -41,6 +41,12 @@ class SchemaValidator:
                 errors=[f"Expected dictionary payload for {artifact_type}, got {type(data).__name__}"],
             )
 
+        # Handle explicit producer error and exception payloads to prevent masking parsing failures
+        if "error" in data and len(data) == 1:
+            return ValidationResult(is_valid=False, errors=[str(data["error"])])
+        if "__producer_exception__" in data:
+            return ValidationResult(is_valid=False, errors=[str(data["__producer_exception__"])])
+
         try:
             parsed = model_cls.model_validate(data)
             return ValidationResult(is_valid=True, parsed_artifact=parsed)

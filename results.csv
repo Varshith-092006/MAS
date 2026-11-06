@@ -21,3 +21,4 @@ mas_srdd_educ_01_r2_attempt2,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,0
 cd_srdd_educ_01_r2_attempt2,srdd_educ_01,chatdev,cohere/north-mini-code:free,2,A0,0.4897,0.0087,0.8571,1.0,0.5714,0.5,0,0,100.0,56038,0.0,,,COMPLETED
 mas_srdd_educ_01_r2_attempt3,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,6446,0.0,,,FAILED
 mas_srdd_educ_01_r2_attempt4,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,28502,0.0,,,FAILED
+mas_srdd_educ_01_r2_attempt5,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,13456,0.0,,,FAILED

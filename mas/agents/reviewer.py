@@ -125,7 +125,7 @@ class ReviewerAgent(BaseAgent):
                     for suffix in ['"}', '"]}', '", "findings": []}', '"}', '}']:
                         try:
                             import json
-                            p = json.loads(cand + suffix)
+                            p = json.loads(cand + suffix, strict=False)
                             if isinstance(p, dict) and "status" in p:
                                 data = p
                                 break

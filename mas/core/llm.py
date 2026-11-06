@@ -308,13 +308,13 @@ def estimate_prompt_tokens(
 
 
 def extract_json(content: str) -> Optional[Dict[str, Any]]:
-    """Extracts valid JSON object from model output, handling markdown blocks."""
+    """Extracts valid JSON object from model output, handling markdown blocks and literal control chars."""
     if not content:
         return None
     text = content.strip()
     # 1. Direct parsing
     try:
-        data = json.loads(text)
+        data = json.loads(text, strict=False)
         if isinstance(data, dict):
             return data
     except Exception:
@@ -324,7 +324,7 @@ def extract_json(content: str) -> Optional[Dict[str, Any]]:
     match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
     if match:
         try:
-            data = json.loads(match.group(1))
+            data = json.loads(match.group(1), strict=False)
             if isinstance(data, dict):
                 return data
         except Exception:
@@ -335,7 +335,7 @@ def extract_json(content: str) -> Optional[Dict[str, Any]]:
     if start != -1 and end != -1 and end > start:
         candidate = text[start : end + 1]
         try:
-            data = json.loads(candidate)
+            data = json.loads(candidate, strict=False)
             if isinstance(data, dict):
                 return data
         except Exception:
@@ -343,7 +343,7 @@ def extract_json(content: str) -> Optional[Dict[str, Any]]:
         # Clean trailing commas
         cleaned = re.sub(r",\s*([}\]])", r"\1", candidate)
         try:
-            data = json.loads(cleaned)
+            data = json.loads(cleaned, strict=False)
             if isinstance(data, dict):
                 return data
         except Exception:

@@ -99,8 +99,8 @@ class DeveloperAgent(BaseAgent):
                 '  },\n'
                 '  "summary": "Implementation summary",\n'
                 '  "tests_expected": ["test case 1", "test case 2"]\n'
-                "}\n"
-                "Output ONLY the JSON object. Do NOT include markdown or reasoning outside the JSON."
+                "}\n\n"
+                "Generate the CodePatch JSON now starting immediately with '{' and ending with '}':"
             )
             prompt = "\n".join(prompt_sections)
 
@@ -108,12 +108,14 @@ class DeveloperAgent(BaseAgent):
                 {
                     "role": "system",
                     "content": (
-                        "You are DeveloperAgent. Output ONLY a valid JSON object matching the CodePatch schema, starting with { and ending with }. "
-                        "Do NOT include conversational text, thinking, explanation, or markdown formatting outside the JSON object. "
-                        "Generate complete, production-ready, executable Python code with entry point main.py. "
-                        "The application must handle '--help' and zero arguments cleanly with exit code 0. "
-                        "The code must strictly satisfy the task requirements and all acceptance criteria without placeholders. "
-                        "Return a valid CodePatch JSON containing files, file_contents mapping, summary, and tests_expected."
+                        "You are DeveloperAgent. Output ONLY a valid JSON object matching the CodePatch schema, starting with { and ending with }.\n"
+                        "Mandatory instructions:\n"
+                        "1. Return ONLY a single valid JSON object matching the CodePatch schema.\n"
+                        "2. Do NOT output any conversational preamble, chain-of-thought analysis, or markdown outside the JSON.\n"
+                        "3. Generate complete, production-ready, executable Python code with entry point in main.py.\n"
+                        "4. The application must handle '--help' and zero arguments cleanly with exit code 0.\n"
+                        "5. The code must strictly satisfy the task requirements and all acceptance criteria without placeholders.\n"
+                        "6. Ensure the complete JSON object is properly closed."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -140,18 +142,22 @@ class DeveloperAgent(BaseAgent):
             import re
             import ast
             file_pattern = re.compile(
-                r"(?:###?\s*[`*]*([a-zA-Z0-9_\-\.\/]+\.py)[`*]*|#\s*(?:file|filename):\s*([a-zA-Z0-9_\-\.\/]+\.py))\s*\n\s*```(?:python)?\s*([\s\S]*?)```",
+                r"(?:#{1,4}\s*[`*]*([a-zA-Z0-9_\-\.\/]+\.py)[`*]*|(?:\*\*|`)([a-zA-Z0-9_\-\.\/]+\.py)(?:\*\*|`):?|#\s*(?:file|filename):\s*([a-zA-Z0-9_\-\.\/]+\.py))\s*\n[\s\S]*?```(?:python)?\s*([\s\S]*?)(?:```|$)",
                 re.IGNORECASE,
             )
             matches = file_pattern.findall(res.text or "")
             if matches:
                 extracted_files = {}
                 for m in matches:
-                    fname = m[0] or m[1]
-                    fcontent = m[2].strip()
+                    fname = m[0] or m[1] or m[2]
+                    fcontent = m[3].strip()
                     if fname and fcontent:
-                        extracted_files[os.path.basename(fname)] = fcontent
-                if extracted_files:
+                        try:
+                            ast.parse(fcontent)
+                            extracted_files[os.path.basename(fname)] = fcontent
+                        except SyntaxError:
+                            pass
+                if extracted_files and "main.py" in extracted_files:
                     return {
                         "files": list(extracted_files.keys()),
                         "file_contents": extracted_files,
@@ -160,7 +166,7 @@ class DeveloperAgent(BaseAgent):
                     }
 
             # Fallback 2: Single python code block
-            code_match = re.search(r"```(?:python)?\s*([\s\S]*?)\s*```", res.text or "")
+            code_match = re.search(r"```(?:python)?\s*([\s\S]*?)(?:```|$)", res.text or "")
             if code_match and len(code_match.group(1).strip()) > 30:
                 extracted_code = code_match.group(1).strip()
                 try:
@@ -174,9 +180,9 @@ class DeveloperAgent(BaseAgent):
                 except SyntaxError:
                     pass
 
-            # Return error payload to trigger produce_valid_artifact retry mechanism
+            # Return error payload to trigger produce_valid_artifact retry mechanism without polluting context
             return {
-                "error": f"Developer LLM output could not be parsed as CodePatch JSON: {res.text[:300] if res.text else 'EMPTY'}"
+                "error": "Developer LLM output could not be parsed as CodePatch JSON. Return a valid JSON object with 'files' and 'file_contents'."
             }
 
         patch: CodePatch = self.produce_valid_artifact("CodePatch", produce_code, state, CodePatch)

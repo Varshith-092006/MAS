@@ -60,7 +60,7 @@ class ManagerAgent(BaseAgent):
                 response_schema=TaskPlan,
                 run_id=run_id,
                 agent_name="manager",
-                max_tokens=2500,
+                max_tokens=3500,
             )
             data = result.parsed_json
             if not data and result.text:

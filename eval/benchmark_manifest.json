@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-06T19:29:15Z",
+  "last_updated_utc": "2026-11-07T03:53:16Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -687,6 +687,37 @@
       "implementation_version": "mas-v1.1.0-frozen",
       "git_commit": "fdb7294a753093b7d287387e300f424f7477d58f",
       "version_status": "MATCHES_FROZEN_VERSION"
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r1_attempt8",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 1,
+      "ablation": "A0",
+      "quality": 0.7143,
+      "quality_per_1k_tokens": 0.012,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.7143,
+      "shared_test": 0.5,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "tokens": 59285,
+      "cost": 0.0,
+      "status": "STOPPED_BUDGET_CEILING",
+      "execution_mode": "STOPPED_BUDGET_CEILING",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-07T03:53:16Z",
+      "error": "TokenCapExceededError",
+      "is_paired_complete": false,
+      "paired_counterpart_run_id": null,
+      "implementation_version": "mas-v1.1.0-frozen",
+      "git_commit": "09fd5dae445bfa374ee3431aa530f9d9ee70077b",
+      "version_status": "STOPPED_AT_BUDGET_CEILING"
     }
   ],
   "summary": {

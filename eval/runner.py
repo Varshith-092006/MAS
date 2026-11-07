@@ -54,15 +54,21 @@ def load_benchmark_manifest(manifest_path: Optional[str] = None) -> Dict[str, An
     }
 
 
-def resolve_attempt_run_id(prefix: str, system: str, task_id: str, repeat_no: int) -> str:
+def resolve_attempt_run_id(
+    prefix: str,
+    system: str,
+    task_id: str,
+    repeat_no: int,
+    start_attempt: Optional[int] = None,
+) -> str:
     """Resolves an attempt-scoped run ID ensuring historical attempts are preserved."""
     canonical_id = f"{prefix}{system}_{task_id}_r{repeat_no}"
     try:
         with get_session() as session:
             existing = session.query(Run).filter(Run.run_id == canonical_id).first()
-            if not existing:
+            if not existing and not start_attempt:
                 return canonical_id
-            attempt = 2
+            attempt = start_attempt if start_attempt is not None else 2
             while True:
                 candidate = f"{canonical_id}_attempt{attempt}"
                 if not session.query(Run).filter(Run.run_id == candidate).first():
@@ -111,6 +117,21 @@ def update_benchmark_manifest(
             by_pair[key][s_name] = r
         elif not prev_is_compliant and r_is_compliant:
             by_pair[key][s_name] = r
+        elif prev_is_compliant and r_is_compliant:
+            prev_attempt = 1
+            cur_attempt = 1
+            if "_attempt" in prev.get("run_id", ""):
+                try:
+                    prev_attempt = int(prev.get("run_id", "").split("_attempt")[-1])
+                except ValueError:
+                    pass
+            if "_attempt" in r.get("run_id", ""):
+                try:
+                    cur_attempt = int(r.get("run_id", "").split("_attempt")[-1])
+                except ValueError:
+                    pass
+            if cur_attempt >= prev_attempt:
+                by_pair[key][s_name] = r
 
     for r in runs_list:
         r["is_paired_complete"] = False
@@ -427,6 +448,7 @@ class EvaluationRunner:
         use_fake: bool = True,
         systems: Optional[List[str]] = None,
         benchmark_name: str = "srdd20",
+        attempt: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Executes full benchmark evaluation across sampled SRDD tasks under identical conditions."""
         systems = systems or ["mas", "chatdev"]
@@ -499,7 +521,7 @@ class EvaluationRunner:
 
                 # 1. Run MAS
                 if "mas" in systems:
-                    mas_run_id = resolve_attempt_run_id(prefix, "mas", t_id, r_num)
+                    mas_run_id = resolve_attempt_run_id(prefix, "mas", t_id, r_num, start_attempt=attempt)
                     t_start = datetime.utcnow()
                     try:
                         workflow = MASWorkflow(llm=llm)
@@ -667,7 +689,7 @@ class EvaluationRunner:
 
                 # 2. Run ChatDev
                 if "chatdev" in systems:
-                    cd_run_id = resolve_attempt_run_id(prefix, "cd", t_id, r_num)
+                    cd_run_id = resolve_attempt_run_id(prefix, "cd", t_id, r_num, start_attempt=attempt)
                     t_start = datetime.utcnow()
                     skip_cd = False
                     if not use_fake:
@@ -965,6 +987,7 @@ def main():
     parser.add_argument("--tasks", type=int, default=20, help="Number of benchmark tasks to run if task-id is omitted")
     parser.add_argument("--repeats", type=int, default=1, help="Repetitions per task")
     parser.add_argument("--repeat-no", type=int, default=1, help="Starting repeat number for execution")
+    parser.add_argument("--attempt", type=int, default=None, help="Explicit attempt number override")
     parser.add_argument("--live", action="store_true", help="Explicitly declare live API execution mode")
     args = parser.parse_args()
 
@@ -994,6 +1017,7 @@ def main():
             model=args.model,
             use_fake=use_fake,
             systems=systems_list,
+            attempt=args.attempt,
         )
     else:
         runner.print_dry_run()

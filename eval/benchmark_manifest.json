@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-07T04:53:16Z",
+  "last_updated_utc": "2026-11-07T05:00:02Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -800,6 +800,34 @@
       "is_live_benchmark": true,
       "timestamp_utc": "2026-11-07T04:53:16Z",
       "error": "Producer manager failed to produce valid TaskPlan: Manager LLM output could not be parsed as TaskPlan JSON. Return a valid JSON object matching the TaskPlan schema.",
+      "is_paired_complete": false,
+      "paired_counterpart_run_id": null
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r3_attempt3",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 3,
+      "ablation": "A0",
+      "quality": null,
+      "quality_per_1k_tokens": null,
+      "completeness": null,
+      "executability": null,
+      "consistency": null,
+      "shared_test": null,
+      "ruff": null,
+      "bandit": null,
+      "radon": null,
+      "tokens": 15785,
+      "cost": 0.0,
+      "status": "FAILED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-07T05:00:02Z",
+      "error": "Producer developer failed to produce valid CodePatch: Developer LLM output could not be parsed as CodePatch JSON. Return a valid JSON object with 'files' and 'file_contents'.",
       "is_paired_complete": false,
       "paired_counterpart_run_id": null
     }

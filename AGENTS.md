@@ -41,3 +41,12 @@ These live in eval/published_references.py. Treat that file as the source of tru
 - All tests pass; new behaviour has new tests.
 - A short note in DECISIONS.md: what changed and why.
 - The PR description lists every file changed and anything you could not verify.
+## Free-tier constraints (this project has no budget)
+- All benchmark runs use ONE pinned free model on ONE provider, identical for MAS and ChatDev.
+  Never use auto-routers such as "openrouter/free", never allow fallback models.
+  Abort the run if the served model name differs from the requested one.
+- The real bottleneck is requests per day (and tokens per day on some providers), not dollars.
+  Reducing LLM calls per run is therefore a top priority for every change.
+- The benchmark takes several days. It must be resumable: stop cleanly when the daily
+  budget is used, then continue the next day without redoing finished work.
+- Never send the same request twice just to retry quality; only retry infrastructure errors.

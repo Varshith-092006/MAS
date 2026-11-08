@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "benchmark": "srdd20",
-  "last_updated_utc": "2026-11-07T05:00:02Z",
+  "last_updated_utc": "2026-11-08T14:58:49Z",
   "runs": [
     {
       "run_id": "sim_mas_srdd_educ_01_r1",
@@ -315,7 +315,8 @@
       "reconciliation_audit": "Resolved DB metric pass field mismatch; recomputed under canonical NeutralEvaluator v1.3",
       "implementation_version": "mas-v1.0.0-legacy",
       "git_commit": "cac29d54aef001ad2b6f223f6f8c8ab39b25efaa",
-      "version_status": "SUPERSEDED_BY_FREEZE"
+      "version_status": "SUPERSEDED_BY_FREEZE",
+      "series": "LEGACY_EXPLORATORY_BASELINE"
     },
     {
       "run_id": "cd_srdd_educ_01_r1_attempt3",
@@ -485,7 +486,8 @@
       "implementation_version": "chatdev-v1.3.0-frozen",
       "git_commit": "df7b3b790c855f368cdd0c64756e405d2e9e6ab9",
       "chatdev_submodule_commit": "c1c31e2",
-      "version_status": "MATCHES_FROZEN_VERSION"
+      "version_status": "MATCHES_FROZEN_VERSION",
+      "series": "LEGACY_EXPLORATORY_BASELINE"
     },
     {
       "run_id": "mas_srdd_educ_01_r2_attempt2",
@@ -544,7 +546,8 @@
       "implementation_version": "chatdev-v1.3.0-frozen",
       "git_commit": "473fea2db6d14c9f162c3a546e7b6aaa3c27719c",
       "chatdev_submodule_commit": "c1c31e2",
-      "version_status": "MATCHES_FROZEN_VERSION"
+      "version_status": "MATCHES_FROZEN_VERSION",
+      "series": "PRIMARY_FROZEN_SERIES"
     },
     {
       "run_id": "mas_srdd_educ_01_r2_attempt3",
@@ -686,7 +689,8 @@
       "paired_counterpart_run_id": "cd_srdd_educ_01_r2_attempt2",
       "implementation_version": "mas-v1.1.0-frozen",
       "git_commit": "fdb7294a753093b7d287387e300f424f7477d58f",
-      "version_status": "MATCHES_FROZEN_VERSION"
+      "version_status": "MATCHES_FROZEN_VERSION",
+      "series": "PRIMARY_FROZEN_SERIES"
     },
     {
       "run_id": "mas_srdd_educ_01_r1_attempt8",
@@ -830,17 +834,84 @@
       "error": "Producer developer failed to produce valid CodePatch: Developer LLM output could not be parsed as CodePatch JSON. Return a valid JSON object with 'files' and 'file_contents'.",
       "is_paired_complete": false,
       "paired_counterpart_run_id": null
+    },
+    {
+      "run_id": "mas_srdd_educ_01_r3_attempt4",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "mas",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 3,
+      "ablation": "A0",
+      "quality": 0.4286,
+      "quality_per_1k_tokens": 0.0176,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.4286,
+      "shared_test": 1.0,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "tokens": 24384,
+      "cost": 0.0,
+      "status": "COMPLETED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-08T14:49:07Z",
+      "is_paired_complete": true,
+      "paired_counterpart_run_id": "cd_srdd_educ_01_r3_attempt2",
+      "implementation_version": "mas-v1.1.0-frozen",
+      "git_commit": "5cffff09a066bcfa488423ef210db9f5a0445d47",
+      "version_status": "MATCHES_FROZEN_VERSION",
+      "series": "PRIMARY_FROZEN_SERIES"
+    },
+    {
+      "run_id": "cd_srdd_educ_01_r3_attempt2",
+      "task_id": "srdd_educ_01",
+      "task_name": "Science Question Solver",
+      "system": "chatdev",
+      "model": "cohere/north-mini-code:free",
+      "repeat_no": 3,
+      "ablation": "A0",
+      "quality": 0.7143,
+      "quality_per_1k_tokens": 0.0125,
+      "completeness": 1.0,
+      "executability": 1.0,
+      "consistency": 0.7143,
+      "shared_test": 0.5,
+      "ruff": 0,
+      "bandit": 0,
+      "radon": 100.0,
+      "tokens": 57084,
+      "cost": 0.0,
+      "status": "COMPLETED",
+      "execution_mode": "LIVE_API",
+      "token_provenance": "PROVIDER_REPORTED",
+      "is_live_benchmark": true,
+      "timestamp_utc": "2026-11-08T14:58:49Z",
+      "is_paired_complete": true,
+      "paired_counterpart_run_id": "mas_srdd_educ_01_r3_attempt4",
+      "implementation_version": "chatdev-v1.3.0-frozen",
+      "git_commit": "5cffff09a066bcfa488423ef210db9f5a0445d47",
+      "chatdev_submodule_commit": "c1c31e2",
+      "version_status": "MATCHES_FROZEN_VERSION",
+      "series": "PRIMARY_FROZEN_SERIES"
     }
   ],
   "summary": {
     "total_canonical_tasks": 20,
     "required_repeats": 3,
-    "completed_paired_repeats": 2,
-    "mas_completed_live_runs": 2,
-    "chatdev_completed_live_runs": 2,
+    "completed_paired_repeats": 3,
+    "mas_completed_live_runs": 3,
+    "chatdev_completed_live_runs": 3,
     "simulation_runs_excluded": 3,
     "non_canonical_test_runs_excluded": 2,
-    "semantics_note": "mas_completed_live_runs and chatdev_completed_live_runs strictly count COMPLETED live runs under canonical SRDD-20 task definitions within the 60,000 token cap. Failed, stopped, over-budget, simulated, and non-canonical test fixture runs are excluded."
+    "semantics_note": "mas_completed_live_runs and chatdev_completed_live_runs strictly count COMPLETED live runs under canonical SRDD-20 task definitions within the 60,000 token cap. Failed, stopped, over-budget, simulated, and non-canonical test fixture runs are excluded.",
+    "total_completed_paired_repeats": 3,
+    "frozen_version_comparable_paired_repeats": 2,
+    "legacy_exploratory_paired_repeats": 1,
+    "statistical_series_notes": "Repeat 1 is classified as LEGACY_EXPLORATORY_BASELINE (MAS v1.0.0-legacy vs ChatDev v1.3.0-frozen). Repeats 2 and 3 constitute the PRIMARY_FROZEN_SERIES under identical frozen implementations (MAS v1.1.0-frozen vs ChatDev v1.3.0-frozen)."
   },
   "frozen_benchmark_versions": {
     "freeze_status": "FROZEN",

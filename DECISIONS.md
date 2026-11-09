@@ -659,6 +659,27 @@ This document tracks architectural decisions, source precedence, specification c
 - **Source**: Phase 5 Fair Baseline and Reproducibility Mandate.
 - **Impact**: 267/267 passing unit tests (7 new tests in `tests/test_phase5_chatdev_and_simulation_guard.py`).
 
+---
+
+### Record: Phase 6 Reporting and Run Guide
+
+- **ID**: DEC-039
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **Unified Reporting Engine (`scripts/make_report.py`)**:
+     - Built single offline reporting script reading `results.csv` or `eval/benchmark_manifest.json` and exporting Tables 1–6 in Markdown to stdout and `reports/benchmark_report.md`.
+     - Exported thesis-ready LaTeX tabular tables to `reports/tables.tex` with escaped text characters and standard tabular environments.
+     - Exported machine-readable summary statistics to `reports/summary.csv`.
+     - Added optional matplotlib visualization generation to `reports/figures/` (quality boxplot and quality vs. tokens scatter plot) with graceful fallback when uninstalled.
+     - Implemented "NOT RUN" fallback when benchmark data is absent to uphold Rule 1.
+  2. **Optional Dependencies Specification (`pyproject.toml`)**:
+     - Defined `report = ["matplotlib>=3.7.0", "pandas>=2.0.0"]` under `[project.optional-dependencies]` without bloating core runtime requirements.
+  3. **Comprehensive Run Guide (`RUN_FINAL.md`)**:
+     - Created detailed, step-by-step operator guide covering environment setup, preflight verification, multi-day execution (`--resume --stop-at-budget`), ablation runs (A1–A4), report generation, and troubleshooting (429 handling, $0.00 verification, ledger status inspection, single-task re-runs).
+- **Source**: Phase 6 Reporting and Run Guide Mandate.
+- **Impact**: 269/269 passing unit tests (2 new tests in `tests/test_phase6_make_report.py`).
+
+
 
 
 

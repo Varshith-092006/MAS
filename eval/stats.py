@@ -149,14 +149,24 @@ def calculate_success_rate(runs: List[Dict[str, Any]]) -> float:
     """Calculates the share of official runs that finished successfully (COMPLETED / COMPLETED_QUALITY_GATE)."""
     if not runs:
         return 0.0
+
+    def is_valid_run(r: Dict[str, Any]) -> bool:
+        if r.get("status") == "SIMULATION_ONLY":
+            return False
+        if r.get("execution_mode") in ("SIMULATED", "SIMULATION_ONLY"):
+            return False
+        if r.get("token_provenance") == "SIMULATION_ONLY":
+            return False
+        return True
+
     official_runs = [
         r for r in runs
         if (r.get("official") is True or str(r.get("official")).lower() == "true")
-        and r.get("status") != "SIMULATION_ONLY"
+        and is_valid_run(r)
     ]
     if not official_runs:
         # Fallback to all non-simulation runs if official flag is not populated yet
-        official_runs = [r for r in runs if r.get("status") != "SIMULATION_ONLY"]
+        official_runs = [r for r in runs if is_valid_run(r)]
     if not official_runs:
         return 0.0
     success_count = sum(

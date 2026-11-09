@@ -18,7 +18,7 @@ def export_results_csv(records: List[Dict[str, Any]], output_path: str = "result
         "repeat_no", "ablation", "official", "retry_reason",
         "quality", "quality_per_1k_tokens", "completeness", "executability",
         "consistency", "consistency_method", "shared_test", "ruff", "bandit", "radon",
-        "tokens", "cost", "llm_calls", "pytest_pass_rate", "coverage", "status", "failure_classification",
+        "tokens", "cost", "llm_calls", "wall_clock_seconds", "loc", "pytest_pass_rate", "coverage", "status", "failure_classification",
     ]
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
@@ -38,28 +38,29 @@ def generate_stats_markdown_report(
     output_path: str = "eval/stats_report.md",
 ) -> str:
     """Produces the formatted experimental statistics markdown report using official rows only."""
-    # Filter strictly to official runs, excluding simulation runs
-    mas_official = [
-        r for r in mas_runs
-        if (r.get("official") is True or str(r.get("official")).lower() == "true")
-        and r.get("status") != "SIMULATION_ONLY"
-    ]
-    cd_official = [
-        r for r in chatdev_runs
-        if (r.get("official") is True or str(r.get("official")).lower() == "true")
-        and r.get("status") != "SIMULATION_ONLY"
-    ]
+    # Filter strictly to official runs, excluding any simulation runs
+    def is_valid_official(r: Dict[str, Any]) -> bool:
+        if r.get("status") == "SIMULATION_ONLY":
+            return False
+        if r.get("execution_mode") in ("SIMULATED", "SIMULATION_ONLY"):
+            return False
+        if r.get("token_provenance") == "SIMULATION_ONLY":
+            return False
+        return (r.get("official") is True or str(r.get("official")).lower() == "true")
+
+    mas_official = [r for r in mas_runs if is_valid_official(r)]
+    cd_official = [r for r in chatdev_runs if is_valid_official(r)]
 
     # Fallback to non-simulation completed runs if official flag not yet assigned
     if not mas_official and not cd_official:
-        mas_official = [
-            r for r in mas_runs
-            if r.get("status") != "SIMULATION_ONLY" and r.get("execution_mode") == "LIVE_API"
-        ]
-        cd_official = [
-            r for r in chatdev_runs
-            if r.get("status") != "SIMULATION_ONLY" and r.get("execution_mode") == "LIVE_API"
-        ]
+        def is_live_non_sim(r: Dict[str, Any]) -> bool:
+            return (
+                r.get("status") != "SIMULATION_ONLY"
+                and r.get("execution_mode") == "LIVE_API"
+                and r.get("token_provenance") != "SIMULATION_ONLY"
+            )
+        mas_official = [r for r in mas_runs if is_live_non_sim(r)]
+        cd_official = [r for r in chatdev_runs if is_live_non_sim(r)]
 
     if not mas_official or not cd_official:
         md = """# MAS Empirical Evaluation Statistics Report

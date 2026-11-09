@@ -631,6 +631,35 @@ This document tracks architectural decisions, source precedence, specification c
 - **Source**: Phase 3 Benchmark Scope, Fairness, and Ablation Architecture.
 - **Impact**: 251/251 passing unit tests (12 new tests in `tests/test_phase3_tasks_stats_ablations.py`).
 
+---
+
+### Record: Phase 5 Fair ChatDev Baseline, Simulation Guard, and Reproducible Patch
+
+- **ID**: DEC-038
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **ChatDev Simulation Guard**:
+     - Labeled all simulated ChatDev execution runs strictly as `SIMULATION_ONLY` (`status`, `execution_mode`, `token_provenance`) in `eval/chatdev_adapter.py`.
+     - Hardened `eval/reports.py` and `eval/stats.py` to exclude `SIMULATION_ONLY` and `SIMULATED` rows from all markdown tables, aggregate metric distributions, and success rate calculations.
+  2. **Experimental Fairness Enforcement**:
+     - Pinned logging proxy default URL to `http://127.0.0.1:8089/v1`.
+     - In `mas/core/proxy.py`, enforced `temperature=0.0` and `seed=42` on every forwarded model request for both MAS and ChatDev.
+     - Verified both systems receive identical requirement text augmented via `eval/task_text.py`.
+  3. **Windows Subprocess Compatibility**:
+     - Configured ChatDev subprocess execution with `sys.executable`, `PYTHONIOENCODING=utf-8`, `PYTHONUTF8=1`, `encoding="utf-8"`, `errors="replace"`, and 900s timeout.
+  4. **Preflight Verification CLI (`python -m eval.runner --preflight`)**:
+     - Implemented offline checklist inspecting: ChatDev pinned commit (`c1c31e2886`), non-empty API key, valid `BENCH_MODEL`, offline embedder/lexical status, proxy start/stop clean cycle on port 8089, and remaining governor quota (>= 15 requests).
+  5. **Extended Efficiency Metrics**:
+     - Added `wall_clock_seconds`, `loc` (lines of non-empty, non-comment code in `*.py` excluding tests), and `llm_calls` across `rec` dictionary and `results.csv` export for both systems.
+  6. **Daily Transmission Ledger Integration**:
+     - ChatDev requests routed through `mas/core/proxy.py` are counted in the daily governor ledger via `GovernedHTTPClient`. If a live run produces zero proxy tokens, the runner flags the run as `INFRA_ERROR` (`FAILED`).
+  7. **Reproducible ChatDev Setup**:
+     - Exported `patches/chatdev_local.patch` (SHA-256 `bf239f6157240df3ffed505e0e1f05e8c4e84f7c70006d51fc62e70d8105584b`) capturing local fixes against upstream `v1.0.0` (`5defde31792346e0cc302f672a33e766ef955dd8`).
+     - Created `scripts/setup_chatdev.py` automating repository cloning, checkout, and clean patch application.
+- **Source**: Phase 5 Fair Baseline and Reproducibility Mandate.
+- **Impact**: 267/267 passing unit tests (7 new tests in `tests/test_phase5_chatdev_and_simulation_guard.py`).
+
+
 
 
 

@@ -937,5 +937,7 @@
       "daily_transmissions_cap": 45
     }
   },
-  "tasks_v2_sha256": "aa902c027cfb0a137ca220d1db03f73ce94b9d3bfd6b7da9f8bfd83b83baf5b3"
+  "tasks_v2_sha256": "aa902c027cfb0a137ca220d1db03f73ce94b9d3bfd6b7da9f8bfd83b83baf5b3",
+  "chatdev_patch_sha256": "bf239f6157240df3ffed505e0e1f05e8c4e84f7c70006d51fc62e70d8105584b",
+  "chatdev_base_commit": "5defde31792346e0cc302f672a33e766ef955dd8"
 }

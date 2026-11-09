@@ -811,3 +811,4 @@ class GovernedHTTPClient:
 
 # Global singleton governor instance for cross-module usage
 global_governor = ProviderQuotaGovernor()
+governor = global_governor

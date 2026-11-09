@@ -26,7 +26,7 @@ class ChatDevAdapter:
 
     def __init__(
         self,
-        proxy_url: str = "http://127.0.0.1:8000/proxy/v1",
+        proxy_url: str = "http://127.0.0.1:8089/v1",
         pinned_commit: str = CHATDEV_PINNED_COMMIT,
         llm: Optional[LLMProvider] = None,
         default_timeout: int = 900,
@@ -49,7 +49,7 @@ class ChatDevAdapter:
     ) -> Dict[str, Any]:
         """Executes a ChatDev task, routing all model calls through the logging proxy.
 
-        In test/fake mode, produces standardized multi-agent chat generated project output.
+        In test/fake mode, produces standardized multi-agent chat generated project output labeled SIMULATION_ONLY.
         """
         task_id = task.get("task_id", "unknown_task")
         task_name = task.get("name", "Software Task")
@@ -61,8 +61,8 @@ class ChatDevAdapter:
 
         t0 = time.time()
         is_simulated = use_fake or isinstance(self.llm, FakeLLMProvider)
-        exec_mode = "SIMULATED" if is_simulated else "LIVE_API"
-        prov_mode = "SIMULATED" if is_simulated else "PROVIDER_REPORTED"
+        exec_mode = "SIMULATION_ONLY" if is_simulated else "LIVE_API"
+        prov_mode = "SIMULATION_ONLY" if is_simulated else "PROVIDER_REPORTED"
 
         # Emit start event
         event_logger.emit(
@@ -97,8 +97,8 @@ class ChatDevAdapter:
                     latency_ms=25,
                     request_id=f"chatdev-mock-{role.lower()}",
                     estimated_cost=0.003 if "mini" not in model else 0.0001,
-                    execution_mode="SIMULATED",
-                    token_provenance="SIMULATED",
+                    execution_mode="SIMULATION_ONLY",
+                    token_provenance="SIMULATION_ONLY",
                 )
                 token_logger.record_call(run_id=run_id, agent=f"chatdev_{role.lower()}", result=res)
                 event_logger.emit(
@@ -245,7 +245,9 @@ class ChatDevAdapter:
         totals = token_logger.get_run_totals(run_id)
         manifest = generate_artifacts_manifest(workspace_dir)
 
-        if failed_reason:
+        if is_simulated:
+            final_status = "SIMULATION_ONLY"
+        elif failed_reason:
             fr_lower = failed_reason.lower()
             if "missing required artifact" in fr_lower and "exited with code" not in fr_lower and "failed:" not in fr_lower:
                 final_status = "INCOMPLETE"

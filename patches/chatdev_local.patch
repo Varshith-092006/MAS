@@ -1,0 +1,591 @@
+﻿diff --git a/camel/agents/chat_agent.py b/camel/agents/chat_agent.py
+index 0bb2989..6873cdf 100644
+--- a/camel/agents/chat_agent.py
++++ b/camel/agents/chat_agent.py
+@@ -192,8 +192,13 @@ class ChatAgent(BaseAgent):
+             if not isinstance(response, dict):
+                 raise RuntimeError("OpenAI returned unexpected struct")
+             output_messages = [
+-                ChatMessage(role_name=self.role_name, role_type=self.role_type,
+-                            meta_dict=dict(), **dict(choice["message"]))
++                ChatMessage(
++                    role_name=self.role_name,
++                    role_type=self.role_type,
++                    meta_dict=dict(),
++                    role=choice["message"].get("role", "assistant"),
++                    content=choice["message"].get("content") or "",
++                )
+                 for choice in response["choices"]
+             ]
+             info = self.get_info(
+@@ -205,7 +210,7 @@ class ChatAgent(BaseAgent):
+ 
+             # TODO strict <INFO> check, only in the beginning of the line
+             # if "<INFO>" in output_messages[0].content:
+-            if output_messages[0].content.split("\n")[-1].startswith("<INFO>"):
++            if (output_messages[0].content or "").split("\n")[-1].startswith("<INFO>"):
+                 self.info = True
+         else:
+             self.terminated = True
+diff --git a/camel/model_backend.py b/camel/model_backend.py
+index 6d95dc5..edd1446 100644
+--- a/camel/model_backend.py
++++ b/camel/model_backend.py
+@@ -44,31 +44,69 @@ class OpenAIModel(ModelBackend):
+ 
+     def __init__(self, model_type: ModelType, model_config_dict: Dict) -> None:
+         super().__init__()
++        import os
++        chatdev_env_model = os.environ.get("CHATDEV_MODEL")
++        if chatdev_env_model:
++            for mt in ModelType:
++                if mt.value == chatdev_env_model or mt.name == chatdev_env_model:
++                    model_type = mt
++                    break
+         self.model_type = model_type
+         self.model_config_dict = model_config_dict
+ 
+     def run(self, *args, **kwargs) -> Dict[str, Any]:
+         string = "\n".join([message["content"] for message in kwargs["messages"]])
+-        encoding = tiktoken.encoding_for_model(self.model_type.value)
++        try:
++            encoding = tiktoken.encoding_for_model(self.model_type.value)
++        except Exception:
++            encoding = tiktoken.get_encoding("cl100k_base")
+         num_prompt_tokens = len(encoding.encode(string))
+         gap_between_send_receive = 50  # known issue
+         num_prompt_tokens += gap_between_send_receive
+ 
+         num_max_token_map = {
+             "gpt-3.5-turbo": 4096,
++            "openai/gpt-3.5-turbo": 4096,
+             "gpt-3.5-turbo-16k": 16384,
+             "gpt-3.5-turbo-0613": 4096,
+             "gpt-3.5-turbo-16k-0613": 16384,
+             "gpt-4": 8192,
+             "gpt-4-0613": 8192,
+             "gpt-4-32k": 32768,
++            "gpt-4o": 8192,
++            "openai/gpt-4o": 8192,
++            "openai/gpt-4o-mini": 8192,
++            "cohere/north-mini-code:free": 8192,
+         }
+-        num_max_token = num_max_token_map[self.model_type.value]
+-        num_max_completion_tokens = num_max_token - num_prompt_tokens
+-        self.model_config_dict['max_tokens'] = num_max_completion_tokens
+-        response = openai.ChatCompletion.create(*args, **kwargs,
+-                                                model=self.model_type.value,
+-                                                **self.model_config_dict)
++        num_max_token = num_max_token_map.get(self.model_type.value, 8192)
++        num_max_completion_tokens = max(500, num_max_token - num_prompt_tokens)
++        self.model_config_dict['max_tokens'] = min(num_max_completion_tokens, 4000)
++
++        import os
++        import httpx
++        base_url = os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:8000/proxy/v1")
++        api_key = os.environ.get("OPENAI_API_KEY", os.environ.get("OPENROUTER_API_KEY", "dummy"))
++        run_id = os.environ.get("X_RUN_ID", "chatdev_run")
++        agent_name = os.environ.get("X_AGENT_NAME", "chatdev")
++
++        headers = {
++            "Content-Type": "application/json",
++            "Authorization": f"Bearer {api_key}",
++            "X-Run-ID": run_id,
++            "X-Agent-Name": agent_name,
++        }
++        payload = {
++            "model": self.model_type.value,
++            "messages": kwargs.get("messages", []),
++            "temperature": self.model_config_dict.get("temperature", 0.2),
++            "max_tokens": self.model_config_dict.get("max_tokens", 2000),
++        }
++        endpoint = f"{base_url.rstrip('/')}/chat/completions"
++        with httpx.Client(timeout=120.0) as client:
++            resp = client.post(endpoint, json=payload, headers=headers)
++            if resp.status_code != 200:
++                raise RuntimeError(f"OpenAI / Proxy error {resp.status_code}: {resp.text}")
++            response = resp.json()
+ 
+         log_and_print_online(
+             "**[OpenAI_Usage_Info Receive]**\nprompt_tokens: {}\ncompletion_tokens: {}\ntotal_tokens: {}\n".format(
+@@ -111,13 +149,14 @@ class ModelFactory:
+ 
+         if model_type in {
+             ModelType.GPT_3_5_TURBO, ModelType.GPT_4, ModelType.GPT_4_32k,
++            ModelType.GPT_4O, ModelType.GPT_4O_MINI, ModelType.NORTH_MINI_CODE,
+             None
+         }:
+             model_class = OpenAIModel
+         elif model_type == ModelType.STUB:
+             model_class = StubModel
+         else:
+-            raise ValueError("Unknown model")
++            raise ValueError(f"Unknown model: {model_type}")
+ 
+         if model_type is None:
+             model_type = default_model_type
+diff --git a/camel/typing.py b/camel/typing.py
+index 4a63153..4a6b341 100644
+--- a/camel/typing.py
++++ b/camel/typing.py
+@@ -44,9 +44,12 @@ class RoleType(Enum):
+ 
+ 
+ class ModelType(Enum):
+-    GPT_3_5_TURBO = "gpt-3.5-turbo-16k-0613"
++    GPT_3_5_TURBO = "openai/gpt-3.5-turbo"
+     GPT_4 = "gpt-4"
+     GPT_4_32k = "gpt-4-32k"
++    GPT_4O = "openai/gpt-4o"
++    GPT_4O_MINI = "openai/gpt-4o-mini"
++    NORTH_MINI_CODE = "cohere/north-mini-code:free"
+     STUB = "stub"
+ 
+     @property
+diff --git a/camel/utils.py b/camel/utils.py
+index baad22f..ea9576d 100644
+--- a/camel/utils.py
++++ b/camel/utils.py
+@@ -84,6 +84,7 @@ def num_tokens_from_messages(
+ 
+     if model in {
+         ModelType.GPT_3_5_TURBO, ModelType.GPT_4, ModelType.GPT_4_32k,
++        ModelType.GPT_4O, ModelType.GPT_4O_MINI, ModelType.NORTH_MINI_CODE,
+         ModelType.STUB
+     }:
+         return count_tokens_openai_chat_models(messages, encoding)
+@@ -113,10 +114,12 @@ def get_model_token_limit(model: ModelType) -> int:
+         return 8192
+     elif model == ModelType.GPT_4_32k:
+         return 32768
++    elif model in {ModelType.GPT_4O, ModelType.GPT_4O_MINI, ModelType.NORTH_MINI_CODE}:
++        return 8192
+     elif model == ModelType.STUB:
+         return 4096
+     else:
+-        raise ValueError("Unknown model type")
++        raise ValueError(f"Unknown model type: {model}")
+ 
+ 
+ def openai_api_key_required(func: F) -> F:
+@@ -141,10 +144,10 @@ def openai_api_key_required(func: F) -> F:
+             raise ValueError("Expected ChatAgent")
+         if self.model == ModelType.STUB:
+             return func(self, *args, **kwargs)
+-        elif 'OPENAI_API_KEY' in os.environ:
++        elif 'OPENAI_API_KEY' in os.environ or 'OPENROUTER_API_KEY' in os.environ:
+             return func(self, *args, **kwargs)
+         else:
+-            raise ValueError('OpenAI API key not found.')
++            raise ValueError('OpenAI or OpenRouter API key not found.')
+ 
+     return wrapper
+ 
+diff --git a/chatdev/codes.py b/chatdev/codes.py
+index 56cad54..75178cd 100644
+--- a/chatdev/codes.py
++++ b/chatdev/codes.py
+@@ -1,8 +1,126 @@
++import ast
++import difflib
+ import os
+ import re
+ 
+-from chatdev.utils import log_and_print_online
+-import difflib
++def log_and_print_online(text):
++    try:
++        from chatdev.utils import log_and_print_online as _real_log
++        _real_log(text)
++    except Exception:
++        pass
++
++
++def _is_trivial_placeholder_or_empty(code: str, fence_info: str = "") -> bool:
++    """Strictly checks whether code is empty, a prompt placeholder, JSON configuration alone, or a trivial no-op stub."""
++    stripped = code.strip()
++    if not stripped:
++        return True
++
++    # Non-code configuration blocks (json, yaml, xml, text) without python implementation
++    clean_fence = fence_info.strip().lower()
++    if clean_fence in ("json", "yaml", "yml", "toml", "xml", "text", "txt", "csv", "md", "markdown"):
++        return True
++
++    # Check for ChatDev's literal prompt placeholder template ('''\nDOCSTRING\n'''\nCODE)
++    stripped_no_docstring = re.sub(r"('''[\s\S]*?'''|\"\"\"[\s\S]*?\"\"\")", "", stripped).strip()
++    if stripped_no_docstring in ("", "CODE", "pass", "...", "None"):
++        return True
++
++    # If it is Python code, inspect the AST to ensure it contains substantive statements
++    try:
++        tree = ast.parse(stripped)
++        # Check if AST body has non-trivial implementation statements
++        # Reject if body consists solely of passes or bare literal expressions (constants, dicts, lists, sets, tuples)
++        substantive_nodes = [
++            node for node in tree.body
++            if not (
++                isinstance(node, ast.Pass)
++                or (isinstance(node, ast.Expr) and isinstance(getattr(node, "value", None), (ast.Constant, ast.Dict, ast.List, ast.Set, ast.Tuple)))
++            )
++        ]
++        if not substantive_nodes:
++            return True
++    except SyntaxError:
++        # If syntax error, verify whether it has at least code-like implementation keywords rather than pure prose or JSON
++        code_indicators = [r"\bdef\s+\w+", r"\bclass\s+\w+", r"\bimport\s+\w+", r"\bfrom\s+\w+", r"\bif\b", r"\bfor\b", r"\bwhile\b"]
++        has_code_indicator = any(re.search(pat, stripped) for pat in code_indicators)
++        if not has_code_indicator:
++            return True
++
++    return False
++
++
++def _extract_filename_from_fence(fence_info: str) -> str:
++    """Extract explicit filename from markdown fence info string if present.
++    e.g. ```python:main.py, ```python filename=main.py, ```main.py
++    """
++    if not fence_info:
++        return ""
++    m = re.search(r"([a-zA-Z0-9_\-]+\.(?:py|sh|txt|json|md|csv|html|css|js))\b", fence_info, re.IGNORECASE)
++    if m:
++        cand = m.group(1).lower()
++        if not re.match(r"^\d+\.\d+$", cand):
++            return cand
++    return ""
++
++
++def _extract_filename_from_comment(code: str) -> str:
++    """Extract filename from top comments within code block.
++    e.g. # main.py or # filename: main.py
++    """
++    for line in code.split("\n")[:5]:
++        line = line.strip()
++        m = re.match(r"^#\s*(?:(?:file|filename|filepath):\s*)?([a-zA-Z0-9_\-]+\.py)\b", line, re.IGNORECASE)
++        if m:
++            cand = m.group(1).lower()
++            if not re.match(r"^\d+\.\d+$", cand):
++                return cand
++    return ""
++
++
++def _extract_filename_from_preceding_text(preceding_text: str) -> str:
++    """Extract filename from preceding text lines right before the code block.
++    Supports markdown headings (### main.py), bold (**main.py**), or ChatDev single line format (main.py).
++    Ignores version numbers like '3.11'.
++    """
++    if not preceding_text:
++        return ""
++    lines = [l.strip() for l in preceding_text.split("\n") if l.strip()]
++    for line in reversed(lines[-4:]):
++        m = re.search(r"(?:###|##|#|\*\*|File:|Filename:)?\s*`?([a-zA-Z0-9_\-]+\.py)`?", line, re.IGNORECASE)
++        if m:
++            cand = m.group(1).lower()
++            if not re.match(r"^\d+\.\d+$", cand):
++                return cand
++        m_other = re.search(r"(?:###|##|#|\*\*|File:|Filename:)?\s*`?([a-zA-Z0-9_\-]+\.(?:txt|json|md|sh|csv|html|css|js))`?", line, re.IGNORECASE)
++        if m_other:
++            cand = m_other.group(1).lower()
++            if not re.match(r"^\d+\.\d+$", cand):
++                return cand
++    return ""
++
++
++def _extract_filename_from_code_structure(code: str, existing_filenames: set, fence_info: str = "") -> str:
++    """Fallback filename inference from code structure (class name, entrypoint, or default main.py)."""
++    clean_fence = fence_info.strip().lower()
++    if clean_fence in ("json", "yaml", "yml", "toml", "xml", "text", "txt", "csv", "md", "markdown"):
++        return ""
++
++    if ("__main__" in code or "def main(" in code) and "main.py" not in existing_filenames:
++        return "main.py"
++
++    m = re.search(r"class\s+([A-Za-z0-9_]+)", code)
++    if m:
++        cand = m.group(1).lower() + ".py"
++        if cand not in existing_filenames:
++            return cand
++
++    if "main.py" not in existing_filenames:
++        return "main.py"
++
++    return ""
++
+ 
+ class Codes:
+     def __init__(self, generated_content=""):
+@@ -11,42 +129,78 @@ class Codes:
+         self.generated_content: str = generated_content
+         self.codebooks = {}
+ 
+-        def extract_filename_from_line(lines):
+-            file_name = ""
+-            for candidate in re.finditer(r"(\w+\.\w+)", lines, re.DOTALL):
+-                file_name = candidate.group()
+-                file_name = file_name.lower()
+-            return file_name
+-
+-        def extract_filename_from_code(code):
+-            file_name = ""
+-            regex_extract = r"class (\S+?):\n"
+-            matches_extract = re.finditer(regex_extract, code, re.DOTALL)
+-            for match_extract in matches_extract:
+-                file_name = match_extract.group(1)
+-            file_name = file_name.lower().split("(")[0] + ".py"
+-            return file_name
+-
+-        if generated_content != "":
+-            regex = r"(.+?)\n```.*?\n(.*?)```"
+-            matches = re.finditer(regex, self.generated_content, re.DOTALL)
+-            for match in matches:
+-                code = match.group(2)
+-                if "CODE" in code:
+-                    continue
+-                group1 = match.group(1)
+-                filename = extract_filename_from_line(group1)
+-                if "__main__" in code:
+-                    filename = "main.py"
+-                if filename == "":  # post-processing
+-                    filename = extract_filename_from_code(code)
+-                assert filename != ""
+-                if filename is not None and code is not None and len(filename) > 0 and len(code) > 0:
+-                    self.codebooks[filename] = self._format_code(code)
++        if not generated_content:
++            return
++
++        # Normalize newlines (handle CRLF on Windows or mixed newlines from models)
++        content = generated_content.replace("\r\n", "\n").replace("\r", "\n")
++
++        # Match all fenced code blocks (``` or ```` etc.)
++        fence_pattern = re.compile(r"(`{3,})([^\n]*)\n([\s\S]*?)\n\1")
++        matches = list(fence_pattern.finditer(content))
++
++        # Also support unclosed code blocks if truncated near the end of response
++        if not matches:
++            unclosed = re.search(r"(`{3,})([^\n]*)\n([\s\S]+)$", content)
++            if unclosed:
++                matches = [unclosed]
++
++        prev_end = 0
++        for match in matches:
++            fence_info = match.group(2).strip()
++            raw_code = match.group(3) if len(match.groups()) >= 3 else match.group(2)
++            preceding_text = content[prev_end:match.start()]
++            prev_end = match.end()
++
++            # Reject trivial placeholders, empty stubs, or unreplaced prompt tokens
++            if _is_trivial_placeholder_or_empty(raw_code, fence_info):
++                continue
++
++            filename = _extract_filename_from_fence(fence_info)
++            if not filename:
++                filename = _extract_filename_from_comment(raw_code)
++            if not filename:
++                filename = _extract_filename_from_preceding_text(preceding_text)
++            if not filename:
++                filename = _extract_filename_from_code_structure(raw_code, set(self.codebooks.keys()), fence_info)
++
++            if filename and filename not in self.codebooks:
++                self.codebooks[filename] = self._format_code(raw_code)
++            elif filename and filename in self.codebooks:
++                if len(raw_code) > len(self.codebooks[filename]):
++                    self.codebooks[filename] = self._format_code(raw_code)
++
++        # Fallback: check if entire response is raw Python code without markdown fences
++        if not self.codebooks:
++            stripped_content = content.strip()
++            cleaned_candidate = re.sub(r"`{1,3}\s*$", "", stripped_content).strip()
++            if not _is_trivial_placeholder_or_empty(cleaned_candidate):
++                try:
++                    tree = ast.parse(cleaned_candidate)
++                    substantive_nodes = [
++                        node for node in tree.body
++                        if not (
++                            isinstance(node, ast.Pass)
++                            or (isinstance(node, ast.Expr) and isinstance(getattr(node, "value", None), (ast.Constant, ast.Dict, ast.List, ast.Set, ast.Tuple)))
++                        )
++                    ]
++                    has_executable_structure = any(
++                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.If, ast.While, ast.For))
++                        for node in substantive_nodes
++                    )
++                    if substantive_nodes and has_executable_structure:
++                        filename = _extract_filename_from_comment(cleaned_candidate) or "main.py"
++                        self.codebooks[filename] = self._format_code(cleaned_candidate)
++                except SyntaxError:
++                    pass
+ 
+     def _format_code(self, code):
+-        code = "\n".join([line for line in code.split("\n") if len(line.strip()) > 0])
+-        return code
++        lines = code.split("\n")
++        while lines and not lines[0].strip():
++            lines.pop(0)
++        while lines and not lines[-1].strip():
++            lines.pop()
++        return "\n".join(lines)
+ 
+     def _update_codes(self, generated_content):
+         new_codes = Codes(generated_content)
+diff --git a/chatdev/composed_phase.py b/chatdev/composed_phase.py
+index e8e899b..71eed5d 100644
+--- a/chatdev/composed_phase.py
++++ b/chatdev/composed_phase.py
+@@ -201,18 +201,45 @@ class CodeCompleteAll(ComposedPhase):
+ class CodeReview(ComposedPhase):
+     def __init__(self, **kwargs):
+         super().__init__(**kwargs)
++        self.review_count = 0
+ 
+     def update_phase_env(self, chat_env):
+-        self.phase_env = {"modification_conclusion": ""}
++        self.phase_env = {"modification_conclusion": "", "review_comments": ""}
++        self.review_count = 0
+ 
+     def update_chat_env(self, chat_env):
+         return chat_env
+ 
+     def break_cycle(self, phase_env) -> bool:
+-        if "<INFO> Finished".lower() in phase_env['modification_conclusion'].lower():
++        mod_conclusion = str(phase_env.get("modification_conclusion", "") or "").lower()
++        rev_comments = str(phase_env.get("review_comments", "") or "").lower()
++
++        # Check explicit finished markers from either reviewer or programmer
++        if "<info> finished" in mod_conclusion or "<info> finished" in rev_comments:
+             return True
+-        else:
+-            return False
++
++        # Check if reviewer found no defects or indicates satisfaction
++        no_bug_signals = [
++            "codes are perfect",
++            "no comment",
++            "no comments",
++            "no revision needed",
++            "no modifications needed",
++            "no bugs",
++            "conforms to the tasks",
++            "all regulations are satisfied",
++        ]
++        if any(sig in rev_comments for sig in no_bug_signals) and len(rev_comments) < 400:
++            return True
++
++        # Bounding review cycles: when programmer has already executed a full review + modification cycle
++        # with code blocks produced, conclude cleanly rather than spinning in unbounded cycles
++        if mod_conclusion and "```" in mod_conclusion:
++            self.review_count += 1
++            if self.review_count >= 1:
++                return True
++
++        return False
+ 
+ 
+ class Test(ComposedPhase):
+diff --git a/chatdev/phase.py b/chatdev/phase.py
+index fbf181e..13f2cd1 100644
+--- a/chatdev/phase.py
++++ b/chatdev/phase.py
+@@ -59,7 +59,7 @@ class Phase(ABC):
+             task_type=TaskType.CHATDEV,
+             need_reflect=False,
+             with_task_specify=False,
+-            model_type=ModelType.GPT_3_5_TURBO,
++            model_type=None,
+             placeholders=None,
+             chat_turn_limit=10
+     ) -> str:
+@@ -88,6 +88,8 @@ class Phase(ABC):
+         if placeholders is None:
+             placeholders = {}
+         assert 1 <= chat_turn_limit <= 100
++        if model_type is None:
++            model_type = getattr(self, "model_type", None) or ModelType.GPT_3_5_TURBO
+ 
+         if not chat_env.exist_employee(assistant_role_name):
+             raise ValueError(f"{assistant_role_name} not recruited in ChatEnv.")
+@@ -177,7 +179,13 @@ class Phase(ABC):
+             seminar_conclusion = assistant_response.msg.content
+ 
+         log_and_print_online("**[Seminar Conclusion]**:\n\n {}".format(seminar_conclusion))
+-        seminar_conclusion = seminar_conclusion.split("<INFO>")[-1]
++        if "<INFO>" in seminar_conclusion:
++            after_info = seminar_conclusion.split("<INFO>")[-1]
++            # Protect code content from destructive <INFO> splitting if the prefix contained code blocks
++            if ("```" in seminar_conclusion or "def " in seminar_conclusion or "class " in seminar_conclusion) and "```" not in after_info:
++                pass
++            else:
++                seminar_conclusion = after_info
+         return seminar_conclusion
+ 
+     def self_reflection(self,
+@@ -355,7 +363,7 @@ class Coding(Phase):
+     def update_chat_env(self, chat_env) -> ChatEnv:
+         chat_env.update_codes(self.seminar_conclusion)
+         if len(chat_env.codes.codebooks.keys()) == 0:
+-            raise ValueError("No Valid Codes.")
++            raise ValueError("No Valid Codes: model response did not contain parsable code blocks.")
+         chat_env.rewrite_codes()
+         log_and_print_online("**[Software Info]**:\n\n {}".format(get_info(chat_env.env_dict['directory'],self.log_filepath)))
+         return chat_env
+@@ -420,7 +428,7 @@ class CodeComplete(Phase):
+     def update_chat_env(self, chat_env) -> ChatEnv:
+         chat_env.update_codes(self.seminar_conclusion)
+         if len(chat_env.codes.codebooks.keys()) == 0:
+-            raise ValueError("No Valid Codes.")
++            raise ValueError("No Valid Codes: model response did not contain parsable code blocks.")
+         chat_env.rewrite_codes()
+         log_and_print_online("**[Software Info]**:\n\n {}".format(get_info(chat_env.env_dict['directory'],self.log_filepath)))
+         return chat_env
+@@ -441,6 +449,7 @@ class CodeReviewComment(Phase):
+ 
+     def update_chat_env(self, chat_env) -> ChatEnv:
+         chat_env.env_dict['review_comments'] = self.seminar_conclusion
++        self.phase_env['review_comments'] = self.seminar_conclusion
+         return chat_env
+ 
+ 
+@@ -534,7 +543,8 @@ class TestErrorSummary(Phase):
+                               assistant_role_prompt=self.assistant_role_prompt,
+                               user_role_prompt=self.user_role_prompt,
+                               chat_turn_limit=chat_turn_limit,
+-                              placeholders=self.phase_env)
++                              placeholders=self.phase_env,
++                              model_type=self.model_type)
+         chat_env = self.update_chat_env(chat_env)
+         return chat_env
+ 
+diff --git a/run.py b/run.py
+index 6b15280..1388a9d 100644
+--- a/run.py
++++ b/run.py
+@@ -76,14 +76,28 @@ args = parser.parse_args()
+ #          Init ChatChain
+ # ----------------------------------------
+ config_path, config_phase_path, config_role_path = get_config(args.config)
+-args2type = {'GPT_3_5_TURBO': ModelType.GPT_3_5_TURBO, 'GPT_4': ModelType.GPT_4, 'GPT_4_32K': ModelType.GPT_4_32k}
++args2type = {
++    'GPT_3_5_TURBO': ModelType.GPT_3_5_TURBO,
++    'gpt-3.5-turbo': ModelType.GPT_3_5_TURBO,
++    'openai/gpt-3.5-turbo': ModelType.GPT_3_5_TURBO,
++    'GPT_4': ModelType.GPT_4,
++    'GPT_4_32K': ModelType.GPT_4_32k,
++    'GPT_4O': ModelType.GPT_4O,
++    'gpt-4o': ModelType.GPT_4O,
++    'openai/gpt-4o': ModelType.GPT_4O,
++    'gpt-4o-mini': ModelType.GPT_4O_MINI,
++    'openai/gpt-4o-mini': ModelType.GPT_4O_MINI,
++    'cohere/north-mini-code:free': ModelType.NORTH_MINI_CODE,
++    'north-mini-code': ModelType.NORTH_MINI_CODE,
++}
++model_choice = args2type.get(args.model, ModelType.GPT_4O if "4o" in args.model.lower() else ModelType.GPT_3_5_TURBO)
+ chat_chain = ChatChain(config_path=config_path,
+                        config_phase_path=config_phase_path,
+                        config_role_path=config_role_path,
+                        task_prompt=args.task,
+                        project_name=args.name,
+                        org_name=args.org,
+-                       model_type=args2type[args.model])
++                       model_type=model_choice)
+ 
+ # ----------------------------------------
+ #          Init Log

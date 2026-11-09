@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime
 import time
@@ -338,6 +339,29 @@ def classify_failure(
     return "QUALITY_FAILURE"
 
 
+def count_code_loc(workspace_path: str) -> int:
+    """Counts non-empty, non-comment lines of code in Python source files (excluding tests)."""
+    if not workspace_path or not os.path.exists(workspace_path):
+        return 0
+    total_loc = 0
+    for root, _, files in os.walk(workspace_path):
+        for f in files:
+            if f.endswith(".py"):
+                lower_f = f.lower()
+                if lower_f.startswith("test") or lower_f.endswith("_test.py") or "test" in root.lower().split(os.sep):
+                    continue
+                file_path = os.path.join(root, f)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as fp:
+                        for line in fp:
+                            line_str = line.strip()
+                            if line_str and not line_str.startswith("#"):
+                                total_loc += 1
+                except Exception:
+                    pass
+    return total_loc
+
+
 class EvaluationRunner:
     """Manages execution of benchmark matrices, ablations, and dry runs."""
 
@@ -426,6 +450,141 @@ class EvaluationRunner:
             "total_expected_requests": total_reqs,
             "total_expected_tokens": total_tokens,
         }
+
+    def run_preflight(self) -> bool:
+        """Executes offline preflight checklist across repo, keys, model, embedder, proxy, and quota."""
+        print("\n" + "=" * 70)
+        print("MAS BENCHMARK PREFLIGHT VERIFICATION (OFFLINE CHECKLIST)")
+        print("=" * 70)
+        all_passed = True
+
+        # 1. ChatDev submodule commit check
+        expected_commit = "c1c31e28864df6b8b0394683b8286436ce41b5ce"
+        chatdev_dir = os.path.abspath("./external/ChatDev")
+        chatdev_ok = False
+        chatdev_actual = "NOT_FOUND"
+        if os.path.exists(chatdev_dir):
+            try:
+                res = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=chatdev_dir,
+                    capture_output=True,
+                    text=True,
+                )
+                if res.returncode == 0:
+                    chatdev_actual = res.stdout.strip()
+                    chatdev_ok = chatdev_actual.startswith(expected_commit) or expected_commit.startswith(chatdev_actual)
+            except Exception as e:
+                chatdev_actual = str(e)
+        if chatdev_ok:
+            print(f"[PASS] ChatDev Submodule:        Pinned at commit {expected_commit[:10]}")
+        else:
+            print(f"[FAIL] ChatDev Submodule:        Expected {expected_commit[:10]}, found {chatdev_actual[:10]}")
+            all_passed = False
+
+        # 2. Provider API key check (never print actual key)
+        api_key = (
+            os.environ.get("PROVIDER_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+        if api_key and api_key.strip() and not api_key.startswith("mock") and not api_key.startswith("dummy"):
+            print(f"[PASS] Provider API Key:         Configured (length={len(api_key)}, non-empty)")
+        else:
+            print(f"[FAIL] Provider API Key:         Missing or empty in environment")
+            all_passed = False
+
+        # 3. BENCH_MODEL check
+        bench_model = os.environ.get("BENCH_MODEL", "").strip()
+        if bench_model and bench_model != "__SET_BENCH_MODEL_IN_ENV__":
+            print(f"[PASS] Pinned Benchmark Model:   {bench_model}")
+        else:
+            print(f"[FAIL] Pinned Benchmark Model:   BENCH_MODEL not set or placeholder ({bench_model or 'EMPTY'})")
+            all_passed = False
+
+        # 4. Embedder check
+        embedder_ok = False
+        emb_dim = 0
+        embedder_err = ""
+        try:
+            from eval.scorers.icoder_metrics import is_embedding_available, get_embedding_model
+            if is_embedding_available():
+                m = get_embedding_model()
+                emb = m.encode("Preflight embedder verification sentence.")
+                if emb is not None and len(emb) > 0:
+                    embedder_ok = True
+                    emb_dim = len(emb)
+            else:
+                embedder_err = "SentenceTransformer unavailable in environment; using lexical consistency"
+        except Exception as e:
+            embedder_err = str(e)
+        if embedder_ok:
+            print(f"[PASS] Embedder Engine:          Operational offline (dimension={emb_dim})")
+        else:
+            print(f"[WARN] Embedder Engine:          {embedder_err}")
+
+        # 5. Proxy start and stop check
+        proxy_ok = False
+        try:
+            import uvicorn
+            import threading
+            import httpx
+            import time
+            from mas.core.proxy import proxy_app
+
+            class ServerThread(threading.Thread):
+                def __init__(self, app, host="127.0.0.1", port=8089):
+                    super().__init__(daemon=True)
+                    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+                    self.server = uvicorn.Server(config)
+
+                def run(self):
+                    self.server.run()
+
+                def stop(self):
+                    self.server.should_exit = True
+
+            srv = ServerThread(proxy_app, port=8089)
+            srv.start()
+            time.sleep(0.6)
+            try:
+                resp = httpx.get("http://127.0.0.1:8089/health", timeout=3.0)
+                if resp.status_code == 200:
+                    proxy_ok = True
+            finally:
+                srv.stop()
+        except Exception as e:
+            proxy_ok = False
+
+        if proxy_ok:
+            print(f"[PASS] Logging Proxy:            Can start and stop cleanly on port 8089")
+        else:
+            print(f"[FAIL] Logging Proxy:            Could not start/stop on port 8089")
+            all_passed = False
+
+        # 6. Daily quota check
+        quota_ok = False
+        try:
+            from mas.core.governor import global_governor as governor
+            stats = governor.get_ledger_stats()
+            rem = stats.get("remaining_internal_attempts", 0)
+            if rem >= 15:
+                quota_ok = True
+                print(f"[PASS] Daily Quota Remaining:    {rem} requests (>= 15 required)")
+            else:
+                print(f"[WARN] Daily Quota Remaining:    {rem} requests (< 15 required)")
+        except Exception as e:
+            print(f"[FAIL] Daily Quota Remaining:    Could not inspect governor ledger: {e}")
+            all_passed = False
+
+        print("-" * 70)
+        if all_passed and quota_ok:
+            print("PREFLIGHT STATUS: ALL CHECKS PASSED — READY FOR BENCHMARK")
+        else:
+            print("PREFLIGHT STATUS: ONE OR MORE CHECKS FAILED OR WARNED")
+        print("=" * 70 + "\n")
+        return all_passed and quota_ok
 
     def print_dry_run(self):
         """Displays planned 300 core runs and planning token envelope with ZERO model calls."""
@@ -806,6 +965,8 @@ class EvaluationRunner:
                                 "tokens": tot_tok,
                                 "cost": mas_cost,
                                 "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
+                                "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
+                                "loc": count_code_loc(state.get("workspace_path", "")),
                                 "status": actual_mas_status,
                                 "execution_mode": actual_mas_exec_mode,
                                 "token_provenance": prov_mode,
@@ -968,6 +1129,9 @@ class EvaluationRunner:
                                     actual_cd_status = "STOPPED_BUDGET_CEILING"
                                     actual_cd_exec_mode = "STOPPED_BUDGET_CEILING"
                                     cd_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > {token_cap})"
+                                elif not use_fake and tot_tok == 0:
+                                    actual_cd_status = "FAILED"
+                                    cd_failure_reason = "INFRA_ERROR: ChatDev made zero proxy requests (bypassed proxy or failed to connect)"
                                 else:
                                     actual_cd_status = run_status
                                     actual_cd_exec_mode = exec_mode
@@ -1028,6 +1192,8 @@ class EvaluationRunner:
                                     "tokens": tot_tok,
                                     "cost": cd_cost,
                                     "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
+                                    "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
+                                    "loc": count_code_loc(cd_out.get("workspace_dir", "")) if is_cd_success else 0,
                                     "status": actual_cd_status,
                                     "execution_mode": actual_cd_exec_mode,
                                     "token_provenance": prov_mode,
@@ -1192,6 +1358,7 @@ def main():
     parser.add_argument("--resume", action="store_true", help="Resume benchmark, skipping tasks with existing official rows")
     parser.add_argument("--stop-at-budget", action="store_true", help="Stop cleanly before exhausting daily quota")
     parser.add_argument("--estimate", action="store_true", help="Estimate requests, tokens, daily limits, and days needed")
+    parser.add_argument("--preflight", action="store_true", help="Run offline preflight verification checklist")
     parser.add_argument("--tasks-file", type=str, default=None, help="Tasks JSON specification file")
     parser.add_argument("--ablation", type=str, default="A0", choices=["A0", "A1", "A2", "A3", "A4"], help="Ablation condition (A0..A4)")
     args = parser.parse_args()
@@ -1200,6 +1367,10 @@ def main():
         reset_environment()
 
     runner = EvaluationRunner()
+
+    if args.preflight:
+        success = runner.run_preflight()
+        sys.exit(0 if success else 1)
 
     if args.estimate:
         runner.run_estimate(tasks_file=args.tasks_file, task_count=args.tasks, repeats=args.repeats)

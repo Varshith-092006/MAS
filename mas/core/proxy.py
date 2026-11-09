@@ -65,6 +65,10 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
     else:
         body["max_tokens"] = 4000
 
+    # Enforce deterministic temperature and seed for benchmark fairness across MAS and ChatDev
+    body["temperature"] = 0.0
+    body["seed"] = 42
+
     run_id = request.headers.get("X-Run-ID", "global-run")
     agent_name = request.headers.get("X-Agent-Name", "chatdev_or_external")
 

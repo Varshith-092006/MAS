@@ -4,6 +4,30 @@ This document tracks architectural decisions, source precedence, specification c
 
 ---
 
+### Record: Provider Config Safety, Precedence, and OpenRouter Exclusion
+
+- **ID**: DEC-013
+- **Date**: 2026-11-10
+- **Decision**: Google Gemini API is the sole authorized provider for official benchmark results. OpenRouter is explicitly excluded. A new module `eval/provider_config.py` enforces this.
+- **Context & Reason**:
+  - The previous `.env.example` and preflight were OpenRouter-centric, letting an OpenRouter key pass the key check and OpenRouter model IDs (e.g. `google/gemini-3.5-flash-lite` with the owner prefix) pass the model check. This made it possible to run the benchmark on the wrong provider without any error.
+  - The free-tier constraint (AGENTS.md) pins the provider to **Google AI Studio** (aistudio.google.com) because:
+    1. OpenRouter imposes a free-tier daily cap of ~50 requests on its proxy layer, far below the Gemini free tier's 500/day.
+    2. OpenRouter results cannot be reproduced independently (the router may change which model serves a request), violating the benchmark reproducibility requirement.
+    3. The Gemini API provides a direct, deterministic, rate-limited endpoint that is stable across days.
+  - Safety rules added in `eval/provider_config.py` and `eval/runner.py`:
+    1. `PROVIDER_*` vars take precedence over `OPENROUTER_*` when any `PROVIDER_*` var is non-empty.
+    2. Live/benchmark runs refuse to start if `BENCH_MODEL` is empty, `openrouter/free`, or a placeholder.
+    3. Provider type is detected from `PROVIDER_BASE_URL` host only.
+    4. For the Gemini provider: the key must start with `AIza`; a `sk-or-` key is immediately rejected; the `google/` model prefix is a warning that is normalized away.
+    5. For the OpenRouter provider: benchmark runs are blocked unless `--allow-openrouter` is passed (in which case results rows are labeled `provider=openrouter` and excluded from official tables).
+    6. `scripts/list_models.py` now prints `Provider: <type> (<host>)` at the top.
+    7. `scripts/make_report.py` checks that all official rows share the same provider and model and aborts if they differ, naming the conflicting values.
+- **Impact**: Running `--preflight` or `--benchmark --live` with an OpenRouter key on the Gemini URL (or vice versa) now produces a clear `[FAIL]` error before any quota is spent.
+- **Evaluator frozen**: eval/neutral_evaluator.py unchanged.
+
+---
+
 ### Record: Source Precedence and Input Limitation
 
 - **ID**: DEC-001

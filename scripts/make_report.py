@@ -594,6 +594,46 @@ def main():
     mas_runs = [r for r in runs if r.get("system") == "mas" and is_official_live_run(r)]
     cd_runs = [r for r in runs if r.get("system") == "chatdev" and is_official_live_run(r)]
 
+    # --- Provider / model consistency check ---
+    # Collect all (provider, model) pairs from official live runs.
+    provider_model_combos = set()
+    all_official = mas_runs + cd_runs
+    for r in all_official:
+        p = (r.get("provider_type") or r.get("provider") or "").strip().lower() or None
+        m = (r.get("model") or r.get("bench_model") or "").strip().lower() or None
+        if p or m:
+            provider_model_combos.add((p, m))
+
+    # Build metadata header
+    meta_lines = []
+    if all_official:
+        providers = {c[0] for c in provider_model_combos if c[0]}
+        models = {c[1] for c in provider_model_combos if c[1]}
+        meta_lines.append("**Benchmark metadata** (from run records):\n")
+        meta_lines.append(f"- Provider type(s): {', '.join(sorted(str(p) for p in providers)) or '(not recorded)'}")
+        meta_lines.append(f"- Model(s): {', '.join(sorted(str(m) for m in models)) or '(not recorded)'}")
+        meta_lines.append(f"- Official MAS runs: {len(mas_runs)}, Official ChatDev runs: {len(cd_runs)}")
+        meta_lines.append("")
+
+        # Abort if multiple providers or models were mixed
+        if len(providers) > 1:
+            print(
+                f"[ERROR] Cannot generate Table 2+: runs from MULTIPLE providers detected: "
+                f"{sorted(str(p) for p in providers)}. "
+                f"All runs in one report must use the same provider. Split them first."
+            )
+            sys.exit(1)
+        if len(models) > 1:
+            print(
+                f"[ERROR] Cannot generate Table 2+: runs from MULTIPLE models detected: "
+                f"{sorted(str(m) for m in models)}. "
+                f"All runs in one report must use the same model. Split them first."
+            )
+            sys.exit(1)
+    else:
+        meta_lines.append("**Benchmark metadata**: No official live runs found — tables will show NOT RUN.\n")
+    # ---
+
     # Generate Markdown Tables
     t1 = generate_table_1_markdown()
     t2 = generate_table_2_markdown(mas_runs, cd_runs)
@@ -602,9 +642,12 @@ def main():
     t5 = generate_table_5_markdown(runs)
     t6 = generate_table_6_markdown(mas_runs, cd_runs)
 
+    metadata_block = "\n".join(meta_lines)
     full_md = f"""# MAS Empirical Evaluation Final Benchmark Report
 
 Generated at: {os.path.basename(args.results)} / {os.path.basename(args.manifest)}
+
+{metadata_block}
 
 {t1}
 

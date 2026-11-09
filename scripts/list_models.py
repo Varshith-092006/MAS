@@ -1,7 +1,8 @@
-"""List available models from the configured OpenAI-compatible provider endpoint.
+"""List available models from the configured provider endpoint.
 
-Reads PROVIDER_API_KEY (or GEMINI_API_KEY / OPENROUTER_API_KEY) and PROVIDER_BASE_URL from the environment.
-NEVER prints, logs, or discloses the API key.
+Reads provider settings via eval.provider_config (PROVIDER_* precedence over OPENROUTER_*).
+Prints "Provider: <type> (<host>)" at the top so a wrong provider is immediately obvious.
+NEVER prints, logs, or discloses the API key or any part of it.
 """
 
 import os
@@ -15,32 +16,28 @@ except Exception:
 
 import httpx
 
+# Use the central provider config module
+sys.path.insert(0, os.path.abspath("."))
+from eval.provider_config import resolve_provider_settings, provider_summary_line
 
-def list_models():
-    api_key = (
-        os.environ.get("PROVIDER_API_KEY")
-        or os.environ.get("GEMINI_API_KEY")
-        or os.environ.get("OPENROUTER_API_KEY")
-        or os.environ.get("OPENAI_API_KEY")
-    )
 
-    if not api_key:
+def list_models() -> None:
+    settings = resolve_provider_settings()
+
+    # Print provider info first so a wrong endpoint is immediately obvious.
+    print(f"Provider: {settings.provider_type} ({settings.host})")
+    print(f"Endpoint: {settings.base_url}/models")
+    print(f"Key length: {settings.key_length()} (value not shown)")
+    print("-" * 60)
+
+    if not settings.api_key:
         print("[ERROR] No API key found in environment.")
-        print("Please set PROVIDER_API_KEY (or GEMINI_API_KEY) in your environment or .env file.")
+        print("Set PROVIDER_API_KEY in your .env file (copy from .env.example).")
         sys.exit(1)
 
-    base_url = (
-        os.environ.get("PROVIDER_BASE_URL")
-        or os.environ.get("OPENROUTER_BASE_URL")
-        or "https://generativelanguage.googleapis.com/v1beta/openai/"
-    ).rstrip("/")
+    url = f"{settings.base_url}/models"
+    headers = {"Authorization": f"Bearer {settings.api_key}"}
 
-    url = f"{base_url}/models"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-    }
-
-    print(f"Querying models endpoint: {url} ...")
     try:
         resp = httpx.get(url, headers=headers, timeout=30.0)
         if resp.status_code != 200:
@@ -48,21 +45,29 @@ def list_models():
             sys.exit(1)
 
         data = resp.json()
+
+        # Both OpenAI-compatible ({"data": [...]}) and plain list responses
         models = data.get("data", [])
         if not models and isinstance(data, list):
             models = data
 
-        print(f"\nFound {len(models)} models available at endpoint:\n" + "-" * 60)
+        print(f"\nFound {len(models)} models at this endpoint:\n" + "-" * 60)
         for m in models:
             if isinstance(m, dict):
                 m_id = m.get("id", "unknown")
+                # For Gemini responses: strip "models/" prefix to get the bare ID to use in BENCH_MODEL
+                display_id = m_id[len("models/"):] if m_id.startswith("models/") else m_id
                 owned_by = m.get("owned_by", "")
-                display = f" - {m_id}" + (f" (by {owned_by})" if owned_by else "")
-                print(display)
+                note = f" (by {owned_by})" if owned_by else ""
+                print(f" - {display_id}{note}")
             else:
                 print(f" - {m}")
         print("-" * 60)
-        print("Select an exact Flash Lite model ID and set it as BENCH_MODEL in your environment/.env.")
+        print("Copy the exact Flash Lite model ID above and set it as BENCH_MODEL in your .env.")
+        if settings.provider_type == "gemini":
+            print("Note: Gemini IDs do NOT include a 'google/' prefix. Example: gemini-3.5-flash-lite")
+        elif settings.provider_type == "openrouter":
+            print("Note: OpenRouter is NOT the benchmark provider. Switch to the Gemini API for official runs.")
     except Exception as exc:
         print(f"[ERROR] Failed to connect to provider endpoint: {exc}")
         sys.exit(1)

@@ -451,12 +451,29 @@ class EvaluationRunner:
             "total_expected_tokens": total_tokens,
         }
 
-    def run_preflight(self) -> bool:
-        """Executes offline preflight checklist across repo, keys, model, embedder, proxy, and quota."""
+    def run_preflight(self, allow_openrouter: bool = False) -> bool:
+        """Executes offline preflight checklist across repo, keys, model, embedder, proxy, and quota.
+
+        Uses eval.provider_config for provider detection, precedence, and safety validation.
+        Never prints the API key value or any part of it.
+        """
+        from eval.provider_config import resolve_provider_settings, validate_key_only, validate_for_live_run
+
         print("\n" + "=" * 70)
         print("MAS BENCHMARK PREFLIGHT VERIFICATION (OFFLINE CHECKLIST)")
         print("=" * 70)
         all_passed = True
+
+        # Resolve provider settings once using the precedence rules.
+        settings = resolve_provider_settings()
+
+        # Print provider context (safe — no key content).
+        print(f"[INFO] Provider type:            {settings.provider_type} ({settings.host})")
+        print(f"[INFO] Base URL:                 {settings.base_url or '(unset)'}")
+        print(f"[INFO] BENCH_MODEL:              {settings.bench_model or '(unset)'}")
+        print(f"[INFO] Settings source:          {settings.source}")
+        if settings.bench_model_has_google_prefix():
+            print(f"[WARN] BENCH_MODEL has 'google/' prefix — Gemini endpoint uses bare IDs, e.g. 'gemini-3.5-flash-lite'")
 
         # 1. ChatDev submodule commit check
         expected_commit = "c1c31e28864df6b8b0394683b8286436ce41b5ce"
@@ -482,25 +499,29 @@ class EvaluationRunner:
             print(f"[FAIL] ChatDev Submodule:        Expected {expected_commit[:10]}, found {chatdev_actual[:10]}")
             all_passed = False
 
-        # 2. Provider API key check (never print actual key)
-        api_key = (
-            os.environ.get("PROVIDER_API_KEY")
-            or os.environ.get("GEMINI_API_KEY")
-            or os.environ.get("OPENROUTER_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-        )
-        if api_key and api_key.strip() and not api_key.startswith("mock") and not api_key.startswith("dummy"):
-            print(f"[PASS] Provider API Key:         Configured (length={len(api_key)}, non-empty)")
-        else:
-            print(f"[FAIL] Provider API Key:         Missing or empty in environment")
+        # 2. Provider API key check — provider type, host, key length verdict (never print the key).
+        key_ok, key_msgs = validate_key_only(settings)
+        for msg in key_msgs:
+            print(f"       {msg}" if not msg.startswith("[") else f"{msg}")
+        if not key_ok:
             all_passed = False
 
-        # 3. BENCH_MODEL check
-        bench_model = os.environ.get("BENCH_MODEL", "").strip()
-        if bench_model and bench_model != "__SET_BENCH_MODEL_IN_ENV__":
-            print(f"[PASS] Pinned Benchmark Model:   {bench_model}")
+        # 3. Provider-level and model safety checks (same logic as before a live run).
+        live_ok, live_msgs = validate_for_live_run(settings, allow_openrouter=allow_openrouter)
+        for msg in live_msgs:
+            if msg.startswith("[FAIL]"):
+                print(msg)
+                all_passed = False
+            elif msg.startswith("[WARN]"):
+                print(msg)
+            else:
+                print(msg)
+        if live_ok:
+            # Print the PASS for model only if key passed too (avoid double-printing errors)
+            if key_ok:
+                model_display = settings.bench_model_normalized() or settings.bench_model
+                print(f"[PASS] Pinned Benchmark Model:   {model_display}")
         else:
-            print(f"[FAIL] Pinned Benchmark Model:   BENCH_MODEL not set or placeholder ({bench_model or 'EMPTY'})")
             all_passed = False
 
         # 4. Embedder check
@@ -1314,6 +1335,92 @@ class EvaluationRunner:
         }
 
 
+def _assert_safe_live_config(model: str, allow_openrouter: bool = False) -> None:
+    """Aborts with a clear error if provider settings are unsafe for a live/benchmark run.
+
+    Called before every live API dispatch. Never makes network calls.
+    """
+    from eval.provider_config import resolve_provider_settings, validate_for_live_run
+
+    settings = resolve_provider_settings()
+    # Allow the model arg to override BENCH_MODEL for the check
+    if model and model != "fake":
+        import os as _os
+        env_copy = dict(_os.environ)
+        env_copy["BENCH_MODEL"] = model
+        from eval.provider_config import resolve_provider_settings as _rps
+        settings = _rps(env_copy)
+
+    ok, msgs = validate_for_live_run(settings, allow_openrouter=allow_openrouter)
+    if not ok:
+        fail_msgs = [m for m in msgs if m.startswith("[FAIL]")]
+        print("\n[SAFETY ABORT] Live run refused — provider configuration is unsafe:")
+        for m in fail_msgs:
+            print(f"  {m}")
+        print("Fix your .env configuration then re-run --preflight.")
+        sys.exit(1)
+    # Print any warnings non-fatally
+    for m in msgs:
+        if m.startswith("[WARN]"):
+            print(m)
+
+
+def _run_smoke(tasks_file: Optional[str], model: str, systems: List[str], allow_openrouter: bool = False) -> None:
+    """Runs exactly the first task of the tasks file with both systems, 1 repeat, live.
+
+    Prints a summary of requests used, tokens used, the exact model name reported by the
+    provider response, and the local ledger count.
+    THIS FUNCTION MAKES LIVE API CALLS. The maintainer must invoke it explicitly via --smoke.
+    """
+    _assert_safe_live_config(model, allow_openrouter=allow_openrouter)
+
+    target_file = tasks_file or "eval/tasks_v2.json"
+    runner = EvaluationRunner()
+    tasks = runner.load_tasks(tasks_file=target_file)
+    if not tasks:
+        print("[SMOKE] No tasks found in tasks file — aborting.")
+        sys.exit(1)
+
+    first_task = tasks[0]
+    print(f"\n{'=' * 70}")
+    print(f"SMOKE TEST — Task: {first_task.get('task_id')} | {first_task.get('name', '')}")
+    print(f"Model: {model}  |  Systems: {', '.join(systems)}")
+    print(f"{'=' * 70}\n")
+
+    result = runner.run_benchmark(
+        task_count=1,
+        repeats=1,
+        repeat_no=1,
+        task_id=first_task["task_id"],
+        model=model,
+        use_fake=False,
+        systems=systems,
+        attempt=None,
+        require_embeddings=False,
+        resume=False,
+        stop_at_budget=True,
+        tasks_file=target_file,
+        ablation="A0",
+    )
+
+    # Print smoke summary
+    print(f"\n{'=' * 70}")
+    print("SMOKE TEST SUMMARY")
+    print(f"{'=' * 70}")
+    for sys_name in systems:
+        sys_key = f"{sys_name}_tokens_per_task"
+        toks = result.get(sys_key, "N/A")
+        print(f"  {sys_name.upper()}: tokens={toks}")
+    try:
+        from mas.core.governor import global_governor as governor
+        stats = governor.get_ledger_stats()
+        ledger_count = stats.get("today_internal_count", "N/A")
+        print(f"  Ledger requests today: {ledger_count}")
+    except Exception:
+        print("  Ledger count: (unavailable)")
+    print(f"{'=' * 70}\n")
+
+
 def reset_environment():
     """Wipes all existing database records and workspace folders clean."""
     import shutil
@@ -1361,6 +1468,8 @@ def main():
     parser.add_argument("--preflight", action="store_true", help="Run offline preflight verification checklist")
     parser.add_argument("--tasks-file", type=str, default=None, help="Tasks JSON specification file")
     parser.add_argument("--ablation", type=str, default="A0", choices=["A0", "A1", "A2", "A3", "A4"], help="Ablation condition (A0..A4)")
+    parser.add_argument("--smoke", action="store_true", help="Smoke test: run the first task with both systems, 1 repeat, live — prints token/request summary")
+    parser.add_argument("--allow-openrouter", action="store_true", help="Allow OpenRouter as benchmark provider (results labeled provider=openrouter and excluded from official tables)")
     args = parser.parse_args()
 
     if args.reset:
@@ -1369,7 +1478,7 @@ def main():
     runner = EvaluationRunner()
 
     if args.preflight:
-        success = runner.run_preflight()
+        success = runner.run_preflight(allow_openrouter=getattr(args, "allow_openrouter", False))
         sys.exit(0 if success else 1)
 
     if args.estimate:
@@ -1383,6 +1492,19 @@ def main():
         systems_list = [s.strip().lower() for s in raw_systems.split(",") if s.strip()]
 
     use_fake = (args.model == "fake" and not args.live)
+
+    # Safety guard: reject dangerous config before any live/benchmark run
+    if (args.benchmark or args.task_id or getattr(args, "smoke", False)) and not use_fake:
+        _assert_safe_live_config(args.model, allow_openrouter=getattr(args, "allow_openrouter", False))
+
+    if getattr(args, "smoke", False):
+        _run_smoke(
+            tasks_file=args.tasks_file,
+            model=args.model,
+            systems=systems_list,
+            allow_openrouter=getattr(args, "allow_openrouter", False),
+        )
+        return
 
     if args.dry_run:
         runner.print_dry_run()

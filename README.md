@@ -96,21 +96,35 @@ All **269 tests** pass cleanly offline.
 
 ## 5. Running the Final Benchmark
 
-For complete, step-by-step instructions on preflight verification, Day 1 and Day 2 execution, optional ablations (A1–A4), and report generation, refer to **[`RUN_FINAL.md`](./RUN_FINAL.md)**.
+> [!IMPORTANT]
+> The official benchmark provider is **Google Gemini API** (aistudio.google.com). OpenRouter is not permitted for official results (see DECISIONS.md DEC-013).
 
-### Quick Commands Summary:
+For complete step-by-step instructions refer to **[`RUN_FINAL.md`](./RUN_FINAL.md)**.
+
+### Quick Setup & Commands
 
 ```powershell
-# 1. Preflight Verification (Offline check, 0 quota used)
+# Step 0: Copy and fill in provider config
+Copy-Item .env.example .env
+# Edit .env: set PROVIDER_API_KEY (starts with AIza), PROVIDER_BASE_URL (Gemini URL), leave BENCH_MODEL blank
+
+# Discover the exact model ID (prints "Provider: gemini (...)" at the top)
+python scripts/list_models.py
+# Then set BENCH_MODEL=<exact-id-from-output> in your .env
+
+# Step 1: Preflight verification (zero quota, zero model calls)
 python -m eval.runner --preflight
 
-# 2. Estimate Resources and Timeline (0 quota used)
-python -m eval.runner --estimate --tasks-file eval/tasks_v2.json --tasks 20 --repeats 3
+# Step 2: Smoke test — first task only, both systems, live (you run this, NOT the agent)
+python -m eval.runner --smoke --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
 
-# 3. Execute Resumable Benchmark (Day 1 / Day 2)
-python -m eval.runner --benchmark --live --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 3 --resume --stop-at-budget
+# Step 3: Full benchmark (20 tasks, 1 repeat, resumable)
+python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 
-# 4. Generate Reports (Tables 1-6 in Markdown, LaTeX, CSV, and figures)
+# Step 4: Resume after quota reset (same command, --resume skips completed tasks)
+python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
+
+# Step 5: Generate reports (Tables 1-6, LaTeX, CSV, figures)
 python scripts/make_report.py --results results.csv --manifest eval/benchmark_manifest.json --output-dir reports
 ```
 

@@ -1,76 +1,90 @@
 # Operator Run Guide: MAS vs. ChatDev Final Benchmark
 
-This document provides the exact, step-by-step procedure to execute the empirical comparison between **MAS** and **ChatDev** on the SRDD-20 dataset using free-tier resources under Google Gemini / OpenRouter constraints.
+This document provides the exact, step-by-step procedure to execute the empirical comparison between **MAS** and **ChatDev** on the SRDD-20 dataset using the **Google Gemini API free tier**.
+
+> [!IMPORTANT]
+> The official benchmark provider is **Google Gemini API** (aistudio.google.com). OpenRouter is not permitted for official results (see DECISIONS.md DEC-013). All commands below target the Gemini endpoint.
 
 ---
 
-## Before You Start Checklist
+## Step 0: Set Up Provider Environment
 
-1. **Operating Environment**:
-   - Windows 11 with PowerShell.
-   - Python 3.11 with virtual environment activated.
-   - Set UTF-8 encoding:
-     ```powershell
-     $env:PYTHONUTF8 = "1"
-     $env:PYTHONIOENCODING = "utf-8"
-     ```
+### 0a. Copy and fill in `.env`
 
-2. **Environment Variables**:
-   - Confirm your provider API key is set in environment (never commit `.env` or log keys):
-     ```powershell
-     # For Google AI Studio (Gemini)
-     $env:PROVIDER_API_KEY = "your-api-key-here"
-     $env:PROVIDER_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-     
-     # Do NOT guess model IDs. Run list_models.py to inspect exact available models:
-     python scripts/list_models.py
-     
-     # Set BENCH_MODEL to the exact Flash Lite model ID reported (e.g. gemini-2.5-flash-lite or exact listed model)
-     $env:BENCH_MODEL = "<exact-model-id-from-list_models>"
-     ```
-   - If using OpenRouter:
-     ```powershell
-     $env:PROVIDER_API_KEY = "your-openrouter-key-here"
-     $env:PROVIDER_BASE_URL = "https://openrouter.ai/api/v1"
-     $env:BENCH_MODEL = "cohere/north-mini-code:free"
-     ```
+```powershell
+Copy-Item .env.example .env
+# Then open .env in a text editor and fill in:
+#   PROVIDER_API_KEY  — your Google AI Studio key (starts with AIza)
+#   PROVIDER_BASE_URL — already set in the example (keep the trailing slash)
+#   BENCH_MODEL       — leave blank for now; fill after running list_models
+```
 
-3. **Rate Limits & Spending Constraints**:
-   - Authorized Spend: **$0.00**.
-   - Governor Cap: 450 requests/day (10% safety margin below 500 free daily limit).
-   - Rate Limits: 12 requests per minute, 200,000 tokens per minute.
-   - Quota Reset Time: Midnight Pacific Time (America/Los_Angeles).
+### 0b. Discover the exact model ID
+
+```powershell
+$env:PYTHONUTF8 = "1"
+python scripts/list_models.py
+```
+
+The script prints `Provider: gemini (generativelanguage.googleapis.com)` at the top, then lists all available models. Identify the Flash Lite row (e.g. `gemini-3.5-flash-lite`) and set it in `.env`:
+
+```
+BENCH_MODEL=gemini-3.5-flash-lite
+```
+
+> [!CAUTION]
+> Do NOT copy the `google/` prefix. The Gemini endpoint uses bare IDs like `gemini-3.5-flash-lite`, not `google/gemini-3.5-flash-lite`. The preflight will warn you if the prefix is present.
 
 ---
 
-## Step 1: Preflight Verification Check
+## Step 1: Preflight Verification
 
-Run the offline preflight verification tool. This executes zero model calls and consumes 0 quota:
+Run the offline preflight verification. Zero model calls, zero quota consumed:
 
 ```powershell
 python -m eval.runner --preflight
 ```
 
-**Expected Output**:
+**Expected Output** (all lines should show `[PASS]`):
+
 ```
 ======================================================================
 MAS BENCHMARK PREFLIGHT VERIFICATION (OFFLINE CHECKLIST)
 ======================================================================
+[INFO] Provider type:            gemini (generativelanguage.googleapis.com)
+[INFO] Base URL:                 https://generativelanguage.googleapis.com/v1beta/openai
+[INFO] BENCH_MODEL:              gemini-3.5-flash-lite
+[INFO] Settings source:          PROVIDER
 [PASS] ChatDev Submodule:        Pinned at commit c1c31e2886
-[PASS] Provider API Key:         Configured (length=..., non-empty)
-[PASS] Pinned Benchmark Model:   <your model ID>
-[PASS/WARN] Embedder Engine:     Operational offline / Lexical fallback
+[PASS] Provider API Key:         Configured (length=39, looks like a Google key ✓)
+[PASS] Pinned Benchmark Model:   gemini-3.5-flash-lite
+[PASS] Embedder Engine:          Operational offline (dimension=384)
 [PASS] Logging Proxy:            Can start and stop cleanly on port 8089
 [PASS] Daily Quota Remaining:    450 requests (>= 15 required)
 ----------------------------------------------------------------------
 PREFLIGHT STATUS: ALL CHECKS PASSED — READY FOR BENCHMARK
 ======================================================================
 ```
-If any check reports `[FAIL]`, resolve it before proceeding.
+
+If any line shows `[FAIL]`, fix that issue before continuing. `[WARN]` lines are non-fatal.
 
 ---
 
-## Step 2: Day 1 Benchmark Execution
+## Step 2: Smoke Test (one task, both systems, live)
+
+The smoke test runs the **first task only** with both systems against the real API. It prints token counts, requests used, and the exact model name the provider confirmed.
+
+**You must run this yourself** (the agent will not run live calls):
+
+```powershell
+python -m eval.runner --smoke --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
+```
+
+Confirm the summary output shows the correct model name and reasonable token counts before proceeding to the full benchmark.
+
+---
+
+## Step 3: Day 1 Benchmark Execution
 
 Start the official Day 1 benchmark run across 20 tasks with `--repeats 1`, `--systems mas,chatdev`, and `--require-embeddings`. The runner automatically stops cleanly when daily budget headroom is reached:
 

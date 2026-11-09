@@ -81,14 +81,9 @@ class DeveloperAgent(BaseAgent):
             prompt_sections.append(
                 "Instructions:\n"
                 "- Write complete, self-contained, executable Python code with entry point in main.py.\n"
-                "- Entry point & CLI interface:\n"
-                "  * If running from command line with '--help', print usage instructions and exit cleanly with status code 0.\n"
-                "  * Running without arguments (e.g. 'python main.py' or calling main()) must execute cleanly and exit or return with code 0 without crashing.\n"
-                "  * Provide a clear solver interface: define a function `solve(query: str) -> str` or a class `ScienceQuestionSolver` with method `solve(query: str) -> str`.\n"
-                "- Multi-Domain Requirements:\n"
-                "  * Implement complete, working logic for Physics (speed/velocity/distance/time), Chemistry (atomic numbers, symbols, carbon), and Biology (photosynthesis step-by-step).\n"
-                "  * Do NOT use trivial stubs, 'pass', or placeholder comments.\n"
-                "  * When input cannot be resolved, return a helpful explanation string instead of raising uncaught exceptions (like ValueError, IndexError) or exiting with code 1.\n"
+                "- Implement complete, working logic for all requirements.\n"
+                "- Do NOT use trivial stubs, 'pass', or placeholder comments.\n"
+                "- When input cannot be resolved, handle bad input cleanly without raising uncaught exceptions or crashing.\n"
                 "- When the task specifies automated tests (e.g. test_main.py), generate test_main.py alongside main.py.\n\n"
                 "Return a single JSON object matching this schema:\n"
                 "{\n"
@@ -113,9 +108,8 @@ class DeveloperAgent(BaseAgent):
                         "1. Return ONLY a single valid JSON object matching the CodePatch schema.\n"
                         "2. Do NOT output any conversational preamble, chain-of-thought analysis, or markdown outside the JSON.\n"
                         "3. Generate complete, production-ready, executable Python code with entry point in main.py.\n"
-                        "4. The application must handle '--help' and zero arguments cleanly with exit code 0.\n"
-                        "5. The code must strictly satisfy the task requirements and all acceptance criteria without placeholders.\n"
-                        "6. Ensure the complete JSON object is properly closed."
+                        "4. The code must strictly satisfy the task requirements and all acceptance criteria without placeholders.\n"
+                        "5. Ensure the complete JSON object is properly closed."
                     ),
                 },
                 {"role": "user", "content": prompt},

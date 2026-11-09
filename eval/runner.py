@@ -20,7 +20,9 @@ os.environ["MAS_ALLOW_SUBPROCESS_SANDBOX"] = "1"
 from eval.chatdev_adapter import ChatDevAdapter
 from eval.neutral_evaluator import NeutralEvaluator
 from eval.reports import export_results_csv, generate_stats_markdown_report
+from eval.scorers.icoder_metrics import is_embedding_available
 from eval.srdd_loader import load_srdd_benchmark_tasks, save_and_persist_tasks
+from eval.task_text import CLI_CONTRACT_SUFFIX, get_augmented_requirement
 from mas.core.llm import FakeLLMProvider, OpenRouterProvider, token_logger
 from mas.core.workflow import MASWorkflow, generate_artifacts_manifest
 from mas.db.models import Evaluation, Run
@@ -363,9 +365,10 @@ class EvaluationRunner:
         timestamp = int(time.time())
         mas_run_id = f"pilot_mas_{selected_task['task_id']}_{timestamp}"
         llm = FakeLLMProvider() if use_fake else OpenRouterProvider(default_model=model)
+        req = get_augmented_requirement(selected_task.get("description", ""))
         mas_workflow = MASWorkflow(llm=llm)
         mas_state = mas_workflow.run(
-            requirement=selected_task["description"],
+            requirement=req,
             task_id=selected_task["task_id"],
             model_name=model,
             run_id=mas_run_id,
@@ -375,15 +378,17 @@ class EvaluationRunner:
         # Neutral evaluation of MAS output
         mas_metrics = self.evaluator.evaluate_project(
             workspace_path=mas_state["workspace_path"],
-            requirement=selected_task["description"],
+            requirement=req,
             task_id=selected_task["task_id"],
             run_id=mas_run_id,
         )
 
         # 2. Run ChatDev
         cd_adapter = ChatDevAdapter(llm=llm)
+        cd_task = dict(selected_task)
+        cd_task["description"] = req
         cd_output = cd_adapter.run_task(
-            task=selected_task,
+            task=cd_task,
             output_base_dir="./eval/workspaces",
             model=model,
             run_id=f"pilot_chatdev_{selected_task['task_id']}_{timestamp}",
@@ -392,7 +397,7 @@ class EvaluationRunner:
 
         cd_metrics = self.evaluator.evaluate_project(
             workspace_path=cd_output["workspace_dir"],
-            requirement=selected_task["description"],
+            requirement=req,
             task_id=selected_task["task_id"],
             run_id=cd_output["run_id"],
         )
@@ -449,6 +454,7 @@ class EvaluationRunner:
         systems: Optional[List[str]] = None,
         benchmark_name: str = "srdd20",
         attempt: Optional[int] = None,
+        require_embeddings: bool = False,
     ) -> Dict[str, Any]:
         """Executes full benchmark evaluation across sampled SRDD tasks under identical conditions."""
         systems = systems or ["mas", "chatdev"]
@@ -464,6 +470,12 @@ class EvaluationRunner:
         print(f"STARTING EMPIRICAL BENCHMARK: {benchmark_name.upper()}")
         print(f"Tasks: {len(tasks)} | Systems: {systems} | Repeats: {repeats} (Start Repeat: {repeat_no}) | Model: {model}")
         print("=" * 70)
+
+        # Embedding model check if required
+        if require_embeddings and not use_fake:
+            if not is_embedding_available():
+                print("\n[FATAL] Embedding model unavailable and --require-embeddings was specified. Aborting live run.")
+                sys.exit(1)
 
         # Budget-aware governor check for live API runs
         if not use_fake:
@@ -508,7 +520,10 @@ class EvaluationRunner:
         for t_idx, task in enumerate(tasks):
             t_id = task.get("task_id", f"task_{t_idx+1:02d}")
             t_name = task.get("name", t_id)
-            req = task.get("description", "")
+            base_req = task.get("description", "")
+            req = get_augmented_requirement(base_req)
+            cd_task = dict(task)
+            cd_task["description"] = req
             cat = task.get("category", "Creation")
 
             print(f"\n[{t_idx+1}/{len(tasks)}] Evaluating Task: {t_name} ({t_id}) [{cat}]")
@@ -607,6 +622,7 @@ class EvaluationRunner:
                             "completeness": mas_metrics["completeness"],
                             "executability": mas_metrics["executability"],
                             "consistency": mas_metrics["consistency"],
+                            "consistency_method": mas_metrics.get("consistency_method", "lexical_fallback"),
                             "shared_test": mas_metrics["shared_test"],
                             "ruff": mas_metrics["ruff_violations"],
                             "bandit": mas_metrics["bandit_high"],
@@ -732,7 +748,7 @@ class EvaluationRunner:
                         try:
                             cd_adapter = ChatDevAdapter(llm=llm, proxy_url="http://127.0.0.1:8089/v1")
                             cd_out = cd_adapter.run_task(
-                                task=task,
+                                task=cd_task,
                                 output_base_dir="./eval/workspaces",
                                 model=model,
                                 run_id=cd_run_id,
@@ -823,6 +839,7 @@ class EvaluationRunner:
                                 "completeness": cd_metrics["completeness"] if is_cd_success else None,
                                 "executability": cd_metrics["executability"] if is_cd_success else None,
                                 "consistency": cd_metrics["consistency"] if is_cd_success else None,
+                                "consistency_method": cd_metrics.get("consistency_method", "lexical_fallback"),
                                 "shared_test": cd_metrics["shared_test"] if is_cd_success else None,
                                 "ruff": cd_metrics["ruff_violations"] if is_cd_success else None,
                                 "bandit": cd_metrics["bandit_high"] if is_cd_success else None,
@@ -989,6 +1006,7 @@ def main():
     parser.add_argument("--repeat-no", type=int, default=1, help="Starting repeat number for execution")
     parser.add_argument("--attempt", type=int, default=None, help="Explicit attempt number override")
     parser.add_argument("--live", action="store_true", help="Explicitly declare live API execution mode")
+    parser.add_argument("--require-embeddings", action="store_true", help="Abort before any live run if the embedding model cannot load.")
     args = parser.parse_args()
 
     if args.reset:
@@ -1018,6 +1036,7 @@ def main():
             use_fake=use_fake,
             systems=systems_list,
             attempt=args.attempt,
+            require_embeddings=args.require_embeddings,
         )
     else:
         runner.print_dry_run()

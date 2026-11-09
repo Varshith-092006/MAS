@@ -526,3 +526,25 @@ This document tracks architectural decisions, source precedence, specification c
     - `git -C external/ChatDev status --short`: clean (no local edits in tracked files)
 - **Impact**: Baseline integrity confirmed. Ready to execute Phase 1.
 
+---
+
+### Record: Phase 1 Validity Fixes and Discrepancy Audit
+
+- **ID**: DEC-034
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **Problem A (Generic Prompts)**: Purged all task-specific hardcoded keywords (`ScienceQuestionSolver`, `photosynthesis`, `atomic numbers`, `speed/velocity`, `Multi-Domain Requirements`) from `mas/agents/developer.py`. Retained strictly generic Python engineering instructions.
+  2. **Problem B (Symmetric CLI Contract)**: Created shared `CLI_CONTRACT_SUFFIX` in `eval/task_text.py` and wrapped requirement formulation via `get_augmented_requirement()`. Both MAS and ChatDev now receive byte-for-byte identical requirement text appending the CLI contract. Removed hardcoded `--help`/0-arguments hints from MAS Developer prompts so no asymmetrical information advantage exists.
+  3. **Problem C (Reliable Consistency & Embedder Limits)**:
+     - Updated `pyproject.toml` dependencies with `numpy`, `sentence-transformers`, `tiktoken`, `ruff`, `bandit`, `radon`, `scipy`, and `pyyaml`.
+     - Added `consistency_method` (`embedding` vs `lexical_fallback`) tracking across scorers, `NeutralEvaluator`, `results.csv`, and reports.
+     - Enforced `eval.consistency_max_code_chars` (default 2000) in `config.yaml` and `eval/scorers/icoder_metrics.py` to prevent OOM/divergence on large codebases while preserving deliberate configuration.
+     - Added `--require-embeddings` flag in `eval/runner.py` CLI to abort before live runs if sentence-transformers is unavailable.
+  4. **Problem D (Score Audit via `scripts/audit_scores.py`)**:
+     - Audited all 32 runs in `results.csv` against on-disk workspaces.
+     - Found 30 workspaces intact, 2 workspaces absent (pre-workspace aborts).
+     - Verified that all completed live runs matched stored scores within 0.01. Exactly 1 discrepancy was identified (`sim_cd_srdd_educ_01_r1_attempt2`, where metrics were stored as None in CSV for a simulation run despite valid generated files). No data was rewritten.
+- **Source**: Phase 1 Validity & Benchmark Integrity Mandate.
+- **Impact**: 231/231 passing regression tests, strict parity between systems, and verifiable consistency metrics.
+
+

@@ -70,7 +70,7 @@ class NeutralEvaluator:
         # 2. iCoder-style metrics
         completeness = calculate_completeness(abs_workspace)
         executability = calculate_executability(abs_workspace, self.sandbox, version=self.version)
-        consistency = calculate_consistency(requirement, full_code)
+        consistency, consistency_method = calculate_consistency(requirement, full_code, return_method=True)
         quality = calculate_quality(completeness, executability, consistency)
 
         # 3. Shared fixed tests (Level 1 + Level 2)
@@ -86,6 +86,7 @@ class NeutralEvaluator:
             "completeness": completeness,
             "executability": executability,
             "consistency": consistency,
+            "consistency_method": consistency_method,
             "quality": quality,
             "shared_test": shared_test_res["score"],
             "ruff_violations": ruff_violations,

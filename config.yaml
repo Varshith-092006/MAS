@@ -44,3 +44,7 @@ sandbox:
   cpu_limit: 1.0
   pids_limit: 64
   network: "none"
+
+eval:
+  consistency_max_code_chars: 2000
+

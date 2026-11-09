@@ -2,7 +2,7 @@
 
 import ast
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 
 
@@ -145,8 +145,20 @@ def calculate_executability(workspace_path: str, sandbox_runner=None, version: s
 _embedder = None
 
 
-def get_embedding_model():
+def get_consistency_max_chars() -> int:
+    """Returns the maximum code characters to embed, configured in config.yaml."""
+    try:
+        from mas.core.config import get_config
+        cfg = get_config()
+        return int(cfg.get("eval", {}).get("consistency_max_code_chars", 2000))
+    except Exception:
+        return 2000
+
+
+def get_embedding_model(force_reload: bool = False):
     global _embedder
+    if force_reload:
+        _embedder = None
     if _embedder is None:
         if os.environ.get("MAS_DISABLE_TORCH") == "1":
             _embedder = "mock"
@@ -159,38 +171,66 @@ def get_embedding_model():
     return _embedder
 
 
-def calculate_consistency(requirement: str, code_text: Optional[str]) -> Optional[float]:
+def is_embedding_available() -> bool:
+    """Checks whether the real sentence-transformers model is loadable."""
+    m = get_embedding_model()
+    return m is not None and m != "mock"
+
+
+def calculate_consistency(
+    requirement: str,
+    code_text: Optional[str],
+    max_chars: Optional[int] = None,
+    return_method: bool = False,
+    embedder=None,
+) -> Union[Optional[float], Tuple[Optional[float], str]]:
     """Calculates cosine similarity between requirement and code embedding using all-MiniLM-L6-v2.
 
-    Returns None (UNAVAILABLE) if requirement or code is missing.
-    Falls back to genuine lexical token recall without artificial floor if embedding fails.
+    Returns None (or None, "unavailable") if requirement or code is missing.
+    Uses sentence-transformers embedding when available; otherwise falls back to lexical overlap.
+    Only the first max_chars (default 2000) characters of code are embedded.
     """
     if not requirement or not code_text or not code_text.strip():
+        if return_method:
+            return None, "unavailable"
         return None
 
-    embedder = get_embedding_model()
-    if embedder != "mock":
+    if max_chars is None:
+        max_chars = get_consistency_max_chars()
+
+    emb_model = embedder if embedder is not None else get_embedding_model()
+    score = None
+    method = "lexical_fallback"
+
+    if emb_model and emb_model != "mock":
         try:
-            emb1 = embedder.encode(requirement)
-            emb2 = embedder.encode(code_text[:2000])  # limit length
+            emb1 = emb_model.encode(requirement)
+            emb2 = emb_model.encode(code_text[:max_chars])
             norm1 = np.linalg.norm(emb1)
             norm2 = np.linalg.norm(emb2)
             if norm1 > 0 and norm2 > 0:
                 cosine = float(np.dot(emb1, emb2) / (norm1 * norm2))
-                return round(max(0.0, min(cosine, 1.0)), 4)
+                score = round(max(0.0, min(cosine, 1.0)), 4)
+                method = "embedding"
         except Exception:
-            pass
+            score = None
 
-    # Genuine lexical keyword overlap without artificial floor
-    import re
-    clean_req_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', requirement.lower()) if w not in {'the', 'and', 'for', 'with', 'that', 'this', 'you', 'from'})
-    clean_code_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', code_text.lower()))
-    if not clean_req_words:
-        return 0.0
+    if score is None:
+        # Genuine lexical keyword overlap without artificial floor
+        import re
+        clean_req_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', requirement.lower()) if w not in {'the', 'and', 'for', 'with', 'that', 'this', 'you', 'from'})
+        clean_code_words = set(w for w in re.findall(r'[a-zA-Z0-9_]{3,}', code_text.lower()))
+        if not clean_req_words:
+            score = 0.0
+        else:
+            overlap = len(clean_req_words & clean_code_words)
+            recall = overlap / len(clean_req_words)
+            score = round(float(recall), 4)
+        method = "lexical_fallback"
 
-    overlap = len(clean_req_words & clean_code_words)
-    recall = overlap / len(clean_req_words)
-    return round(float(recall), 4)
+    if return_method:
+        return score, method
+    return score
 
 
 def calculate_quality(

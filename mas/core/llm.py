@@ -54,10 +54,13 @@ PRICING_CATALOG = {
 
 
 def resolve_openrouter_model(model: Optional[str]) -> str:
-    """Normalizes and maps shorthand model identifiers to OpenRouter model IDs."""
+    """Normalizes and maps model identifiers, prioritizing BENCH_MODEL."""
     import os
+    bench_env = os.environ.get("BENCH_MODEL")
+    if bench_env and bench_env.strip():
+        return bench_env.strip()
     if not model or model.lower() in ("default", "main"):
-        return os.environ.get("OPENROUTER_MODEL", "openrouter/free")
+        return os.environ.get("OPENROUTER_MODEL", "__SET_BENCH_MODEL_IN_ENV__")
     mapping = {
         "gpt-4o": "openai/gpt-4o",
         "gpt-4o-mini": "openai/gpt-4o-mini",
@@ -73,7 +76,10 @@ def resolve_openrouter_model(model: Optional[str]) -> str:
         "north-mini-code": "cohere/north-mini-code:free",
         "free": "openrouter/free",
     }
-    return mapping.get(model.lower(), model)
+    return mapping.get(model.strip().lower(), model.strip())
+
+
+resolve_provider_model = resolve_openrouter_model
 
 
 def redact_sensitive_string(val: str, api_key: Optional[str] = None) -> str:
@@ -210,8 +216,7 @@ def is_model_match(requested_model: Optional[str], actual_model: Optional[str]) 
     """Verifies that the actual model returned by the provider matches the requested condition.
     
     Uses an explicit allowlist of verified canonical models and documented dated snapshots.
-    Rejects prefix substring matches, unverified variants (audio, realtime, search-preview, instruct),
-    and free-tier substitution.
+    Handles optional 'models/' prefixes gracefully and rejects unverified variants.
     """
     if not requested_model or not actual_model:
         return False
@@ -220,15 +225,29 @@ def is_model_match(requested_model: Optional[str], actual_model: Optional[str]) 
     if r == a:
         return True
 
+    # Strip optional "models/" prefix gracefully (e.g. Gemini endpoint)
+    r_unprefixed = r[7:] if r.startswith("models/") else r
+    a_unprefixed = a[7:] if a.startswith("models/") else a
+    if r_unprefixed == a_unprefixed:
+        return True
+
     r_canon = resolve_openrouter_model(r).lower()
     a_canon = resolve_openrouter_model(a).lower()
-    if r_canon == a_canon:
+    r_canon_unprefixed = r_canon[7:] if r_canon.startswith("models/") else r_canon
+    a_canon_unprefixed = a_canon[7:] if a_canon.startswith("models/") else a_canon
+
+    if r_canon == a_canon or r_canon_unprefixed == a_canon_unprefixed:
         return True
 
     # Look up explicit allowlist for requested model canonical ID
-    allowed = VERIFIED_MODEL_SNAPSHOTS.get(r_canon)
+    allowed = VERIFIED_MODEL_SNAPSHOTS.get(r_canon) or VERIFIED_MODEL_SNAPSHOTS.get(r_canon_unprefixed)
     if allowed:
-        return (a_canon in allowed) or (a in allowed)
+        return (
+            (a_canon in allowed)
+            or (a in allowed)
+            or (a_unprefixed in allowed)
+            or (a_canon_unprefixed in allowed)
+        )
 
     return False
 
@@ -838,18 +857,25 @@ class OpenRouterProvider(LLMProvider):
         import os
         self.base_url = (
             base_url
+            or os.environ.get("PROVIDER_BASE_URL")
             or os.environ.get("OPENROUTER_BASE_URL")
-            or os.environ.get("PROXY_BASE_URL", "https://openrouter.ai/api/v1")
+            or os.environ.get("PROXY_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
         )
         self.api_key = (
             api_key
             if api_key is not None
-            else (os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY", ""))
+            else (
+                os.environ.get("PROVIDER_API_KEY")
+                or os.environ.get("GEMINI_API_KEY")
+                or os.environ.get("OPENROUTER_API_KEY")
+                or os.environ.get("OPENAI_API_KEY", "")
+            )
         )
         self.default_model = (
             default_model
+            or os.environ.get("BENCH_MODEL")
             or os.environ.get("OPENROUTER_MODEL")
-            or "openrouter/free"
+            or "__SET_BENCH_MODEL_IN_ENV__"
         )
         self.uses_governed_client = True
 
@@ -952,6 +978,10 @@ class OpenRouterProvider(LLMProvider):
                 logger.warning("Could not query global governor ledger: %s", e)
 
         target_model = resolve_openrouter_model(model or self.default_model)
+        if target_model == "__SET_BENCH_MODEL_IN_ENV__":
+            raise RuntimeError(
+                "BENCH_MODEL environment variable must be set to an exact model ID before starting a live run."
+            )
         t0 = time.time()
 
         processed_messages = list(messages)
@@ -989,10 +1019,11 @@ class OpenRouterProvider(LLMProvider):
             "temperature": temperature,
             "seed": 42,
             "max_tokens": effective_max_tokens,
-            "provider": {
-                "allow_fallbacks": False,
-            },
         }
+        if "openrouter.ai" in self.base_url.lower():
+            payload["provider"] = {
+                "allow_fallbacks": False,
+            }
 
         # Configurable reasoning token limits (e.g. for reasoning models that exhaust token budgets)
         reasoning_limit_env = os.environ.get("OPENROUTER_REASONING_MAX_TOKENS")
@@ -1141,10 +1172,19 @@ class OpenRouterProvider(LLMProvider):
                 tot_tok = in_tok + out_tok
             token_provenance = "PROVIDER_REPORTED"
         else:
-            in_tok = None
-            out_tok = None
-            tot_tok = None
-            token_provenance = "UNAVAILABLE"
+            try:
+                import tiktoken
+                enc = tiktoken.get_encoding("cl100k_base")
+                prompt_text = "".join(m.get("content", "") for m in processed_messages)
+                in_tok = len(enc.encode(prompt_text))
+                out_tok = len(enc.encode(content))
+                tot_tok = in_tok + out_tok
+                token_provenance = "TIKTOKEN_FALLBACK"
+            except Exception:
+                in_tok = None
+                out_tok = None
+                tot_tok = None
+                token_provenance = "UNAVAILABLE"
 
         actual_model = data.get("model")
         req_id = data.get("id", str(uuid.uuid4()))

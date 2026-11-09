@@ -23,10 +23,11 @@ Enforces:
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -38,8 +39,60 @@ DEFAULT_LEDGER_FILE = os.path.abspath(
 LEDGER_FILE = DEFAULT_LEDGER_FILE
 
 
+class SlidingWindowRateLimiter:
+    """Enforces requests-per-minute and tokens-per-minute limits over a sliding 60-second window."""
+
+    def __init__(
+        self,
+        requests_per_minute: int = 12,
+        tokens_per_minute: int = 200000,
+        clock=None,
+        sleep_func=None,
+    ):
+        self.requests_per_minute = requests_per_minute
+        self.tokens_per_minute = tokens_per_minute
+        self.clock = clock or time.time
+        self.sleep_func = sleep_func or time.sleep
+        self._history: List[Tuple[float, int]] = []
+        self._lock = threading.Lock()
+
+    def acquire(self, estimated_tokens: int = 0) -> float:
+        """Blocks until both request and token capacity are available within the 60s window.
+
+        Returns total time slept (seconds).
+        """
+        slept_total = 0.0
+        while True:
+            with self._lock:
+                now = self.clock()
+                cutoff = now - 60.0
+                self._history = [entry for entry in self._history if entry[0] > cutoff]
+                req_count = len(self._history)
+                tok_count = sum(entry[1] for entry in self._history)
+
+                req_exceeded = req_count >= self.requests_per_minute
+                tok_exceeded = (tok_count + estimated_tokens) > self.tokens_per_minute
+
+                if not req_exceeded and not tok_exceeded:
+                    self._history.append((now, estimated_tokens))
+                    return slept_total
+
+                oldest_ts = self._history[0][0] if self._history else now
+                wait_time = max(0.01, (oldest_ts + 60.0) - now + 0.01)
+
+            self.sleep_func(wait_time)
+            slept_total += wait_time
+
+    def record_actual_tokens(self, actual_tokens: int) -> None:
+        """Updates the token count of the most recent transmission."""
+        with self._lock:
+            if self._history:
+                ts, _ = self._history[-1]
+                self._history[-1] = (ts, actual_tokens)
+
+
 class DailyTransmissionsCeilingExceededError(RuntimeError):
-    """Raised when outbound HTTP transmissions reach the daily ceiling (ceiling = 45 per UTC day)."""
+    """Raised when outbound HTTP transmissions reach the daily ceiling (effective cap per quota day)."""
     pass
 
 
@@ -109,18 +162,48 @@ class ProviderQuotaGovernor:
 
     def __init__(
         self,
-        internal_daily_cap: int = 45,
+        internal_daily_cap: Optional[int] = None,
         max_calls_per_run: int = 15,
         max_tokens_per_run: int = 60000,
         ledger_path: Optional[str] = None,
+        requests_per_minute: Optional[int] = None,
+        tokens_per_minute: Optional[int] = None,
+        safety_margin: Optional[float] = None,
+        quota_timezone: Optional[str] = None,
+        clock=None,
+        sleep_func=None,
     ):
-        self.internal_daily_cap = internal_daily_cap
+        try:
+            from mas.core.config import get_config
+            cfg = get_config()
+            p_cfg = cfg.get("provider", {})
+        except Exception:
+            p_cfg = {}
+
+        daily_limit = int(p_cfg.get("daily_request_limit", 500))
+        s_margin = float(p_cfg.get("safety_margin", 0.10)) if safety_margin is None else float(safety_margin)
+        effective_cap = int(daily_limit * (1.0 - s_margin))
+
+        self.internal_daily_cap = internal_daily_cap if internal_daily_cap is not None else effective_cap
         self.max_calls_per_run = max_calls_per_run
         self.max_tokens_per_run = max_tokens_per_run
+        self.requests_per_minute = requests_per_minute if requests_per_minute is not None else int(p_cfg.get("requests_per_minute", 12))
+        self.tokens_per_minute = tokens_per_minute if tokens_per_minute is not None else int(p_cfg.get("tokens_per_minute", 200000))
+        self.quota_timezone = quota_timezone or p_cfg.get("quota_timezone", "America/Los_Angeles")
+        self.clock = clock
+        self.sleep_func = sleep_func
+
         self._ledger_path = ledger_path
         self.stopped_for_day = False
         self.stopped_reason = ""
         self.reset_metadata: Dict[str, Any] = {}
+
+        self.rate_limiter = SlidingWindowRateLimiter(
+            requests_per_minute=self.requests_per_minute,
+            tokens_per_minute=self.tokens_per_minute,
+            clock=self.clock,
+            sleep_func=self.sleep_func,
+        )
 
     @property
     def ledger_path(self) -> str:
@@ -136,9 +219,26 @@ class ProviderQuotaGovernor:
     def lock_path(self) -> str:
         return self.ledger_path + ".lock"
 
+    def get_current_date_str(self) -> str:
+        """Returns the current date in the configured quota timezone."""
+        now_ts = self.clock() if self.clock else time.time()
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(self.quota_timezone)
+            dt = datetime.fromtimestamp(now_ts, tz=tz)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            from datetime import timedelta, timezone as dt_tz
+            if "los_angeles" in str(self.quota_timezone).lower() or "pacific" in str(self.quota_timezone).lower():
+                pacific_tz = dt_tz(timedelta(hours=-8))
+                dt = datetime.fromtimestamp(now_ts, tz=pacific_tz)
+                return dt.strftime("%Y-%m-%d")
+            dt = datetime.fromtimestamp(now_ts, tz=dt_tz.utc)
+            return dt.strftime("%Y-%m-%d")
+
     def get_current_utc_date_str(self) -> str:
-        """Returns the current UTC date in YYYY-MM-DD format."""
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        """Returns the current quota day date string (preserves method contract)."""
+        return self.get_current_date_str()
 
     def load_ledger(self) -> Dict[str, Any]:
         """Loads the persistent outbound transmission ledger."""
@@ -615,9 +715,22 @@ class GovernedHTTPClient:
             extra=event_extra,
         )
 
+        # 1b. SLIDING WINDOW RATE LIMITER (Enforces RPM and TPM limits)
+        est_tokens = event_extra.get("estimated_tokens", 1000)
+        self.governor.rate_limiter.acquire(estimated_tokens=est_tokens)
+
         # 2. Wire transmission
         try:
             resp = dispatch_fn(url, *args, **kwargs)
+            # Record actual tokens if available in response
+            if resp.status_code == 200:
+                try:
+                    usage = resp.json().get("usage", {})
+                    tot_tok = usage.get("total_tokens")
+                    if tot_tok is not None:
+                        self.governor.rate_limiter.record_actual_tokens(int(tot_tok))
+                except Exception:
+                    pass
             # 3. Finalize on response (never increments daily count again)
             self.governor.finalize_transmission(
                 attempt_id=attempt_id,

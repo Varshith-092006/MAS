@@ -21,8 +21,11 @@ from mas.core.llm import (
 proxy_app = FastAPI(title="MAS Logging Proxy")
 
 OPENROUTER_UPSTREAM_URL = os.environ.get(
-    "OPENROUTER_UPSTREAM_URL",
-    os.environ.get("OPENAI_UPSTREAM_URL", "https://openrouter.ai/api/v1"),
+    "PROVIDER_BASE_URL",
+    os.environ.get(
+        "OPENROUTER_UPSTREAM_URL",
+        os.environ.get("OPENAI_UPSTREAM_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+    ),
 )
 
 
@@ -37,10 +40,16 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
     raw_model = body.get("model", "openrouter/free")
     model = resolve_openrouter_model(raw_model)
     body["model"] = model
-    # Strictly disable fallbacks for research integrity
-    body["provider"] = {
-        "allow_fallbacks": False,
-    }
+
+    upstream_url = os.environ.get("PROVIDER_BASE_URL") or OPENROUTER_UPSTREAM_URL
+    # Strictly disable fallbacks for OpenRouter
+    if "openrouter.ai" in upstream_url.lower():
+        body["provider"] = {
+            "allow_fallbacks": False,
+        }
+    elif "provider" in body:
+        del body["provider"]
+
     # Suppress reasoning token consumption for reasoning and cohere models
     reasoning_limit_env = os.environ.get("OPENROUTER_REASONING_MAX_TOKENS")
     if reasoning_limit_env is not None:
@@ -85,12 +94,19 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
                 },
             )
 
-    # Forward to OpenRouter upstream if real API key is provided and not fake/mock
-    api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    # Forward to upstream provider if real API key is provided and not fake/mock
+    api_key = (
+        os.environ.get("PROVIDER_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("OPENROUTER_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    )
     if authorization and authorization.startswith("Bearer "):
-        api_key = authorization.split("Bearer ")[1].strip()
+        header_key = authorization.split("Bearer ")[1].strip()
+        if header_key and header_key not in ("dummy-key", "dummy-proxy-key") and not header_key.startswith("mock"):
+            api_key = header_key
 
-    if api_key and api_key != "dummy-key" and not api_key.startswith("mock") and not api_key.startswith("sk-1234"):
+    if api_key and api_key not in ("dummy-key", "dummy-proxy-key") and not api_key.startswith("mock") and not api_key.startswith("sk-1234"):
         stage_budget_str = os.environ.get("MAS_STAGE_MAX_SPEND")
         if stage_budget_str:
             try:
@@ -126,7 +142,7 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
                 source=f"{run_id}:{agent_name}",
             ) as client:
                 resp = client.post(
-                    f"{OPENROUTER_UPSTREAM_URL.rstrip('/')}/chat/completions",
+                    f"{upstream_url.rstrip('/')}/chat/completions",
                     json=body,
                     headers=headers,
                 )
@@ -135,6 +151,18 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
                 token_logger.release_reservation(reservation_id)
                 return JSONResponse(status_code=resp.status_code, content=resp.json())
             data = resp.json()
+            actual_model = data.get("model")
+            if actual_model and not is_model_match(model, actual_model):
+                token_logger.release_reservation(reservation_id)
+                return JSONResponse(
+                    status_code=502,
+                    content={
+                        "error": {
+                            "message": f"Model mismatch: Requested '{model}' but provider returned '{actual_model}'",
+                            "code": "MODEL_MISMATCH",
+                        }
+                    },
+                )
         except DailyTransmissionsCeilingExceededError as e:
             token_logger.release_reservation(reservation_id)
             return JSONResponse(

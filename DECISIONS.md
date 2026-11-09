@@ -547,4 +547,26 @@ This document tracks architectural decisions, source precedence, specification c
 - **Source**: Phase 1 Validity & Benchmark Integrity Mandate.
 - **Impact**: 231/231 passing regression tests, strict parity between systems, and verifiable consistency metrics.
 
+---
+
+### Record: Phase 2 Free-Tier Multi-Day Benchmark Architecture
+
+- **ID**: DEC-035
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **Provider-Agnostic Client**: Added `PROVIDER_BASE_URL`, `PROVIDER_API_KEY`, and `BENCH_MODEL` environment settings across `mas/core/llm.py` and `mas/core/proxy.py`, falling back to `OPENROUTER_*` vars. Defaulted Gemini base URL to `https://generativelanguage.googleapis.com/v1beta/openai/`. Stripped OpenRouter-only fields (`provider.allow_fallbacks`) for non-OpenRouter providers.
+  2. **Model Pinning**: Configured `__SET_BENCH_MODEL_IN_ENV__` placeholder in `config.yaml`. The runner and LLM client refuse to start live generation without `BENCH_MODEL` set. Handled optional `models/` prefix gracefully in `is_model_match`.
+  3. **Configurable Daily Budget Governor & Sliding Window Rate Limiter**:
+     - Configured `provider.daily_request_limit: 500`, `requests_per_minute: 12`, `tokens_per_minute: 200000`, `safety_margin: 0.10` (effective daily cap: 450 requests), `quota_timezone: "America/Los_Angeles"` in `config.yaml`.
+     - Built `SlidingWindowRateLimiter` enforcing both RPM (12) and TPM (200k) with a sliding 60-second window, preventing 429 errors.
+     - Rolled over ledger at local midnight of `provider.quota_timezone` rather than UTC.
+     - Updated `tests/test_provider_quota_governor.py` assertion to dynamically check `governor.internal_daily_cap - 1` reflecting the configured cap.
+  4. **Multi-Day Resumability**: Added `--resume` and `--stop-at-budget` flags to `eval/runner.py`. `--resume` reads manifest to skip official runs while re-running `INTERRUPTED` runs from scratch. `--stop-at-budget` exits cleanly before daily quota breach.
+  5. **Failure Classification**: Implemented `classify_failure()` categorizing runs into `INFRA_ERROR` (retried up to twice) or `QUALITY_FAILURE` (Quality = 0 in official results).
+  6. **Estimator**: Added `python -m eval.runner --estimate` projecting 18 pairs/day and 2 days for 20 tasks under the 450 effective daily request cap.
+  7. **Scripts**: Created `scripts/list_models.py` to inspect available provider model IDs securely without disclosing keys.
+- **Source**: Phase 2 Free-Tier Benchmark Alignment Mandate.
+- **Impact**: 239/239 passing unit and regression tests, zero unverified live calls, and safe multi-day execution capability.
+
+
 

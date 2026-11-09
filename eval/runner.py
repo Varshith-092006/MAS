@@ -254,6 +254,28 @@ def start_proxy_daemon_if_needed(port: int = 8089):
         print(f"[Proxy Warning] Could not start proxy daemon on port {port}: {e}")
 
 
+def classify_failure(
+    exc: Optional[Exception] = None,
+    status: Optional[str] = None,
+    error_msg: Optional[str] = None,
+) -> str:
+    """Classifies a failed run into INFRA_ERROR or QUALITY_FAILURE.
+
+    INFRA_ERROR: 429, 5xx, timeout, model mismatch, daily limit reached.
+    QUALITY_FAILURE: bad parse, no runnable code, budget ceiling, missing artifacts.
+    """
+    text = f"{str(exc) if exc else ''} {status or ''} {error_msg or ''}".lower()
+    infra_markers = [
+        "429", "rate limit", "daily ceiling", "daily transmissions", "model mismatch",
+        "500", "502", "503", "504", "timeout", "connecterror", "connection refused",
+        "stopped_provider_quota", "stopped_daily_ceiling", "modelmismatcherror",
+        "dailytransmissionsceilingexceedederror", "quota"
+    ]
+    if any(m in text for m in infra_markers):
+        return "INFRA_ERROR"
+    return "QUALITY_FAILURE"
+
+
 class EvaluationRunner:
     """Manages execution of benchmark matrices, ablations, and dry runs."""
 
@@ -268,11 +290,80 @@ class EvaluationRunner:
         self.llm = llm or FakeLLMProvider()
         self.evaluator = NeutralEvaluator()
 
-    def load_tasks(self) -> List[Dict[str, Any]]:
-        if not os.path.exists(self.tasks_path):
-            save_and_persist_tasks(self.tasks_path)
-        with open(self.tasks_path, "r", encoding="utf-8") as f:
+    def load_tasks(self, tasks_file: Optional[str] = None) -> List[Dict[str, Any]]:
+        target_path = tasks_file or self.tasks_path
+        if not os.path.exists(target_path):
+            if target_path == self.tasks_path:
+                save_and_persist_tasks(target_path)
+            else:
+                raise FileNotFoundError(f"Tasks specification file not found: {target_path}")
+        with open(target_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def run_estimate(
+        self,
+        tasks_file: Optional[str] = None,
+        task_count: Optional[int] = None,
+        repeats: int = 1,
+    ) -> Dict[str, Any]:
+        """Prints expected requests, tokens, daily limits from config, effective daily cap, and days needed."""
+        target_file = tasks_file or self.tasks_path
+        tasks = self.load_tasks(tasks_file=target_file)
+        if task_count:
+            tasks = tasks[:task_count]
+
+        total_tasks = len(tasks)
+        total_pairs = total_tasks * repeats
+
+        from mas.core.config import get_config
+        cfg = get_config()
+        p_cfg = cfg.get("provider", {})
+        daily_req_limit = int(p_cfg.get("daily_request_limit", 500))
+        safety_margin = float(p_cfg.get("safety_margin", 0.10))
+        effective_daily_cap = int(daily_req_limit * (1.0 - safety_margin))
+        quota_tz = p_cfg.get("quota_timezone", "America/Los_Angeles")
+
+        reqs_per_pair = 25
+        tokens_per_pair = 45000
+
+        total_reqs = total_pairs * reqs_per_pair
+        total_tokens = total_pairs * tokens_per_pair
+        pairs_per_day = max(1, effective_daily_cap // reqs_per_pair)
+        import math
+        days_needed = math.ceil(total_pairs / pairs_per_day)
+
+        print("\n" + "=" * 70)
+        print("EMPIRICAL BENCHMARK RESOURCE & TIMELINE ESTIMATION")
+        print("=" * 70)
+        print(f"Tasks file:                {target_file}")
+        print(f"Benchmark tasks:           {total_tasks}")
+        print(f"Repeats per task:          {repeats}")
+        print(f"Total MAS+ChatDev pairs:   {total_pairs}")
+        print("-" * 70)
+        print(f"Expected requests / pair:  {reqs_per_pair}")
+        print(f"Expected tokens / pair:    {tokens_per_pair:,}")
+        print(f"Total expected requests:   {total_reqs:,}")
+        print(f"Total expected tokens:     {total_tokens:,}")
+        print("-" * 70)
+        print(f"Provider daily req limit:  {daily_req_limit}")
+        print(f"Safety margin:             {int(safety_margin * 100)}%")
+        print(f"Effective daily cap:       {effective_daily_cap} requests / day")
+        print(f"Quota reset timezone:      {quota_tz} (midnight local)")
+        print(f"Expected throughput:       about {pairs_per_day} pairs per day")
+        print(f"Estimated timeline:        about {days_needed} days for {total_tasks} tasks")
+        print("=" * 70 + "\n")
+
+        return {
+            "total_tasks": total_tasks,
+            "total_pairs": total_pairs,
+            "reqs_per_pair": reqs_per_pair,
+            "tokens_per_pair": tokens_per_pair,
+            "effective_daily_cap": effective_daily_cap,
+            "pairs_per_day": pairs_per_day,
+            "days_needed": days_needed,
+            "total_expected_requests": total_reqs,
+            "total_expected_tokens": total_tokens,
+        }
 
     def print_dry_run(self):
         """Displays planned 300 core runs and planning token envelope with ZERO model calls."""
@@ -455,10 +546,14 @@ class EvaluationRunner:
         benchmark_name: str = "srdd20",
         attempt: Optional[int] = None,
         require_embeddings: bool = False,
+        resume: bool = False,
+        stop_at_budget: bool = False,
+        tasks_file: Optional[str] = None,
+        ablation: str = "A0",
     ) -> Dict[str, Any]:
         """Executes full benchmark evaluation across sampled SRDD tasks under identical conditions."""
         systems = systems or ["mas", "chatdev"]
-        all_tasks = self.load_tasks()
+        all_tasks = self.load_tasks(tasks_file=tasks_file)
         if task_id:
             tasks = [t for t in all_tasks if t.get("task_id") == task_id]
             if not tasks:
@@ -477,10 +572,11 @@ class EvaluationRunner:
                 print("\n[FATAL] Embedding model unavailable and --require-embeddings was specified. Aborting live run.")
                 sys.exit(1)
 
+        from mas.core.governor import ProviderQuotaGovernor
+        governor = ProviderQuotaGovernor()
+
         # Budget-aware governor check for live API runs
         if not use_fake:
-            from mas.core.governor import ProviderQuotaGovernor
-            governor = ProviderQuotaGovernor()
             stats = governor.get_ledger_stats()
             batch_pairs = len(tasks) * repeats
             min_required_attempts = min(32, 22 * batch_pairs) if ("mas" in systems and "chatdev" in systems) else min(16, 10 * batch_pairs)
@@ -496,6 +592,16 @@ class EvaluationRunner:
 
             if "chatdev" in systems:
                 start_proxy_daemon_if_needed(port=8089)
+
+        # Resume index
+        completed_keys: Set[Tuple[str, str, int]] = set()
+        if resume:
+            manifest = load_benchmark_manifest()
+            for r in manifest.get("runs", []):
+                r_status = r.get("status")
+                # Interrupted runs are re-run from scratch on resume
+                if r_status != "INTERRUPTED" and r_status is not None:
+                    completed_keys.add((r.get("task_id"), r.get("system"), r.get("repeat_no")))
 
         eval_id = f"eval_{int(time.time())}_{benchmark_name}"
         init_db()
@@ -1007,12 +1113,21 @@ def main():
     parser.add_argument("--attempt", type=int, default=None, help="Explicit attempt number override")
     parser.add_argument("--live", action="store_true", help="Explicitly declare live API execution mode")
     parser.add_argument("--require-embeddings", action="store_true", help="Abort before any live run if the embedding model cannot load.")
+    parser.add_argument("--resume", action="store_true", help="Resume benchmark, skipping tasks with existing official rows")
+    parser.add_argument("--stop-at-budget", action="store_true", help="Stop cleanly before exhausting daily quota")
+    parser.add_argument("--estimate", action="store_true", help="Estimate requests, tokens, daily limits, and days needed")
+    parser.add_argument("--tasks-file", type=str, default=None, help="Tasks JSON specification file")
+    parser.add_argument("--ablation", type=str, default="A0", help="Ablation condition (A0..A4)")
     args = parser.parse_args()
 
     if args.reset:
         reset_environment()
 
     runner = EvaluationRunner()
+
+    if args.estimate:
+        runner.run_estimate(tasks_file=args.tasks_file, task_count=args.tasks, repeats=args.repeats)
+        return
 
     raw_systems = args.systems.strip().lower()
     if raw_systems in ("all", "both"):
@@ -1037,6 +1152,10 @@ def main():
             systems=systems_list,
             attempt=args.attempt,
             require_embeddings=args.require_embeddings,
+            resume=args.resume,
+            stop_at_budget=args.stop_at_budget,
+            tasks_file=args.tasks_file,
+            ablation=args.ablation,
         )
     else:
         runner.print_dry_run()

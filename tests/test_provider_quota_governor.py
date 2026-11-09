@@ -171,7 +171,7 @@ def test_counter_does_not_reset_after_metadata_query(tmp_path):
 
     stats1 = governor.get_ledger_stats()
     assert stats1["total_attributable_attempts"] == 1
-    assert stats1["remaining_internal_attempts"] == 44
+    assert stats1["remaining_internal_attempts"] == governor.internal_daily_cap - 1
 
     # Record second request (generation)
     count2 = governor.record_transmission("LIVE_GENERATION", "cohere/north-mini-code:free", status_code=200)
@@ -179,5 +179,5 @@ def test_counter_does_not_reset_after_metadata_query(tmp_path):
 
     stats2 = governor.get_ledger_stats()
     assert stats2["total_attributable_attempts"] == 2
-    assert stats2["remaining_internal_attempts"] == 43
+    assert stats2["remaining_internal_attempts"] == governor.internal_daily_cap - 2
 

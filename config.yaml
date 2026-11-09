@@ -1,12 +1,18 @@
 provider:
-  name: "openrouter"
-  base_url: "https://openrouter.ai/api/v1"
-  default_free_model: "openrouter/free"
+  name: "gemini"
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  default_free_model: "__SET_BENCH_MODEL_IN_ENV__"
+  daily_request_limit: 500
+  requests_per_minute: 12
+  tokens_per_minute: 200000
+  daily_token_limit: null
+  safety_margin: 0.10
+  quota_timezone: "America/Los_Angeles"
 
 models:
-  main: "openrouter/free"
-  cheap: "openrouter/free"
-  reviewer: "openrouter/free"
+  main: "__SET_BENCH_MODEL_IN_ENV__"
+  cheap: "__SET_BENCH_MODEL_IN_ENV__"
+  reviewer: "__SET_BENCH_MODEL_IN_ENV__"
   temperature: 0
   seed: 42
 

@@ -508,3 +508,21 @@ This document tracks architectural decisions, source precedence, specification c
   - Speculative quota calculations (e.g. `limit - used` fallback) risked silent execution during ambiguous upstream states.
   - Transparent research requires verifiable served-model identity rather than inferring availability from key tokens.
 - **Impact**: 148/148 passed regression tests, zero unverified network dispatches, robust fail-closed quota gating, and verified readiness for Task A.
+
+---
+
+### Record: Phase 0 Baseline Test Status and Governance Audit
+
+- **ID**: DEC-033
+- **Date**: 2026-11-09
+- **Decision**: Established pre-change baseline verification, ChatDev submodule pin audit, and AGENTS.md governance contract.
+- **Source**: Free-tier benchmark realignment mandate.
+- **Baseline test status**:
+  - Full test suite execution: `python -m pytest tests/ -q`
+  - Results: **224 passed in 29.20s**, 0 failed, 0 errors.
+  - Baseline failing or erroring tests: None.
+  - Submodule audit:
+    - `git -C external/ChatDev log -1 --format=%H`: `c1c31e28864df6b8b0394683b8286436ce41b5ce` (matches pinned base commit)
+    - `git -C external/ChatDev status --short`: clean (no local edits in tracked files)
+- **Impact**: Baseline integrity confirmed. Ready to execute Phase 1.
+

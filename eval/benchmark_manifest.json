@@ -936,5 +936,6 @@
       "token_ceiling_per_run": 60000,
       "daily_transmissions_cap": 45
     }
-  }
+  },
+  "tasks_v2_sha256": "aa902c027cfb0a137ca220d1db03f73ce94b9d3bfd6b7da9f8bfd83b83baf5b3"
 }

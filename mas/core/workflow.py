@@ -75,12 +75,14 @@ class MASWorkflow:
         llm: LLMProvider,
         config_path: str = "config.yaml",
         db_engine=None,
+        ablation: Optional[str] = None,
     ):
         self.llm = llm
         self.config_path = config_path
         self.validator = SchemaValidator()
         self.router = ComplexityRouter(threshold=4)
         self.ast_analyzer = ASTAnalyzer()
+        self.ablation = ablation
         init_db(db_engine)
 
     def run(
@@ -90,8 +92,23 @@ class MASWorkflow:
         model_name: Optional[str] = None,
         run_id: Optional[str] = None,
         workspace_base: str = "./workspace",
+        ablation: Optional[str] = None,
     ) -> MASState:
         """Executes full end-to-end MAS workflow."""
+        from mas.core.config import get_config
+        cfg = get_config(self.config_path) if self.config_path else {}
+        cfg_ablation = cfg.get("ablation", {}) if isinstance(cfg, dict) else {}
+        active_ablation = (
+            ablation
+            or self.ablation
+            or cfg_ablation.get("current")
+            or "A0"
+        )
+        a1_disable_router = (active_ablation == "A1") or cfg_ablation.get("a1_disable_router", False)
+        a2_disable_slicing = (active_ablation == "A2") or cfg_ablation.get("a2_disable_slicing", False)
+        a3_disable_grounded_review = (active_ablation == "A3") or cfg_ablation.get("a3_disable_grounded_review", False)
+        a4_single_iteration = (active_ablation == "A4") or cfg_ablation.get("a4_single_iteration", False)
+
         model_name = model_name or os.environ.get("OPENROUTER_MODEL", "cohere/north-mini-code:free")
         run_id = run_id or str(uuid.uuid4())
         workspace_path = os.path.abspath(os.path.join(workspace_base, run_id))
@@ -111,6 +128,7 @@ class MASWorkflow:
             workspace_path=workspace_path,
             model=model_name,
         )
+        state["ablation"] = active_ablation
 
         checkpoint_mgr = CheckpointManager(workspace_path)
 
@@ -161,8 +179,8 @@ class MASWorkflow:
 
             complexity = state.get("complexity", "SIMPLE")
 
-            # 2. Architect Agent (STRUCTURED path only)
-            if complexity == "STRUCTURED":
+            # 2. Architect Agent (STRUCTURED path, or always if Ablation A1)
+            if complexity == "STRUCTURED" or a1_disable_router:
                 architect = ArchitectAgent(
                     llm=self.llm,
                     validator=self.validator,
@@ -185,6 +203,7 @@ class MASWorkflow:
                 llm=self.llm,
                 validator=self.validator,
                 checkpoint_manager=checkpoint_mgr,
+                disable_grounded_review=a3_disable_grounded_review,
             )
             reflection = ReflectionAgent(
                 llm=self.llm,
@@ -195,7 +214,8 @@ class MASWorkflow:
             from mas.core.context import ContextSlicer
             context_slicer = ContextSlicer(ast_analyzer=self.ast_analyzer)
 
-            max_iterations = reflection.stopper.max_iterations
+            # Ablation A4: no reflection loop (one iteration only)
+            max_iterations = 1 if a4_single_iteration else reflection.stopper.max_iterations
 
             while state.get("iteration", 1) <= max_iterations:
                 curr_iter = state.get("iteration", 1)
@@ -219,7 +239,9 @@ class MASWorkflow:
                             except Exception:
                                 pass
 
-                sliced_context = context_slicer.build_context(state, workspace_files, set_graph)
+                sliced_context = context_slicer.build_context(
+                    state, workspace_files, set_graph, disable_slicing=a2_disable_slicing
+                )
                 state["relevant_uml"] = sliced_context["relevant_uml"]
 
                 # Developer generates CodePatch & applies to workspace

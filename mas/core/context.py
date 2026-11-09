@@ -19,8 +19,13 @@ class ContextSlicer:
         state: MASState,
         all_workspace_files: Dict[str, str],
         dependency_graph: Dict[str, Set[str]],
+        disable_slicing: bool = False,
     ) -> Dict[str, str]:
         """Returns only the sliced file contents rather than the full repository."""
+        # Ablation A2: no AST impact slicing (send all files every iteration)
+        if disable_slicing or state.get("ablation") == "A2":
+            return all_workspace_files
+
         iteration = state.get("iteration", 1)
 
         # Iteration 1: return files initially planned by task plan or present files
@@ -50,14 +55,19 @@ class ContextSlicer:
         state: MASState,
         all_workspace_files: Dict[str, str],
         dependency_graph: Dict[str, Set[str]],
+        disable_slicing: bool = False,
     ) -> Dict[str, Any]:
         """Assembles token-efficient payload for Developer prompt."""
-        sliced_files = self.get_sliced_files(state, all_workspace_files, dependency_graph)
+        is_disabled = disable_slicing or state.get("ablation") == "A2"
+        sliced_files = self.get_sliced_files(
+            state, all_workspace_files, dependency_graph, disable_slicing=is_disabled
+        )
 
         relevant_uml = []
         if state.get("complexity") == "STRUCTURED" and state.get("architecture"):
             arch_agent = ArchitectAgent(llm=None)
-            relevant_uml = arch_agent.slice_uml(state["architecture"], list(sliced_files.keys()))
+            target_keys = list(all_workspace_files.keys()) if is_disabled else list(sliced_files.keys())
+            relevant_uml = arch_agent.slice_uml(state["architecture"], target_keys)
 
         findings = state.get("review_report", {}).get("findings", [])
         plan = state.get("artifacts", {}).get("TaskPlan", {})

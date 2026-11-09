@@ -16,8 +16,9 @@ class ReviewerAgent(BaseAgent):
     Structural checks are offloaded strictly to deterministic AST analysis.
     """
 
-    def __init__(self, llm, **kwargs):
+    def __init__(self, llm, disable_grounded_review: bool = False, **kwargs):
         super().__init__(name="reviewer", llm=llm, **kwargs)
+        self.disable_grounded_review = disable_grounded_review
 
     def run(self, state: MASState) -> MASState:
         run_id = state.get("run_id", str(uuid.uuid4()))
@@ -62,6 +63,25 @@ class ReviewerAgent(BaseAgent):
         quality_rep = state.get("quality_report", {})
         ast_rep = state.get("ast_report", {})
 
+        is_a3 = self.disable_grounded_review or (state.get("ablation") == "A3")
+        if is_a3:
+            evidence_section = (
+                "Static Analysis and Execution Diagnostics:\n"
+                "- Deterministic cross-checks skipped (Ablation A3: ungrounded subjective review).\n\n"
+            )
+        else:
+            evidence_section = (
+                f"Static Analysis Findings:\n"
+                f"- AST Cycles: {len(ast_rep.get('cycles', []))}\n"
+                f"- Ruff Violations: {quality_rep.get('ruff', {}).get('violations', 0)}\n"
+                f"- Bandit High Severity: {quality_rep.get('bandit', {}).get('high', 0)}\n\n"
+                f"Execution and Test Outcomes:\n"
+                f"- Sandbox Exit Code: {sandbox_exec.get('exit_code', 'unknown')}\n"
+                f"- Sandbox Success: {sandbox_exec.get('is_success', False)}\n"
+                f"- Internal Test Pass Rate: {test_report.get('pass_rate', 0.0)}\n"
+                f"- Test Failures / Output: {test_report.get('details', [])}\n\n"
+            )
+
         attempt_count = 0
 
         def produce_review(feedback=None):
@@ -72,15 +92,7 @@ class ReviewerAgent(BaseAgent):
                 f"Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n\n"
                 f"Files Touched: {changed_files}\n\n"
                 f"Actual Source Code Under Review:\n{code_text_repr}\n\n"
-                f"Static Analysis Findings:\n"
-                f"- AST Cycles: {len(ast_rep.get('cycles', []))}\n"
-                f"- Ruff Violations: {quality_rep.get('ruff', {}).get('violations', 0)}\n"
-                f"- Bandit High Severity: {quality_rep.get('bandit', {}).get('high', 0)}\n\n"
-                f"Execution and Test Outcomes:\n"
-                f"- Sandbox Exit Code: {sandbox_exec.get('exit_code', 'unknown')}\n"
-                f"- Sandbox Success: {sandbox_exec.get('is_success', False)}\n"
-                f"- Internal Test Pass Rate: {test_report.get('pass_rate', 0.0)}\n"
-                f"- Test Failures / Output: {test_report.get('details', [])}\n\n"
+                f"{evidence_section}"
                 f"Validator Feedback: {feedback or 'None'}\n\n"
                 "Review Guidelines:\n"
                 "1. Independently verify whether the code satisfies all acceptance criteria.\n"

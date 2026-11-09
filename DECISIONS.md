@@ -568,5 +568,43 @@ This document tracks architectural decisions, source precedence, specification c
 - **Source**: Phase 2 Free-Tier Benchmark Alignment Mandate.
 - **Impact**: 239/239 passing unit and regression tests, zero unverified live calls, and safe multi-day execution capability.
 
+---
+
+### Record: Phase 3 Task Set, Honest Counting, Statistics, and Ablations
+
+- **ID**: DEC-036
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **New Task Selection (`scripts/select_tasks.py`)**:
+     - Mapped all 40 SRDD subcategories from `data_attribute_format.csv` to the iCoder paper's 5 major categories (Education, Work, Life, Games, Creation) and wrote `eval/category_map.json`.
+     - *Categorization judgments noted*: `News` mapped to `Education` (knowledge/informational reference), `Budgeting` mapped to `Work` (financial management), `Notebook` mapped to `Life` (personal notes), `Data` mapped to `Work` (analytics), `Entertainment` mapped to `Creation` (creative/multimedia).
+     - Filtered candidate tasks with description lengths strictly between 40 and 80 words (724 candidates).
+     - Deterministically sampled 4 tasks per major category (20 total) with random seed 42 and no duplicate names into `eval/tasks_v2.json`.
+     - SHA-256 (`aa902c027cfb0a137ca220d1db03f73ce94b9d3bfd6b7da9f8bfd83b83baf5b3`) verified and recorded in `eval/benchmark_manifest.json` under `tasks_v2_sha256`. Preserved `eval/tasks.json`.
+     - Added `--tasks-file` option to `eval/runner.py`.
+  2. **Honest Counting & No Cherry-Picking**:
+     - Designated official row per `(task_id, system, repeat_no, ablation)` as the FIRST attempt that is not an `INFRA_ERROR`.
+     - `QUALITY_FAILURE` runs are officially retained and count as Quality = 0.0.
+     - Only `INFRA_ERROR` runs (e.g., 429, daily quota ceiling, timeouts) may be retried.
+     - Added `official` (true/false) and `retry_reason` columns to `results.csv` and `eval/benchmark_manifest.json`.
+     - Simulation-only runs (`SIMULATION_ONLY`) are strictly labeled and excluded from official stats.
+     - `--resume` skips tasks that already possess an official row.
+  3. **Advanced Hypothesis Testing & Distribution Statistics (`eval/stats.py`)**:
+     - Added `wilcoxon_signed_rank_test` using `scipy.stats.wilcoxon`, safely handling small n, identical pairs, and zero differences without crashing.
+     - Added `bootstrap_ci` computing 95% percentile confidence intervals with 10,000 resamples and fixed seed 42.
+     - Added `calculate_success_rate` reporting the share of official finished runs per system in `eval/reports.py`.
+     - Preserved paired permutation test and Cohen's d effect size.
+  4. **Ablation Matrix Implementation (A0-A4)**:
+     - Implemented `--ablation` switches across `mas/core/workflow.py`, `mas/core/context.py`, `mas/agents/reviewer.py`, and `config.yaml`:
+       - `A0`: Full MAS (default).
+       - `A1`: No complexity router (forces ArchitectAgent execution even on SIMPLE tasks).
+       - `A2`: No AST impact slicing (sends full repository file set every iteration).
+       - `A3`: No evidence-grounded review (ReviewerAgent skips deterministic AST cycles, Ruff, Bandit, and Sandbox outputs).
+       - `A4`: No reflection loop (forces loop termination at iteration 1).
+     - Recorded `ablation` ID across all results.csv rows, Evaluation records, and manifest run entries.
+- **Source**: Phase 3 Benchmark Scope, Fairness, and Ablation Architecture.
+- **Impact**: 251/251 passing unit tests (12 new tests in `tests/test_phase3_tasks_stats_ablations.py`).
+
+
 
 

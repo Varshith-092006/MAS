@@ -54,3 +54,11 @@ sandbox:
 eval:
   consistency_max_code_chars: 2000
 
+ablation:
+  current: "A0"
+  a1_disable_router: false
+  a2_disable_slicing: false
+  a3_disable_grounded_review: false
+  a4_single_iteration: false
+
+

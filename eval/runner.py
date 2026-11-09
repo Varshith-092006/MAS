@@ -96,6 +96,62 @@ def update_benchmark_manifest(
 
     runs_list = list(existing_runs.values())
 
+    # 1. Classify failure and determine official status per (task_id, system, repeat_no, ablation)
+    def extract_attempt(run_id: str) -> int:
+        if not run_id:
+            return 1
+        if "_attempt" in run_id:
+            try:
+                return int(run_id.split("_attempt")[-1])
+            except ValueError:
+                return 1
+        return 1
+
+    for r in runs_list:
+        st = r.get("status")
+        err = r.get("error") or r.get("failure_reason")
+        if st in ("COMPLETED", "COMPLETED_QUALITY_GATE", "SIMULATION_ONLY"):
+            r["failure_classification"] = "SUCCESS"
+        else:
+            r["failure_classification"] = classify_failure(status=st, error_msg=err)
+
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for r in runs_list:
+        if r.get("status") == "SIMULATION_ONLY" or r.get("execution_mode") == "SIMULATED":
+            r["official"] = False
+            r["retry_reason"] = "SIMULATION_ONLY"
+            continue
+        key = (
+            r.get("task_id"),
+            r.get("system"),
+            r.get("repeat_no", 1),
+            r.get("ablation", "A0"),
+        )
+        groups[key].append(r)
+
+    for key, group in groups.items():
+        group.sort(key=lambda x: (extract_attempt(x.get("run_id", "")), x.get("timestamp_utc", "")))
+        official_assigned = False
+        for r in group:
+            cls = r.get("failure_classification")
+            if not official_assigned:
+                if cls == "INFRA_ERROR":
+                    r["official"] = False
+                    if not r.get("retry_reason"):
+                        r["retry_reason"] = f"INFRA_ERROR: {r.get('error') or r.get('status')}"
+                else:
+                    r["official"] = True
+                    r["retry_reason"] = None
+                    official_assigned = True
+                    if cls == "QUALITY_FAILURE":
+                        r["quality"] = 0.0
+                        r["quality_per_1k_tokens"] = 0.0
+            else:
+                r["official"] = False
+                if not r.get("retry_reason"):
+                    r["retry_reason"] = "Subsequent attempt after official result"
+
     # Map pairs by (task_id, repeat_no), prioritizing compliant COMPLETED LIVE_API runs (<= 60,000 tokens) over FAILED/STOPPED/SIMULATED
     by_pair: Dict[Any, Dict[str, Any]] = {}
     for r in runs_list:
@@ -593,15 +649,18 @@ class EvaluationRunner:
             if "chatdev" in systems:
                 start_proxy_daemon_if_needed(port=8089)
 
-        # Resume index
-        completed_keys: Set[Tuple[str, str, int]] = set()
+        # Resume index - skips tasks that already have an official row
+        completed_keys: Set[Tuple[str, str, int, str]] = set()
         if resume:
             manifest = load_benchmark_manifest()
             for r in manifest.get("runs", []):
-                r_status = r.get("status")
-                # Interrupted runs are re-run from scratch on resume
-                if r_status != "INTERRUPTED" and r_status is not None:
-                    completed_keys.add((r.get("task_id"), r.get("system"), r.get("repeat_no")))
+                if r.get("official") is True or str(r.get("official")).lower() == "true":
+                    completed_keys.add((
+                        r.get("task_id"),
+                        r.get("system"),
+                        r.get("repeat_no", 1),
+                        r.get("ablation", "A0"),
+                    ))
 
         eval_id = f"eval_{int(time.time())}_{benchmark_name}"
         init_db()
@@ -612,7 +671,7 @@ class EvaluationRunner:
                 evaluation_id=eval_id,
                 benchmark=benchmark_name,
                 repeat_no=repeats,
-                ablation="A0",
+                ablation=ablation,
             )
             session.add(ev)
             session.commit()
@@ -642,354 +701,142 @@ class EvaluationRunner:
 
                 # 1. Run MAS
                 if "mas" in systems:
-                    mas_run_id = resolve_attempt_run_id(prefix, "mas", t_id, r_num, start_attempt=attempt)
-                    t_start = datetime.utcnow()
-                    try:
-                        workflow = MASWorkflow(llm=llm)
-                        state = workflow.run(
-                            requirement=req,
-                            task_id=t_id,
-                            model_name=model,
-                            run_id=mas_run_id,
-                            workspace_base="./eval/workspaces",
-                        )
-                        t_end = datetime.utcnow()
-
-                        mas_metrics = self.evaluator.evaluate_project(
-                            workspace_path=state["workspace_path"],
-                            requirement=req,
-                            task_id=t_id,
-                            run_id=mas_run_id,
-                        )
-                        totals = token_logger.get_run_totals(mas_run_id)
-                        tot_tok = totals["total_tokens"]
-                        q = mas_metrics["quality"]
-                        q1k = round(q / (tot_tok / 1000), 4) if (q is not None and tot_tok and tot_tok > 0) else None
-                        mas_manifest = generate_artifacts_manifest(state["workspace_path"])
-                        mas_cost = 0.0 if use_fake else totals["estimated_cost"]
-
-                        st_status = state.get("status")
-                        actual_mas_status = run_status
-                        actual_mas_exec_mode = exec_mode
-                        mas_failure_reason = None
-                        if st_status in ("STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE", "FAILED"):
-                            actual_mas_status = st_status
-                            actual_mas_exec_mode = st_status
-                            mas_failure_reason = state.get("stop_reason")
-                        elif not use_fake and tot_tok > 60000:
-                            actual_mas_status = "STOPPED_BUDGET_CEILING"
-                            actual_mas_exec_mode = "STOPPED_BUDGET_CEILING"
-                            mas_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
-
-                        with get_session() as session:
-                            mas_row = session.query(Run).filter(Run.run_id == mas_run_id).first()
-                            if mas_row:
-                                mas_row.evaluation_id = eval_id
-                                mas_row.status = actual_mas_status
-                                mas_row.execution_mode = actual_mas_exec_mode
-                                mas_row.token_provenance = prov_mode
-                                mas_row.workspace_path = state["workspace_path"]
-                                mas_row.artifacts_manifest = json.dumps(mas_manifest)
-                                if mas_failure_reason and not mas_row.failure_reason:
-                                    mas_row.failure_reason = mas_failure_reason
-                                if not mas_row.finished_at:
-                                    mas_row.finished_at = t_end
-                            else:
-                                session.add(
-                                    Run(
-                                        run_id=mas_run_id,
-                                        task_id=t_id,
-                                        evaluation_id=eval_id,
-                                        system="mas",
-                                        model=model,
-                                        actual_model=model,
-                                        execution_mode=actual_mas_exec_mode,
-                                        token_provenance=prov_mode,
-                                        workspace_path=state["workspace_path"],
-                                        artifacts_manifest=json.dumps(mas_manifest),
-                                        status=actual_mas_status,
-                                        failure_reason=mas_failure_reason,
-                                        started_at=t_start,
-                                        finished_at=t_end,
-                                    )
-                                )
-                            session.commit()
-
-                        rec = {
-                            "run_id": mas_run_id,
-                            "task_id": t_id,
-                            "task_name": t_name,
-                            "system": "mas",
-                            "model": model,
-                            "repeat_no": r_num,
-                            "ablation": "A0",
-                            "quality": q,
-                            "quality_per_1k_tokens": q1k,
-                            "completeness": mas_metrics["completeness"],
-                            "executability": mas_metrics["executability"],
-                            "consistency": mas_metrics["consistency"],
-                            "consistency_method": mas_metrics.get("consistency_method", "lexical_fallback"),
-                            "shared_test": mas_metrics["shared_test"],
-                            "ruff": mas_metrics["ruff_violations"],
-                            "bandit": mas_metrics["bandit_high"],
-                            "radon": mas_metrics["radon_mi"],
-                            "tokens": tot_tok,
-                            "cost": mas_cost,
-                            "status": actual_mas_status,
-                            "execution_mode": actual_mas_exec_mode,
-                            "token_provenance": prov_mode,
-                            "is_live_benchmark": not use_fake,
-                            "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        }
-                        if mas_failure_reason:
-                            rec["error"] = mas_failure_reason
-                        mas_records.append(rec)
-                        all_records.append(rec)
-                        mas_q_disp = f"{q:.4f}" if q is not None else "None"
-                        mas_q1k_disp = f"{q1k:.4f}" if q1k is not None else "None"
-                        print(f"   [{actual_mas_status}] MAS:     Quality={mas_q_disp} | Tokens={tot_tok} | Quality/1k={mas_q1k_disp}")
-
-                    except Exception as exc:
-                        t_end = datetime.utcnow()
-                        print(f"   [FAILED] MAS: Runtime exception in {mas_run_id}: {exc}")
-                        totals = token_logger.get_run_totals(mas_run_id)
-                        tot_tok = totals.get("total_tokens", 0)
-                        mas_cost = 0.0 if use_fake else totals.get("estimated_cost", 0.0)
-
-                        with get_session() as session:
-                            mas_row = session.query(Run).filter(Run.run_id == mas_run_id).first()
-                            if mas_row:
-                                mas_row.status = "FAILED"
-                                mas_row.finished_at = t_end
-                            else:
-                                session.add(
-                                    Run(
-                                        run_id=mas_run_id,
-                                        task_id=t_id,
-                                        evaluation_id=eval_id,
-                                        system="mas",
-                                        model=model,
-                                        actual_model=model,
-                                        execution_mode=exec_mode,
-                                        token_provenance=prov_mode,
-                                        workspace_path=f"./eval/workspaces/{mas_run_id}",
-                                        status="FAILED",
-                                        started_at=t_start,
-                                        finished_at=t_end,
-                                    )
-                                )
-                            session.commit()
-
-                        fail_rec = {
-                            "run_id": mas_run_id,
-                            "task_id": t_id,
-                            "task_name": t_name,
-                            "system": "mas",
-                            "model": model,
-                            "repeat_no": r_num,
-                            "ablation": "A0",
-                            "quality": None,
-                            "quality_per_1k_tokens": None,
-                            "completeness": None,
-                            "executability": None,
-                            "consistency": None,
-                            "shared_test": None,
-                            "ruff": None,
-                            "bandit": None,
-                            "radon": None,
-                            "tokens": tot_tok,
-                            "cost": mas_cost,
-                            "status": "FAILED",
-                            "execution_mode": exec_mode,
-                            "token_provenance": prov_mode,
-                            "is_live_benchmark": not use_fake,
-                            "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                            "error": str(exc),
-                        }
-                        mas_records.append(fail_rec)
-                        all_records.append(fail_rec)
-
-                # 2. Run ChatDev
-                if "chatdev" in systems:
-                    cd_run_id = resolve_attempt_run_id(prefix, "cd", t_id, r_num, start_attempt=attempt)
-                    t_start = datetime.utcnow()
-                    skip_cd = False
-                    if not use_fake:
-                        stats = governor.get_ledger_stats()
-                        if stats.get("remaining_internal_attempts", 0) < 12:
-                            print(f"   [GOVERNOR HALT] Insufficient remaining daily transmissions for ChatDev ({stats.get('remaining_internal_attempts', 0)} < 12). Skipping ChatDev run.")
-                            skip_cd = True
-
-                    if skip_cd:
-                        rec = {
-                            "run_id": cd_run_id,
-                            "task_id": t_id,
-                            "task_name": t_name,
-                            "system": "chatdev",
-                            "model": model,
-                            "repeat_no": r_num,
-                            "ablation": "A0",
-                            "quality": None,
-                            "quality_per_1k_tokens": None,
-                            "completeness": None,
-                            "executability": None,
-                            "consistency": None,
-                            "shared_test": None,
-                            "ruff": None,
-                            "bandit": None,
-                            "radon": None,
-                            "tokens": 0,
-                            "cost": 0.0,
-                            "status": "STOPPED_BUDGET_CEILING",
-                            "execution_mode": exec_mode,
-                            "token_provenance": prov_mode,
-                            "is_live_benchmark": not use_fake,
-                            "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                            "error": "Governor quota ceiling threshold reached before ChatDev dispatch",
-                        }
-                        cd_records.append(rec)
-                        all_records.append(rec)
-                        print(f"   [SKIPPED] ChatDev: Halted by transmission governor")
+                    mas_key = (t_id, "mas", r_num, ablation)
+                    if resume and mas_key in completed_keys:
+                        print(f"   [SKIPPED] MAS: Task {t_id} repeat {r_num} (ablation={ablation}) already has official row on resume.")
                     else:
+                        mas_run_id = resolve_attempt_run_id(prefix, "mas", t_id, r_num, start_attempt=attempt)
+                        t_start = datetime.utcnow()
                         try:
-                            cd_adapter = ChatDevAdapter(llm=llm, proxy_url="http://127.0.0.1:8089/v1")
-                            cd_out = cd_adapter.run_task(
-                                task=cd_task,
-                                output_base_dir="./eval/workspaces",
-                                model=model,
-                                run_id=cd_run_id,
-                                use_fake=use_fake,
+                            workflow = MASWorkflow(llm=llm, ablation=ablation)
+                            state = workflow.run(
+                                requirement=req,
+                                task_id=t_id,
+                                model_name=model,
+                                run_id=mas_run_id,
+                                workspace_base="./eval/workspaces",
+                                ablation=ablation,
                             )
                             t_end = datetime.utcnow()
 
-                            cd_metrics = self.evaluator.evaluate_project(
-                                workspace_path=cd_out["workspace_dir"],
+                            mas_metrics = self.evaluator.evaluate_project(
+                                workspace_path=state["workspace_path"],
                                 requirement=req,
                                 task_id=t_id,
-                                run_id=cd_run_id,
+                                run_id=mas_run_id,
                             )
-                            totals = token_logger.get_run_totals(cd_run_id)
+                            totals = token_logger.get_run_totals(mas_run_id)
                             tot_tok = totals["total_tokens"]
-                            q = cd_metrics["quality"]
+                            q = mas_metrics["quality"]
                             q1k = round(q / (tot_tok / 1000), 4) if (q is not None and tot_tok and tot_tok > 0) else None
-                            cd_manifest = generate_artifacts_manifest(cd_out["workspace_dir"])
-                            cd_cost = 0.0 if use_fake else totals["estimated_cost"]
+                            mas_manifest = generate_artifacts_manifest(state["workspace_path"])
+                            mas_cost = 0.0 if use_fake else totals["estimated_cost"]
 
-                            cd_status = cd_out.get("status")
-                            actual_cd_status = run_status
-                            actual_cd_exec_mode = exec_mode
-                            cd_failure_reason = cd_out.get("failed_reason") or cd_out.get("stop_reason")
-
-                            main_py_exists = os.path.exists(os.path.join(cd_out["workspace_dir"], "main.py"))
-
-                            if cd_status in ("FAILED", "INCOMPLETE", "STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE", "TIMEOUT"):
-                                actual_cd_status = cd_status
-                                actual_cd_exec_mode = cd_status
-                            elif not main_py_exists:
-                                actual_cd_status = "INCOMPLETE"
-                                actual_cd_exec_mode = "INCOMPLETE"
-                                cd_failure_reason = "Missing required artifact: main.py was not produced."
+                            st_status = state.get("status")
+                            actual_mas_status = run_status
+                            actual_mas_exec_mode = exec_mode
+                            mas_failure_reason = None
+                            if st_status in ("STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE", "FAILED"):
+                                actual_mas_status = st_status
+                                actual_mas_exec_mode = st_status
+                                mas_failure_reason = state.get("stop_reason")
                             elif not use_fake and tot_tok > 60000:
-                                actual_cd_status = "STOPPED_BUDGET_CEILING"
-                                actual_cd_exec_mode = "STOPPED_BUDGET_CEILING"
-                                cd_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
-                            else:
-                                actual_cd_status = run_status
-                                actual_cd_exec_mode = exec_mode
+                                actual_mas_status = "STOPPED_BUDGET_CEILING"
+                                actual_mas_exec_mode = "STOPPED_BUDGET_CEILING"
+                                mas_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
 
                             with get_session() as session:
-                                cd_row = session.query(Run).filter(Run.run_id == cd_run_id).first()
-                                if cd_row:
-                                    cd_row.evaluation_id = eval_id
-                                    cd_row.status = actual_cd_status
-                                    cd_row.execution_mode = actual_cd_exec_mode
-                                    cd_row.token_provenance = prov_mode
-                                    cd_row.workspace_path = cd_out["workspace_dir"]
-                                    cd_row.artifacts_manifest = json.dumps(cd_manifest)
-                                    if cd_failure_reason:
-                                        cd_row.failure_reason = cd_failure_reason
-                                    if not cd_row.finished_at:
-                                        cd_row.finished_at = t_end
+                                mas_row = session.query(Run).filter(Run.run_id == mas_run_id).first()
+                                if mas_row:
+                                    mas_row.evaluation_id = eval_id
+                                    mas_row.status = actual_mas_status
+                                    mas_row.execution_mode = actual_mas_exec_mode
+                                    mas_row.token_provenance = prov_mode
+                                    mas_row.workspace_path = state["workspace_path"]
+                                    mas_row.artifacts_manifest = json.dumps(mas_manifest)
+                                    if mas_failure_reason and not mas_row.failure_reason:
+                                        mas_row.failure_reason = mas_failure_reason
+                                    if not mas_row.finished_at:
+                                        mas_row.finished_at = t_end
                                 else:
                                     session.add(
                                         Run(
-                                            run_id=cd_run_id,
+                                            run_id=mas_run_id,
                                             task_id=t_id,
                                             evaluation_id=eval_id,
-                                            system="chatdev",
+                                            system="mas",
                                             model=model,
                                             actual_model=model,
-                                            execution_mode=actual_cd_exec_mode,
+                                            execution_mode=actual_mas_exec_mode,
                                             token_provenance=prov_mode,
-                                            workspace_path=cd_out["workspace_dir"],
-                                            artifacts_manifest=json.dumps(cd_manifest),
-                                            status=actual_cd_status,
-                                            failure_reason=cd_failure_reason,
+                                            workspace_path=state["workspace_path"],
+                                            artifacts_manifest=json.dumps(mas_manifest),
+                                            status=actual_mas_status,
+                                            failure_reason=mas_failure_reason,
                                             started_at=t_start,
                                             finished_at=t_end,
                                         )
                                     )
                                 session.commit()
 
-                            is_cd_success = actual_cd_status in ("COMPLETED", "COMPLETED_QUALITY_GATE")
                             rec = {
-                                "run_id": cd_run_id,
+                                "run_id": mas_run_id,
                                 "task_id": t_id,
                                 "task_name": t_name,
-                                "system": "chatdev",
+                                "system": "mas",
                                 "model": model,
                                 "repeat_no": r_num,
-                                "ablation": "A0",
-                                "quality": q if is_cd_success else None,
-                                "quality_per_1k_tokens": q1k if is_cd_success else None,
-                                "completeness": cd_metrics["completeness"] if is_cd_success else None,
-                                "executability": cd_metrics["executability"] if is_cd_success else None,
-                                "consistency": cd_metrics["consistency"] if is_cd_success else None,
-                                "consistency_method": cd_metrics.get("consistency_method", "lexical_fallback"),
-                                "shared_test": cd_metrics["shared_test"] if is_cd_success else None,
-                                "ruff": cd_metrics["ruff_violations"] if is_cd_success else None,
-                                "bandit": cd_metrics["bandit_high"] if is_cd_success else None,
-                                "radon": cd_metrics["radon_mi"] if is_cd_success else None,
+                                "ablation": ablation,
+                                "quality": q,
+                                "quality_per_1k_tokens": q1k,
+                                "completeness": mas_metrics["completeness"],
+                                "executability": mas_metrics["executability"],
+                                "consistency": mas_metrics["consistency"],
+                                "consistency_method": mas_metrics.get("consistency_method", "lexical_fallback"),
+                                "shared_test": mas_metrics["shared_test"],
+                                "ruff": mas_metrics["ruff_violations"],
+                                "bandit": mas_metrics["bandit_high"],
+                                "radon": mas_metrics["radon_mi"],
                                 "tokens": tot_tok,
-                                "cost": cd_cost,
-                                "status": actual_cd_status,
-                                "execution_mode": actual_cd_exec_mode,
+                                "cost": mas_cost,
+                                "status": actual_mas_status,
+                                "execution_mode": actual_mas_exec_mode,
                                 "token_provenance": prov_mode,
                                 "is_live_benchmark": not use_fake,
                                 "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                             }
-                            if cd_failure_reason:
-                                rec["error"] = cd_failure_reason
-                            cd_records.append(rec)
+                            if mas_failure_reason:
+                                rec["error"] = mas_failure_reason
+                            mas_records.append(rec)
                             all_records.append(rec)
-                            cd_q_disp = f"{q:.4f}" if q is not None else "None"
-                            cd_q1k_disp = f"{q1k:.4f}" if q1k is not None else "None"
-                            print(f"   [{actual_cd_status}] ChatDev: Quality={cd_q_disp} | Tokens={tot_tok} | Quality/1k={cd_q1k_disp}")
+                            mas_q_disp = f"{q:.4f}" if q is not None else "None"
+                            mas_q1k_disp = f"{q1k:.4f}" if q1k is not None else "None"
+                            print(f"   [{actual_mas_status}] MAS:     Quality={mas_q_disp} | Tokens={tot_tok} | Quality/1k={mas_q1k_disp}")
 
                         except Exception as exc:
                             t_end = datetime.utcnow()
-                            print(f"   [FAILED] ChatDev: Runtime exception in {cd_run_id}: {exc}")
-                            totals = token_logger.get_run_totals(cd_run_id)
+                            print(f"   [FAILED] MAS: Runtime exception in {mas_run_id}: {exc}")
+                            totals = token_logger.get_run_totals(mas_run_id)
                             tot_tok = totals.get("total_tokens", 0)
-                            cd_cost = 0.0 if use_fake else totals.get("estimated_cost", 0.0)
+                            mas_cost = 0.0 if use_fake else totals.get("estimated_cost", 0.0)
 
                             with get_session() as session:
-                                cd_row = session.query(Run).filter(Run.run_id == cd_run_id).first()
-                                if cd_row:
-                                    cd_row.status = "FAILED"
-                                    cd_row.finished_at = t_end
+                                mas_row = session.query(Run).filter(Run.run_id == mas_run_id).first()
+                                if mas_row:
+                                    mas_row.status = "FAILED"
+                                    mas_row.finished_at = t_end
                                 else:
                                     session.add(
                                         Run(
-                                            run_id=cd_run_id,
+                                            run_id=mas_run_id,
                                             task_id=t_id,
                                             evaluation_id=eval_id,
-                                            system="chatdev",
+                                            system="mas",
                                             model=model,
                                             actual_model=model,
                                             execution_mode=exec_mode,
                                             token_provenance=prov_mode,
-                                            workspace_path=f"./eval/workspaces/{cd_run_id}",
+                                            workspace_path=f"./eval/workspaces/{mas_run_id}",
                                             status="FAILED",
                                             started_at=t_start,
                                             finished_at=t_end,
@@ -998,13 +845,13 @@ class EvaluationRunner:
                                 session.commit()
 
                             fail_rec = {
-                                "run_id": cd_run_id,
+                                "run_id": mas_run_id,
                                 "task_id": t_id,
                                 "task_name": t_name,
-                                "system": "chatdev",
+                                "system": "mas",
                                 "model": model,
                                 "repeat_no": r_num,
-                                "ablation": "A0",
+                                "ablation": ablation,
                                 "quality": None,
                                 "quality_per_1k_tokens": None,
                                 "completeness": None,
@@ -1015,7 +862,7 @@ class EvaluationRunner:
                                 "bandit": None,
                                 "radon": None,
                                 "tokens": tot_tok,
-                                "cost": cd_cost,
+                                "cost": mas_cost,
                                 "status": "FAILED",
                                 "execution_mode": exec_mode,
                                 "token_provenance": prov_mode,
@@ -1023,8 +870,229 @@ class EvaluationRunner:
                                 "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                                 "error": str(exc),
                             }
-                            cd_records.append(fail_rec)
+                            mas_records.append(fail_rec)
                             all_records.append(fail_rec)
+
+                # 2. Run ChatDev
+                if "chatdev" in systems:
+                    cd_key = (t_id, "chatdev", r_num, ablation)
+                    if resume and cd_key in completed_keys:
+                        print(f"   [SKIPPED] ChatDev: Task {t_id} repeat {r_num} (ablation={ablation}) already has official row on resume.")
+                    else:
+                        cd_run_id = resolve_attempt_run_id(prefix, "cd", t_id, r_num, start_attempt=attempt)
+                        t_start = datetime.utcnow()
+                        skip_cd = False
+                        if not use_fake:
+                            stats = governor.get_ledger_stats()
+                            if stats.get("remaining_internal_attempts", 0) < 12:
+                                print(f"   [GOVERNOR HALT] Insufficient remaining daily transmissions for ChatDev ({stats.get('remaining_internal_attempts', 0)} < 12). Skipping ChatDev run.")
+                                skip_cd = True
+
+                        if skip_cd:
+                            rec = {
+                                "run_id": cd_run_id,
+                                "task_id": t_id,
+                                "task_name": t_name,
+                                "system": "chatdev",
+                                "model": model,
+                                "repeat_no": r_num,
+                                "ablation": ablation,
+                                "quality": None,
+                                "quality_per_1k_tokens": None,
+                                "completeness": None,
+                                "executability": None,
+                                "consistency": None,
+                                "shared_test": None,
+                                "ruff": None,
+                                "bandit": None,
+                                "radon": None,
+                                "tokens": 0,
+                                "cost": 0.0,
+                                "status": "STOPPED_BUDGET_CEILING",
+                                "execution_mode": exec_mode,
+                                "token_provenance": prov_mode,
+                                "is_live_benchmark": not use_fake,
+                                "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                "error": "Governor quota ceiling threshold reached before ChatDev dispatch",
+                            }
+                            cd_records.append(rec)
+                            all_records.append(rec)
+                            print(f"   [SKIPPED] ChatDev: Halted by transmission governor")
+                        else:
+                            try:
+                                cd_adapter = ChatDevAdapter(llm=llm, proxy_url="http://127.0.0.1:8089/v1")
+                                cd_out = cd_adapter.run_task(
+                                    task=cd_task,
+                                    output_base_dir="./eval/workspaces",
+                                    model=model,
+                                    run_id=cd_run_id,
+                                    use_fake=use_fake,
+                                )
+                                t_end = datetime.utcnow()
+
+                                cd_metrics = self.evaluator.evaluate_project(
+                                    workspace_path=cd_out["workspace_dir"],
+                                    requirement=req,
+                                    task_id=t_id,
+                                    run_id=cd_run_id,
+                                )
+                                totals = token_logger.get_run_totals(cd_run_id)
+                                tot_tok = totals["total_tokens"]
+                                q = cd_metrics["quality"]
+                                q1k = round(q / (tot_tok / 1000), 4) if (q is not None and tot_tok and tot_tok > 0) else None
+                                cd_manifest = generate_artifacts_manifest(cd_out["workspace_dir"])
+                                cd_cost = 0.0 if use_fake else totals["estimated_cost"]
+
+                                cd_status = cd_out.get("status")
+                                actual_cd_status = run_status
+                                actual_cd_exec_mode = exec_mode
+                                cd_failure_reason = cd_out.get("failed_reason") or cd_out.get("stop_reason")
+
+                                main_py_exists = os.path.exists(os.path.join(cd_out["workspace_dir"], "main.py"))
+
+                                if cd_status in ("FAILED", "INCOMPLETE", "STOPPED_BUDGET_CEILING", "STOPPED_PROVIDER_QUOTA", "FAILED_INFRASTRUCTURE", "TIMEOUT"):
+                                    actual_cd_status = cd_status
+                                    actual_cd_exec_mode = cd_status
+                                elif not main_py_exists:
+                                    actual_cd_status = "INCOMPLETE"
+                                    actual_cd_exec_mode = "INCOMPLETE"
+                                    cd_failure_reason = "Missing required artifact: main.py was not produced."
+                                elif not use_fake and tot_tok > 60000:
+                                    actual_cd_status = "STOPPED_BUDGET_CEILING"
+                                    actual_cd_exec_mode = "STOPPED_BUDGET_CEILING"
+                                    cd_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
+                                else:
+                                    actual_cd_status = run_status
+                                    actual_cd_exec_mode = exec_mode
+
+                                with get_session() as session:
+                                    cd_row = session.query(Run).filter(Run.run_id == cd_run_id).first()
+                                    if cd_row:
+                                        cd_row.evaluation_id = eval_id
+                                        cd_row.status = actual_cd_status
+                                        cd_row.execution_mode = actual_cd_exec_mode
+                                        cd_row.token_provenance = prov_mode
+                                        cd_row.workspace_path = cd_out["workspace_dir"]
+                                        cd_row.artifacts_manifest = json.dumps(cd_manifest)
+                                        if cd_failure_reason:
+                                            cd_row.failure_reason = cd_failure_reason
+                                        if not cd_row.finished_at:
+                                            cd_row.finished_at = t_end
+                                    else:
+                                        session.add(
+                                            Run(
+                                                run_id=cd_run_id,
+                                                task_id=t_id,
+                                                evaluation_id=eval_id,
+                                                system="chatdev",
+                                                model=model,
+                                                actual_model=model,
+                                                execution_mode=actual_cd_exec_mode,
+                                                token_provenance=prov_mode,
+                                                workspace_path=cd_out["workspace_dir"],
+                                                artifacts_manifest=json.dumps(cd_manifest),
+                                                status=actual_cd_status,
+                                                failure_reason=cd_failure_reason,
+                                                started_at=t_start,
+                                                finished_at=t_end,
+                                            )
+                                        )
+                                    session.commit()
+
+                                is_cd_success = actual_cd_status in ("COMPLETED", "COMPLETED_QUALITY_GATE")
+                                rec = {
+                                    "run_id": cd_run_id,
+                                    "task_id": t_id,
+                                    "task_name": t_name,
+                                    "system": "chatdev",
+                                    "model": model,
+                                    "repeat_no": r_num,
+                                    "ablation": ablation,
+                                    "quality": q if is_cd_success else None,
+                                    "quality_per_1k_tokens": q1k if is_cd_success else None,
+                                    "completeness": cd_metrics["completeness"] if is_cd_success else None,
+                                    "executability": cd_metrics["executability"] if is_cd_success else None,
+                                    "consistency": cd_metrics["consistency"] if is_cd_success else None,
+                                    "consistency_method": cd_metrics.get("consistency_method", "lexical_fallback"),
+                                    "shared_test": cd_metrics["shared_test"] if is_cd_success else None,
+                                    "ruff": cd_metrics["ruff_violations"] if is_cd_success else None,
+                                    "bandit": cd_metrics["bandit_high"] if is_cd_success else None,
+                                    "radon": cd_metrics["radon_mi"] if is_cd_success else None,
+                                    "tokens": tot_tok,
+                                    "cost": cd_cost,
+                                    "status": actual_cd_status,
+                                    "execution_mode": actual_cd_exec_mode,
+                                    "token_provenance": prov_mode,
+                                    "is_live_benchmark": not use_fake,
+                                    "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                }
+                                if cd_failure_reason:
+                                    rec["error"] = cd_failure_reason
+                                cd_records.append(rec)
+                                all_records.append(rec)
+                                cd_q_disp = f"{q:.4f}" if q is not None else "None"
+                                cd_q1k_disp = f"{q1k:.4f}" if q1k is not None else "None"
+                                print(f"   [{actual_cd_status}] ChatDev: Quality={cd_q_disp} | Tokens={tot_tok} | Quality/1k={cd_q1k_disp}")
+
+                            except Exception as exc:
+                                t_end = datetime.utcnow()
+                                print(f"   [FAILED] ChatDev: Runtime exception in {cd_run_id}: {exc}")
+                                totals = token_logger.get_run_totals(cd_run_id)
+                                tot_tok = totals.get("total_tokens", 0)
+                                cd_cost = 0.0 if use_fake else totals.get("estimated_cost", 0.0)
+
+                                with get_session() as session:
+                                    cd_row = session.query(Run).filter(Run.run_id == cd_run_id).first()
+                                    if cd_row:
+                                        cd_row.status = "FAILED"
+                                        cd_row.finished_at = t_end
+                                    else:
+                                        session.add(
+                                            Run(
+                                                run_id=cd_run_id,
+                                                task_id=t_id,
+                                                evaluation_id=eval_id,
+                                                system="chatdev",
+                                                model=model,
+                                                actual_model=model,
+                                                execution_mode=exec_mode,
+                                                token_provenance=prov_mode,
+                                                workspace_path=f"./eval/workspaces/{cd_run_id}",
+                                                status="FAILED",
+                                                started_at=t_start,
+                                                finished_at=t_end,
+                                            )
+                                        )
+                                    session.commit()
+
+                                fail_rec = {
+                                    "run_id": cd_run_id,
+                                    "task_id": t_id,
+                                    "task_name": t_name,
+                                    "system": "chatdev",
+                                    "model": model,
+                                    "repeat_no": r_num,
+                                    "ablation": ablation,
+                                    "quality": None,
+                                    "quality_per_1k_tokens": None,
+                                    "completeness": None,
+                                    "executability": None,
+                                    "consistency": None,
+                                    "shared_test": None,
+                                    "ruff": None,
+                                    "bandit": None,
+                                    "radon": None,
+                                    "tokens": tot_tok,
+                                    "cost": cd_cost,
+                                    "status": "FAILED",
+                                    "execution_mode": exec_mode,
+                                    "token_provenance": prov_mode,
+                                    "is_live_benchmark": not use_fake,
+                                    "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                    "error": str(exc),
+                                }
+                                cd_records.append(fail_rec)
+                                all_records.append(fail_rec)
 
         # Export CSV & Stats report & Update persistent manifest
         manifest = update_benchmark_manifest(all_records)
@@ -1117,7 +1185,7 @@ def main():
     parser.add_argument("--stop-at-budget", action="store_true", help="Stop cleanly before exhausting daily quota")
     parser.add_argument("--estimate", action="store_true", help="Estimate requests, tokens, daily limits, and days needed")
     parser.add_argument("--tasks-file", type=str, default=None, help="Tasks JSON specification file")
-    parser.add_argument("--ablation", type=str, default="A0", help="Ablation condition (A0..A4)")
+    parser.add_argument("--ablation", type=str, default="A0", choices=["A0", "A1", "A2", "A3", "A4"], help="Ablation condition (A0..A4)")
     args = parser.parse_args()
 
     if args.reset:

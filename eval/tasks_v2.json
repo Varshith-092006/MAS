@@ -1,0 +1,162 @@
+[
+  {
+    "task_id": "srdd_educ_01",
+    "name": "BookLift",
+    "description": "A software application that provides personalized book recommendations, allowing users to discover new books based on their preferences. Users can create profiles, input their preferred genres, and rate books. BookLift generates tailored book recommendations, suggests titles from various genres, offers comprehensive book details, and includes a book discovery section for exploring curated collections and popular book lists.",
+    "category": "Education",
+    "subcategory": "Reference_Books",
+    "word_count": 57
+  },
+  {
+    "task_id": "srdd_educ_02",
+    "name": "Bookshelf Manager",
+    "description": "Develop a software application that allows users to efficiently manage their personal book collections. Users can input book details, categorize books into custom-defined shelves, add personal notes and ratings, and generate reports on their book collection. The software provides search and filter functionalities for easy access to desired books.",
+    "category": "Education",
+    "subcategory": "Reference_Books",
+    "word_count": 49
+  },
+  {
+    "task_id": "srdd_educ_03",
+    "name": "Culture Reflection",
+    "description": "Culture Reflection is a software application that allows users to reflect on their own cultural background and gain a deeper understanding of their cultural identity. It provides a series of thought-provoking prompts and questions that encourage users to explore their beliefs, values, traditions, and experiences. Users can journal their reflections and engage in self-discovery, fostering personal growth and cultural appreciation.",
+    "category": "Education",
+    "subcategory": "Culture",
+    "word_count": 60
+  },
+  {
+    "task_id": "srdd_educ_04",
+    "name": "Language Conversation Partner",
+    "description": "Language Conversation Partner is a software application that connects language learners with native speakers of the language they are learning. It provides a platform for users to engage in language exchange conversations through voice and text chat. Users can practice their speaking and listening skills by having conversations with native speakers and receive feedback on their pronunciation and grammar. The software also offers language learning resources such as conversation topics and language guides to assist users during their practice sessions.",
+    "category": "Education",
+    "subcategory": "Language",
+    "word_count": 80
+  },
+  {
+    "task_id": "srdd_work_01",
+    "name": "Code Complexity Visualization",
+    "description": "The Code Complexity Visualization software provides a visual representation of the complexity of code snippets. It analyzes the code using metrics such as cyclomatic complexity, nesting depth, and code duplication, and generates interactive visualizations to help developers understand and analyze complex code. The software allows users to zoom in and out, navigate through the code hierarchy, and explore the relationships between different code components. It also provides insights and recommendations for simplifying and optimizing the code.",
+    "category": "Work",
+    "subcategory": "Development",
+    "word_count": 76
+  },
+  {
+    "task_id": "srdd_work_02",
+    "name": "Code Structure Validator",
+    "description": "The Code Structure Validator is a development software that analyzes the structure of code files and provides feedback on adherence to coding style guidelines and best practices. It performs static code analysis and identifies issues such as inconsistent indentation, incorrect use of whitespace, missing or excessive comments, and improper file organization. The software highlights these issues and provides recommendations for improving code structure and readability.",
+    "category": "Work",
+    "subcategory": "Development",
+    "word_count": 65
+  },
+  {
+    "task_id": "srdd_work_03",
+    "name": "Data Visualizer",
+    "description": "The Data Visualizer is a software application that allows users to create visually appealing and interactive visualizations of their data sets. It provides a wide range of visualization options, including bar charts, line graphs, scatter plots, and pie charts. Users can easily import their data, choose the appropriate visualization type, customize the appearance of the visualization, and export the final visualization as an image or shareable link.",
+    "category": "Work",
+    "subcategory": "Data",
+    "word_count": 67
+  },
+  {
+    "task_id": "srdd_work_04",
+    "name": "TaskPro",
+    "description": "TaskPro is a schedule software application that focuses on helping individuals prioritize their tasks effectively. Users can input their tasks, set priorities based on importance or urgency, and allocate specific time slots for each task. The software provides reminders and notifications to ensure users stay on track with their prioritized tasks. TaskPro also offers a visual overview of the day, allowing users to easily see their prioritized tasks and manage their time accordingly.",
+    "category": "Work",
+    "subcategory": "Schedule",
+    "word_count": 73
+  },
+  {
+    "task_id": "srdd_life_01",
+    "name": "ConnectMatch",
+    "description": "ConnectMatch is a social networking software application that helps individuals find and connect with like-minded professionals for potential collaborations, partnerships, or business opportunities. Users can create profiles highlighting their skills, expertise, and interests. The application uses a matching algorithm to suggest relevant connections based on the user",
+    "category": "Life",
+    "subcategory": "SocialNetwork",
+    "word_count": 47
+  },
+  {
+    "task_id": "srdd_life_02",
+    "name": "FamilyCookingFun",
+    "description": "FamilyCookingFun is a software application that allows families to come together and bond over cooking and trying new recipes. It provides a library of easy-to-follow recipes suitable for all ages, and includes step-by-step instructions and ingredient lists. The app also offers interactive features such as cooking timers, ingredient substitution suggestions, and a virtual grocery list for easy meal planning. Families can create their own profile, save their favorite recipes, and share their culinary creations with other users.",
+    "category": "Life",
+    "subcategory": "Family_Kids",
+    "word_count": 77
+  },
+  {
+    "task_id": "srdd_life_03",
+    "name": "Route Finder",
+    "description": "Route Finder is a transportation software application that helps users find the most efficient and shortest route between two locations utilizing a database of road networks and calculating the optimal route based on various factors like distance, traffic conditions, and road quality.",
+    "category": "Life",
+    "subcategory": "Transportation",
+    "word_count": 42
+  },
+  {
+    "task_id": "srdd_life_04",
+    "name": "Time Saver",
+    "description": "Time Saver is a user-friendly shopping software application that allows users to create and manage shopping lists effortlessly. Users can easily add items to the list, categorize them, and set reminders for upcoming shopping trips. The software provides a simple and intuitive user interface, making it easy for users to stay organized and never forget essential items while shopping. With Time Saver, users can save time and streamline their shopping experience.",
+    "category": "Life",
+    "subcategory": "Shopping",
+    "word_count": 71
+  },
+  {
+    "task_id": "srdd_game_01",
+    "name": "Arena Clash",
+    "description": "Arena Clash is an action game where players engage in intense battles against each other in various arenas. Players can choose from a range of unique characters, each with their own abilities and playstyles. The objective is to defeat opponents using a combination of skill, strategy, and teamwork. The game features customizable characters, dynamic environments, and different game modes such as team deathmatch and capture the flag.",
+    "category": "Games",
+    "subcategory": "Action_Game",
+    "word_count": 67
+  },
+  {
+    "task_id": "srdd_game_02",
+    "name": "Board Game Art Designer",
+    "description": "A software application that allows users to design and customize the artwork and graphics for their board games. Users can create and edit game boards, cards, tokens, and other visual elements using a user-friendly interface. It provides a variety of templates, images, and editing tools, allowing users to unleash their creativity and personalize their games.",
+    "category": "Games",
+    "subcategory": "Board_Game",
+    "word_count": 55
+  },
+  {
+    "task_id": "srdd_game_03",
+    "name": "City Traffic Manager",
+    "description": "City Traffic Manager is a simulation game software where players can take on the role of a city traffic manager. They will have the responsibility of designing and managing the road networks, traffic signals, and public transportation systems in a virtual city. Players must optimize traffic flow, reduce congestion, and ensure the safe and efficient movement of vehicles and pedestrians. The game will provide challenges such as peak hours, emergency situations, and urban development, testing the player",
+    "category": "Games",
+    "subcategory": "Simulation_Game",
+    "word_count": 77
+  },
+  {
+    "task_id": "srdd_game_04",
+    "name": "Color Match Challenge",
+    "description": "A puzzle game where players match and eliminate blocks of the same color to clear the board and earn points. Swap adjacent blocks to create matches of three or more, strategically complete levels with increasing difficulty, and utilize bonuses and power-ups for enhanced gameplay.",
+    "category": "Games",
+    "subcategory": "Puzzle_Game",
+    "word_count": 44
+  },
+  {
+    "task_id": "srdd_crea_01",
+    "name": "Color Palette Picker",
+    "description": "Color Palette Picker is a photo software application that allows users to generate color palettes based on the colors found in a photo. Users can choose an image, and the software will analyze the colors present, extracting the dominant hues and generating a complementary color palette. The color palettes can be used for various purposes such as designing websites, creating artwork, or selecting color schemes for projects.",
+    "category": "Creation",
+    "subcategory": "Photo",
+    "word_count": 67
+  },
+  {
+    "task_id": "srdd_crea_02",
+    "name": "Travel Destination Explorer",
+    "description": "The Travel Destination Explorer is an entertainment software application that allows users to virtually explore different travel destinations around the world. Users can browse through a collection of high-resolution images and immersive videos of popular tourist spots, landmarks, and natural wonders. The software provides detailed information about each destination, including historical facts, local culture, and recommended attractions. Users can also create personalized travel itineraries, save their favorite destinations, and share their virtual travel experiences with friends.",
+    "category": "Creation",
+    "subcategory": "Entertainment",
+    "word_count": 76
+  },
+  {
+    "task_id": "srdd_crea_03",
+    "name": "Video Slicer",
+    "description": "Video Slicer is a software that allows users to easily trim and slice video files into smaller segments. Users can specify the starting and ending points of the desired segment, and the software will extract and save that portion as a separate video file.",
+    "category": "Creation",
+    "subcategory": "Video",
+    "word_count": 44
+  },
+  {
+    "task_id": "srdd_crea_04",
+    "name": "Virtual Art Gallery",
+    "description": "The Virtual Art Gallery is a software application that allows users to explore and experience art from the comfort of their own homes. Users can browse through a collection of digital art pieces created by various artists and learn about the artists and their artistic styles. They can zoom in on specific details and view the artworks from different angles. The software provides a user-friendly interface where users can navigate between different galleries and exhibitions.",
+    "category": "Creation",
+    "subcategory": "Entertainment",
+    "word_count": 75
+  }
+]

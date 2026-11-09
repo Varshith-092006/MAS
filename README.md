@@ -1,211 +1,125 @@
 # MAS — Multi-Agent Software Engineering Team
 
-MAS is a cost-aware multi-agent software engineering research platform designed to reduce token overhead while retaining high software generation quality.
-
-> 🎓 **Final Year Project Submission Bundle:**  
-> Complete documentation, architecture diagrams, testing evidence, and dissertation report are available in the **[`submission/`](./submission/README.md)** directory:
-> - [Project Overview & Problem Statement](./submission/PROJECT_OVERVIEW.md)
-> - [System Architecture & Workflow Specification](./submission/SYSTEM_ARCHITECTURE.md)
-> - [Agent Roles & Responsibilities](./submission/AGENT_RESPONSIBILITIES.md)
-> - [Installation & Operations Manual](./submission/INSTALLATION_AND_OPERATIONS.md)
-> - [Testing Methodology & 201-Test Verification Report](./submission/TESTING_AND_VERIFICATION.md)
-> - [Benchmark Methodology & Empirical Results](./submission/BENCHMARK_METHODOLOGY_AND_RESULTS.md)
-> - [Final Project Report / Dissertation](./submission/FINAL_PROJECT_REPORT.md)
+MAS is a cost-aware multi-agent software engineering research platform designed to minimize language-model invocation and token overhead while maintaining high software generation quality. It is empirically evaluated against ChatDev on the SRDD-20 benchmark using the metrics of the iCoder paper (You et al., *Information and Software Technology* 198 (2026) 108224).
 
 ---
 
-## 1. Research Objective & System Architecture
-
-MAS implements conditional routing, deterministic structural analysis, token-efficient context slicing, and adaptive stopping:
+## 1. Repository Layout
 
 ```
-Requirement
-    │
-    ▼
- Manager ──► Deterministic Complexity Router (0 LLM calls)
-                 │
-                 ├──[Score 0–3: SIMPLE]──────────────┐
-                 │                                   │
-                 └──[Score 4+: STRUCTURED]          │
-                           │                         │
-                           ▼                         │
-                       Architect                     │
-                    (Minimal UML + UserStory)        │
-                           │                         │
-                           ▼                         │
-                      Developer ◄────────────────────┘
-                           │
-                           ▼
-                 CodePatch Generated
-                           │
-                           ▼
-                  Schema Validation (Retry + Rollback)
-                           │
-                           ▼
-                 AST Dependency Analyzer (Cycles & Impact)
-                           │
-                           ▼
-                 MAS Diagnostic Tests (Internal Scope)
-                           │
-                           ▼
-                 Quality Tools (Ruff, Bandit, Radon)
-                           │
-                           ▼
-                 GPT-4o-mini Reviewer (Semantic Only)
-                           │
-                           ▼
-                 Adaptive Stopper (Reflection)
-                           │
-             ┌─────────────┴─────────────┐
-             ▼                           ▼
-        [CONTINUE]                    [STOP]
-      (Context Sliced)             Finalize Run
-                                         │
-                                         ▼
-                            Hidden Neutral Evaluator
-                      (Completeness, Executability, Consistency)
+.
+├── mas/                    # Core MAS implementation
+│   ├── agents/             # Manager, Router, Architect, Developer, Tester, Reviewer
+│   ├── analysis/           # AST cycle/impact analyzer, deterministic repair checker, sandbox runner
+│   ├── core/               # Workflow state machine, governor, rate limiter, proxy, context slicer
+│   └── db/                 # SQLite/PostgreSQL models, session manager, schema
+├── eval/                   # Benchmark evaluation harness
+│   ├── tasks_v2.json       # Pinned 20 canonical SRDD tasks (4 per major category)
+│   ├── category_map.json   # Mapping of 40 SRDD subcategories to 5 iCoder categories
+│   ├── runner.py           # Evaluation runner with preflight, estimation, resume, stop-at-budget
+│   ├── neutral_evaluator.py# Evaluator measuring Completeness, Executability, Consistency, Quality
+│   ├── chatdev_adapter.py  # Pinned ChatDev adapter with Windows UTF-8 and proxy routing
+│   ├── reports.py          # Results CSV exporter and statistics markdown generator
+│   └── stats.py            # Wilcoxon signed-rank, permutation test, bootstrap 95% CIs, Cohen's d
+├── external/
+│   └── ChatDev/            # Pinned ChatDev baseline submodule (commit c1c31e2)
+├── patches/
+│   └── chatdev_local.patch # Clean reproducibility patch for ChatDev against upstream v1.0.0
+├── scripts/
+│   ├── make_report.py      # Unified reporting script (Tables 1-6 in Markdown, LaTeX, CSV, and figures)
+│   ├── setup_chatdev.py    # Automated ChatDev repository setup and patch application
+│   ├── select_tasks.py     # Deterministic task selection and category mapping tool
+│   ├── audit_scores.py     # Historical audit and score validation tool
+│   └── list_models.py      # Available model inspection tool
+├── tests/                  # 269 comprehensive unit and integration tests (100% offline, $0 spend)
+├── archive/                # Archived legacy pilot logs, exploratory reports, and one-off scratch scripts
+├── results.csv             # Official benchmark runs and evaluation metrics
+├── RUN_FINAL.md            # Step-by-step benchmark operator run guide
+├── DECISIONS.md            # Complete architecture and research decision log (DEC-001 through DEC-039)
+├── AGENTS.md               # Strict operational rules and hard constraints for AI agents
+└── config.yaml             # Centralized runtime configuration, rate limits, and token caps
 ```
 
 ---
 
-## 2. Setup & Installation
+## 2. Research Objective & System Architecture
 
-### Local Python Environment (Python 3.11)
-```bash
-# Clone and enter directory
-cd "Final Year Project"
+MAS turns natural-language requirements into working Python software using a token-efficient, quality-gated multi-agent workflow:
 
-# Install editable package and dependencies
-pip install -e .
-
-# Configure environment variables
-cp .env.example .env
-# Set OPENROUTER_API_KEY in .env (Free model 'openrouter/free' enabled by default)
-```
-
-### Docker Compose Startup (Full Stack: PostgreSQL + API + Frontend)
-```bash
-docker compose up -d
-```
-Services started:
-- **API Server & Logging Proxy**: `http://localhost:8000` (Proxy on port `8089`)
-- **PostgreSQL Database**: `localhost:5432` (`mas_db`)
-- **React Run Visualizer Frontend**: `http://localhost:3000`
+1. **Deterministic Complexity Router (Score 0–3: SIMPLE, 4+: STRUCTURED)**: Zero LLM calls. Bypasses the Architect agent on simple tasks.
+2. **Architect Agent (STRUCTURED path only)**: Generates minimal UML class models and structured user stories.
+3. **Developer Agent**: Implements modular Python code formatted with delimiter blocks (`=== FILE: <name> ===\n<code>\n=== END FILE ===`) for resilient parsing.
+4. **Deterministic Repair & Smoke Check**: Inspects AST for syntax errors, stub code (`pass`, `NotImplementedError`, `...`), and smoke test execution before calling other agents.
+5. **Tester Agent**: Generates diagnostic pytest suites; tracebacks are capped to 40 lines and 5 failures to prevent context window blowout.
+6. **Reviewer Agent & Call Reduction**: Performs semantic review against requirements. When deterministic checks, smoke runs, and internal tests pass cleanly on iteration 1, the Reviewer LLM call is safely skipped, reducing clean first-try execution to $\le 3$ LLM calls.
+7. **Adaptive Reflection Loop**: Decides whether to continue refinement or finalize.
+8. **Neutral Evaluator**: Measures software quality externally without leaking task-specific hints:
+   $$\text{Completeness} = 1 - \frac{\text{unimplemented functions}}{\text{total functions}}$$
+   $$\text{Executability} = \text{share of projects running without error}$$
+   $$\text{Consistency} = \text{cosine similarity of requirement and code embeddings}$$
+   $$\text{Quality} = \text{Completeness} \times \text{Executability} \times \text{Consistency}$$
 
 ---
 
-## 3. CLI Commands
+## 3. Free-Tier Google Gemini Benchmark Constraints
 
-### A. Run Single Tasks (Deterministic Fake Model)
-```bash
-# Simple task (bypasses Architect)
-mas run --model fake --task "Write a python calculator that adds two integers"
+This project is constrained to free-tier cloud resources with an authorized spend of **$0.00**:
 
-# Structured task (invokes Architect with UML & User Stories)
-mas run --model fake --task "Build a multi-user inventory system with a SQLite database, user login authentication, admin and staff roles, REST API endpoints, analytics metrics reporting, and an approval workflow lifecycle."
+- **Provider**: Google Gemini API via its OpenAI-compatible endpoint (Google AI Studio).
+- **Pinned Model**: Pinned via the `BENCH_MODEL` environment variable (e.g., a Gemini Flash Lite model).
+- **Hard Quotas & Governor Enforcement**:
+  - Daily Request Limit: 500 requests / day (Governor cap: 450 requests / day with a 10% safety margin).
+  - Rate Limits: 12 requests / minute, 200,000 tokens / minute via `SlidingWindowRateLimiter`.
+  - Quota Reset Time: Midnight Pacific Time (`America/Los_Angeles`).
+  - Per-Run Token Cap: 100,000 provider tokens (fail-closed pre-call gate).
+- **Fair Baseline**:
+  - Both MAS and ChatDev use the identical model, `temperature=0.0`, `seed=42`, and logging proxy on port 8089.
+  - ChatDev requests pass through the same governor and count towards the daily transmission ledger.
 
-# Run from file
-mas run --model fake --file requirement.txt
+---
+
+## 4. Running the Tests
+
+All unit, integration, and regression tests run deterministically with `FakeLLMProvider` without network calls or API usage:
+
+```powershell
+# Set UTF-8 encoding (Windows PowerShell)
+$env:PYTHONUTF8 = "1"
+
+# Run the complete test suite
+python -m pytest tests/ -q
 ```
 
-### B. Run Single Tasks (OpenRouter Models & Free Models)
-```bash
-# Free model arm (Default: openrouter/free, zero API cost)
-mas run --model openrouter/free --task "Build a task manager CLI"
+All **269 tests** pass cleanly offline.
 
-# Specific free model on OpenRouter (e.g., Gemma 4, Llama 3.3, Qwen 2.5 Coder)
-mas run --model google/gemma-4-31b-it:free --task "Build a task manager CLI"
-mas run --model meta-llama/llama-3.3-70b-instruct:free --task "Build a task manager CLI"
+---
 
-# OpenAI models via OpenRouter
-mas run --model openai/gpt-4o --task "Build a task manager CLI"
-mas run --model openai/gpt-4o-mini --task "Build a task manager CLI"
-```
+## 5. Running the Final Benchmark
 
-### C. Inspect Runs, Event Logs, and Metrics
-```bash
-# View run status
-mas status <RUN_ID>
+For complete, step-by-step instructions on preflight verification, Day 1 and Day 2 execution, optional ablations (A1–A4), and report generation, refer to **[`RUN_FINAL.md`](./RUN_FINAL.md)**.
 
-# Stream/view append-only audit event logs
-mas logs <RUN_ID>
+### Quick Commands Summary:
 
-# View recorded metrics (Neutral vs Internal scope)
-mas results <RUN_ID>
-```
+```powershell
+# 1. Preflight Verification (Offline check, 0 quota used)
+python -m eval.runner --preflight
 
-### D. Requirement Change Requests
-```bash
-mas change <RUN_ID> --request "Add discount calculation logic and deprecate the old tax method"
-```
+# 2. Estimate Resources and Timeline (0 quota used)
+python -m eval.runner --estimate --tasks-file eval/tasks_v2.json --tasks 20 --repeats 3
 
-### E. Evaluation Benchmark, Dry Run & Pilot
-```bash
-# Dry run: prints 300 core runs & 8.4M token envelope (0 model calls)
-mas evaluate --dry-run
-# or
-python eval/runner.py --dry-run
+# 3. Execute Resumable Benchmark (Day 1 / Day 2)
+python -m eval.runner --benchmark --live --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 3 --resume --stop-at-budget
 
-# Run 1-Task Pilot (MAS vs ChatDev baseline under identical conditions)
-python eval/runner.py --pilot --model fake
-# Real model pilot:
-# python eval/runner.py --pilot --model gpt-4o
-
-# Main benchmark evaluation (20 tasks x 3 repeats x 2 systems = 120 runs)
-mas evaluate --benchmark srdd20 --system mas --model gpt-4o --repeats 3
-mas evaluate --benchmark srdd20 --system chatdev --model gpt-4o --repeats 3
-
-# Cheaper MAS arm (20 tasks x 3 repeats = 60 runs)
-mas evaluate --benchmark srdd20 --system mas --model gpt-4o-mini --repeats 3
-
-# Ablation experiment (A1–A6 configurations on GPT-4o-mini)
-mas ablate --feature router
-mas ablate --feature ast
-mas ablate --feature context_slicing
-mas ablate --feature cheap_reviewer
-mas ablate --feature adaptive_stop
-mas ablate --feature uml_always_on
+# 4. Generate Reports (Tables 1-6 in Markdown, LaTeX, CSV, and figures)
+python scripts/make_report.py --results results.csv --manifest eval/benchmark_manifest.json --output-dir reports
 ```
 
 ---
 
-## 4. Running the Test Suite
-All 41 unit and integration tests run deterministically with `FakeLLMProvider` without requiring an OpenAI API key:
+## 6. Reproducibility & Research Integrity Guarantees
 
-```bash
-python -m pytest tests -v
-```
-
-Test coverage includes:
-- **ComplexityRouter**: 0 LLM calls, regex features, separator rule, word count, 10 draft diagnostics.
-- **Artifact Schemas & Validator**: All 7 Pydantic schemas, validation error reporting.
-- **Token Logger**: 60,000 hard token cap, cost calculation, provider usage preservation.
-- **AST Analyzer**: DFS cycle detection, synthetic circular dependency ($A \to B \to C \to A$), unresolved imports, transitive reverse-dependency impact set.
-- **Context Slicer**: Planned files in Iteration 1, $\text{changed} \cup \text{impact set}$ in Iteration 2+.
-- **Fault Recovery**: Invalid artifact $\to$ retry once $\to$ rollback $\to$ rerun recovery.
-- **Fault Injection**: F1 malformed UML, F2 incomplete UserStory.
-- **Neutral Evaluator & Scorers**: Completeness, executability, MiniLM embedding consistency, quality product, shared fixed test harness.
-- **Statistics Engine**: Two-sided paired permutation test ($\alpha=0.05$), Cohen's $d$, confidence intervals.
-- **FastAPI Endpoints**: REST endpoints and WebSocket event streaming.
-- **ChatDev Adapter**: Pinned commit adapter through local proxy.
-
----
-
-## 5. React Frontend Visualizer
-
-Access `/runs/:runId` on `http://localhost:3000` to inspect:
-- **RunHeader**: Run ID, system, model, provider tokens, estimated cost.
-- **StatusBanner**: Status badge (`COMPLETED`, `RUNNING`, `FAILED`, `CANCELLED`), complexity route, iteration counter, stop reason.
-- **AgentLog**: Live append-only sequence of agent actions and redactions.
-- **TokenCostChart**: Progress against the 60,000 hard token cap.
-- **MetricsTable**:
-  - **Neutral cross-system metrics**: Quality ($C \times E \times Sim$), Quality per 1k tokens, Completeness, Executability, Consistency, Shared Fixed Test, Ruff, Bandit, Radon.
-  - **MAS internal diagnostics**: pytest pass rate, coverage, adaptive score ($S_t$).
-
----
-
-## 6. Security & Reproducibility Guarantees
-- **No Committed Secrets**: `.env.example` provided; API keys and secrets redacted from event logs.
-- **Isolated Sandbox**: Docker container execution with `--network none`, 512 MB memory limit, 1 CPU, 64 PIDs, read-only base image, writable `/workspace` only, and 30–60s timeout.
-- **Audit Logging**: `agent_events` table is append-only.
-- **Reproducibility**: Run config snapshots store model version, seed 42, temperature 0, library versions, Docker image tag, and SHA-256 hash of `eval/checks/level2_checks.json`.
+- **Rule 1 (Zero Fabricated Results)**: If an experimental table cell has no empirical data, it strictly displays "NOT RUN".
+- **Rule 2 (No Task-Specific Prompts)**: Agent prompts work generically for any requirement without domain keywords from any specific SRDD task.
+- **Rule 3 (No Metric Inflation)**: Requirement text is never copied into comments or docstrings to artificially inflate consistency.
+- **Rule 4 (Honest Counting)**: The first non-infra attempt is official; quality failures count as Quality = 0.0. Retries are permitted only for infrastructure errors (HTTP 429, daily quota ceiling).
+- **Rule 5 (Simulation Guard)**: Simulated and fake-provider runs are strictly labeled `SIMULATION_ONLY` and are excluded from all empirical tables, summaries, and hypothesis tests.

@@ -679,6 +679,25 @@ This document tracks architectural decisions, source precedence, specification c
 - **Source**: Phase 6 Reporting and Run Guide Mandate.
 - **Impact**: 269/269 passing unit tests (2 new tests in `tests/test_phase6_make_report.py`).
 
+---
+
+### Record: Phase 7 Clean Up and Repository Hygiene
+
+- **ID**: DEC-040
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **Archive Directory Creation & File Movement (Zero Deletions)**:
+     - Established `archive/` directory preserving full git history without any file deletions.
+     - Moved legacy scratch exploration scripts into `archive/scratch/`.
+     - Moved historical experiment backup snapshots into `archive/backups/`.
+     - Moved 22 legacy phase reports (`PHASE_2*.md`), legacy methodology documents, and transfer verification files into `archive/`. Preserved `submission/` directory intact.
+  2. **README Overhaul**:
+     - Modernized `README.md` to reflect the current architecture, complete repository layout, 100% offline test suite instructions (269 tests), and reference to `RUN_FINAL.md` for benchmark operations.
+     - Documented free-tier Google Gemini rate limits (500 daily requests, 12 RPM, 200k TPM, Midnight Pacific rollover) and core research integrity guarantees.
+- **Source**: Phase 7 Clean Up Mandate.
+- **Impact**: 269/269 passing unit tests; clean, professional repository layout.
+
+
 
 
 

@@ -22,8 +22,11 @@ This document provides the exact, step-by-step procedure to execute the empirica
      $env:PROVIDER_API_KEY = "your-api-key-here"
      $env:PROVIDER_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
      
-     # Pinned Benchmark Model ID (e.g. gemini-2.0-flash-lite or your chosen Lite model)
-     $env:BENCH_MODEL = "gemini-2.0-flash-lite"
+     # Do NOT guess model IDs. Run list_models.py to inspect exact available models:
+     python scripts/list_models.py
+     
+     # Set BENCH_MODEL to the exact Flash Lite model ID reported (e.g. gemini-2.5-flash-lite or exact listed model)
+     $env:BENCH_MODEL = "<exact-model-id-from-list_models>"
      ```
    - If using OpenRouter:
      ```powershell
@@ -69,10 +72,10 @@ If any check reports `[FAIL]`, resolve it before proceeding.
 
 ## Step 2: Day 1 Benchmark Execution
 
-Start the official Day 1 benchmark run. The runner automatically stops cleanly when daily budget headroom is reached:
+Start the official Day 1 benchmark run across 20 tasks with `--repeats 1`, `--systems mas,chatdev`, and `--require-embeddings`. The runner automatically stops cleanly when daily budget headroom is reached:
 
 ```powershell
-python -m eval.runner --benchmark --live --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 3 --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 ```
 
 ### What to Expect:
@@ -95,7 +98,7 @@ After midnight Pacific Time (America/Los_Angeles), the quota ledger automaticall
 Run the exact same command to resume where Day 1 stopped:
 
 ```powershell
-python -m eval.runner --benchmark --live --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 3 --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 ```
 
 ### Why Resume is Safe:
@@ -181,3 +184,4 @@ git commit -m "Benchmark: Completed official empirical comparison on SRDD-20"
   python -m eval.runner --task-id srdd_educ_01 --repeat-no 1 --live --model $env:BENCH_MODEL
   ```
 - The runner resolves the next sequential attempt ID (e.g. `attempt2`) without overwriting previous historical logs.
+

@@ -164,7 +164,7 @@ class ProviderQuotaGovernor:
         self,
         internal_daily_cap: Optional[int] = None,
         max_calls_per_run: int = 15,
-        max_tokens_per_run: int = 60000,
+        max_tokens_per_run: Optional[int] = None,
         ledger_path: Optional[str] = None,
         requests_per_minute: Optional[int] = None,
         tokens_per_minute: Optional[int] = None,
@@ -177,8 +177,10 @@ class ProviderQuotaGovernor:
             from mas.core.config import get_config
             cfg = get_config()
             p_cfg = cfg.get("provider", {})
+            l_cfg = cfg.get("limits", {})
         except Exception:
             p_cfg = {}
+            l_cfg = {}
 
         daily_limit = int(p_cfg.get("daily_request_limit", 500))
         s_margin = float(p_cfg.get("safety_margin", 0.10)) if safety_margin is None else float(safety_margin)
@@ -186,7 +188,7 @@ class ProviderQuotaGovernor:
 
         self.internal_daily_cap = internal_daily_cap if internal_daily_cap is not None else effective_cap
         self.max_calls_per_run = max_calls_per_run
-        self.max_tokens_per_run = max_tokens_per_run
+        self.max_tokens_per_run = max_tokens_per_run if max_tokens_per_run is not None else int(l_cfg.get("max_tokens_per_run", 100000))
         self.requests_per_minute = requests_per_minute if requests_per_minute is not None else int(p_cfg.get("requests_per_minute", 12))
         self.tokens_per_minute = tokens_per_minute if tokens_per_minute is not None else int(p_cfg.get("tokens_per_minute", 200000))
         self.quota_timezone = quota_timezone or p_cfg.get("quota_timezone", "America/Los_Angeles")

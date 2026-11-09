@@ -92,6 +92,16 @@ class TesterAgent(BaseAgent):
                     data["failed_tests"] = max(1, data.get("failed_tests", 0) + 1)
                     data["pass_rate"] = round(data.get("passed_tests", 0) / (data["passed_tests"] + data["failed_tests"]), 4)
                     data.setdefault("details", []).append(f"Sandbox smoke execution failed: {sandbox_res.stderr[:100]}")
+
+                # Change 5: Trim failing assertion output to max 40 lines and max 5 items
+                raw_details = data.get("details", [])
+                if isinstance(raw_details, list):
+                    trimmed_details = []
+                    for item in raw_details[:5]:
+                        lines = str(item).splitlines()
+                        trimmed_details.append("\n".join(lines[:40]))
+                    data["details"] = trimmed_details
+
                 return data
 
             # Return error payload to trigger produce_valid_artifact retry mechanism

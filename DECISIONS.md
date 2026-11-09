@@ -570,7 +570,33 @@ This document tracks architectural decisions, source precedence, specification c
 
 ---
 
-### Record: Phase 3 Task Set, Honest Counting, Statistics, and Ablations
+### Record: Phase 4 Quality Improvement and Call Reduction (Generic Only)
+
+- **ID**: DEC-037
+- **Date**: 2026-11-09
+- **Decision**:
+  1. **Unified Token Cap (100,000 tokens)**:
+     - Unified `limits.max_tokens_per_run: 100000` in `config.yaml`.
+     - Removed hardcoded 60,000 token defaults from `mas/core/llm.py`, `mas/core/governor.py`, and `eval/runner.py`.
+     - Parameterized token boundary test suites (`test_phase2aa_budget_and_chatdev.py`, `test_phase2y_token_budget_and_evidence.py`) to dynamically test against `token_logger.max_tokens_per_run`.
+  2. **Delimiter Blocks Format for Developer**:
+     - Switched Developer code generation prompt to structured delimiter blocks (`=== FILE: <filename> ===\n<code>\n=== END FILE ===`) with robust parsing handling markdown preambles, missing end markers, and raw code text without escaping errors. Maintained JSON parsing as backward-compatible fallback.
+  3. **Deterministic Repair & Smoke Check (`mas/analysis/deterministic_checker.py`)**:
+     - Implemented `DeterministicRepairChecker.run_checks` inspecting code for missing `main.py`, AST syntax errors, stub implementations (`NotImplementedError`, lone `pass`, ellipsis `...`), and smoke execution crashes.
+     - Added targeted repair loop in `DeveloperAgent.targeted_repair` to fix deterministic issues without spending a full multi-agent iteration.
+  4. **Skip Reviewer on Clean Execution**:
+     - In `mas/core/workflow.py`, when deterministic checks pass, smoke run passes, and internal tests pass with zero failures, skipped calling the Reviewer LLM. Emits a synthetic `ReviewReport(status="PASSED", critical_issues=0)`. Saves 1 LLM call per run.
+  5. **Tester Assertion Truncation**:
+     - In `mas/agents/tester.py`, truncated test failure traceback and output details to at most 40 lines and max 5 test failure details to prevent prompt bloat.
+  6. **Prompt Hygiene & Token Cap Management**:
+     - Capped prompt lists (subtasks, architecture files, review findings, reflection items) to the latest 5 entries.
+  7. **Call Tracking & Efficiency Verification**:
+     - Added `llm_calls` accounting to `TokenLogger`, persisted across `results.csv` and manifest summaries.
+     - On clean first-try execution, total LLM calls $\le 3$ (Manager 1, Developer 1, Tester 1).
+- **Source**: Phase 4 Quality Improvement and Call Reduction Mandate.
+- **Impact**: 260/260 passing unit and regression tests (9 new tests in `tests/test_phase4_quality_and_call_reduction.py`).
+- **Risks**: Skipping Reviewer on clean runs could miss subtle domain logic discrepancies if internal tests are shallow; mitigated by triggering Reviewer whenever any smoke test or assertion fails.
+
 
 - **ID**: DEC-036
 - **Date**: 2026-11-09

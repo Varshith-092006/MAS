@@ -247,6 +247,20 @@ class MASWorkflow:
                 # Developer generates CodePatch & applies to workspace
                 state = dev.run(state)
 
+                # Deterministic repair before extra LLM call (Change 3)
+                det_repair_cfg = cfg.get("quality_improvements", {}).get("deterministic_repair", True)
+                from mas.analysis.deterministic_checker import DeterministicRepairChecker
+                det_errors = DeterministicRepairChecker.run_checks(workspace_path)
+                if det_errors and det_repair_cfg:
+                    event_logger.emit(
+                        run_id=run_id,
+                        agent="developer",
+                        event="deterministic_repair_requested",
+                        summary=f"Found {len(det_errors)} deterministic defects; dispatching 1 targeted repair",
+                    )
+                    state = dev.targeted_repair(state, det_errors)
+                    det_errors = DeterministicRepairChecker.run_checks(workspace_path)
+
                 # Deterministic AST structural analysis
                 ast_rep = self.ast_analyzer.analyze_workspace(workspace_path)
                 state["ast_report"] = ast_rep
@@ -264,8 +278,36 @@ class MASWorkflow:
                 # Internal MAS pytest diagnostics & sandbox execution
                 state = tester.run(state)
 
-                # Semantic review examining code, static analysis, and test outcomes
-                state = reviewer.run(state)
+                # Semantic review: skip unnecessary LLM review if clean (Change 4)
+                skip_review_cfg = cfg.get("quality_improvements", {}).get("skip_unnecessary_review", True)
+                test_rep = state.get("mas_pytest_report", {})
+                smoke_exec = state.get("sandbox_execution", {})
+                is_clean = (
+                    not det_errors
+                    and smoke_exec.get("is_success", False)
+                    and q_rep.get("bandit", {}).get("high", 0) == 0
+                    and test_rep.get("pass_rate", 0.0) == 1.0
+                    and test_rep.get("failed_tests", 0) == 0
+                )
+
+                if is_clean and skip_review_cfg and not a3_disable_grounded_review and active_ablation != "A3":
+                    state["review_report"] = {
+                        "status": "PASSED",
+                        "critical_issues": 0,
+                        "major_issues": 0,
+                        "minor_issues": 0,
+                        "findings": [],
+                        "summary": "Deterministic checks, smoke run, and internal tests all passed clean; skipped LLM review.",
+                    }
+                    state["artifacts"]["ReviewReport"] = state["review_report"]
+                    event_logger.emit(
+                        run_id=run_id,
+                        agent="reviewer",
+                        event="call_skipped",
+                        summary="Reviewer LLM call skipped: all deterministic checks and tests passed clean",
+                    )
+                else:
+                    state = reviewer.run(state)
 
                 # Reflection & Adaptive Stopper
                 state = reflection.run(state)

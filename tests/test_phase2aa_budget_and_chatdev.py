@@ -40,14 +40,15 @@ def reset_token_logger_state():
 def test_prompt_consumes_most_of_remaining_budget():
     """When a prompt consumes most remaining budget leaving < 50 tokens, it must be blocked before dispatch."""
     run_id = "test_run_prompt_heavy"
-    # Pre-record 59,500 tokens (remaining allowance = 500 tokens)
+    # Pre-record tokens leaving 500 tokens allowance
+    cap = token_logger.max_tokens_per_run
     res_prior = ModelResult(
         text="code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
-        output_tokens=19500,
-        total_tokens=59500,
+        input_tokens=cap - 20500,
+        output_tokens=20000,
+        total_tokens=cap - 500,
         latency_ms=10,
         request_id="req1",
         estimated_cost=0.0,
@@ -74,14 +75,15 @@ def test_prompt_consumes_most_of_remaining_budget():
 def test_prompt_tokens_plus_requested_completion_exceeding_allowance():
     """Prompt tokens + requested completion exceeding remaining allowance clamps completion allowance."""
     run_id = "test_run_clamped_completion"
-    # Pre-record 58,000 tokens (remaining = 2,000 tokens)
+    # Pre-record tokens leaving 2,000 tokens allowance
+    cap = token_logger.max_tokens_per_run
     res_prior = ModelResult(
         text="code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
-        output_tokens=18000,
-        total_tokens=58000,
+        input_tokens=cap - 22000,
+        output_tokens=20000,
+        total_tokens=cap - 2000,
         latency_ms=10,
         request_id="req1",
         estimated_cost=0.0,
@@ -129,14 +131,15 @@ def test_prompt_tokens_plus_requested_completion_exceeding_allowance():
 def test_remaining_budget_too_small_for_safe_request():
     """If remaining budget is < 50 tokens, it must be fail-closed blocked before dispatch."""
     run_id = "test_run_too_small"
-    # Pre-record 59,960 tokens (remaining = 40 tokens)
+    # Pre-record tokens leaving 40 tokens allowance
+    cap = token_logger.max_tokens_per_run
     res_prior = ModelResult(
         text="code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
-        output_tokens=19960,
-        total_tokens=59960,
+        input_tokens=cap - 20040,
+        output_tokens=20000,
+        total_tokens=cap - 40,
         latency_ms=10,
         request_id="req1",
         estimated_cost=0.0,
@@ -195,16 +198,17 @@ def test_reservation_and_accounting_across_multiple_calls():
 
 
 def test_provider_reporting_more_tokens_than_estimate():
-    """If provider returns more tokens than estimated pushing total over 60,000, TokenCapExceededError is raised."""
+    """If provider returns more tokens than estimated pushing total over cap, TokenCapExceededError is raised."""
     run_id = "test_run_overreport"
-    # Pre-record 55,000 tokens
+    # Pre-record tokens leaving 5,000 tokens allowance
+    cap = token_logger.max_tokens_per_run
     res_prior = ModelResult(
         text="code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=35000,
+        input_tokens=cap - 25000,
         output_tokens=20000,
-        total_tokens=55000,
+        total_tokens=cap - 5000,
         latency_ms=10,
         request_id="req1",
         estimated_cost=0.0,
@@ -220,7 +224,7 @@ def test_provider_reporting_more_tokens_than_estimate():
             "id": "gen-huge",
             "model": "cohere/north-mini-code:free",
             "choices": [{"message": {"role": "assistant", "content": "unexpectedly verbose output"}}],
-            # Reports 6,000 tokens when remaining was only 5,000 -> 55,000 + 6,000 = 61,000 > 60,000!
+            # Reports 6,000 tokens when remaining was only 5,000 -> cap + 1,000 > cap!
             "usage": {"prompt_tokens": 1000, "completion_tokens": 5000, "total_tokens": 6000},
         }
         return mock_resp
@@ -239,19 +243,20 @@ def test_provider_reporting_more_tokens_than_estimate():
                 max_tokens=2000,
             )
 
-    assert "exceeded token cap: 61000 > 60000" in str(exc_info.value)
+    assert f"exceeded token cap: {cap + 1000} > {cap}" in str(exc_info.value)
 
 
 def test_no_generation_request_dispatched_after_gate_rejects():
     """Verifies that no HTTP request is dispatched when the token budget gate rejects a request."""
     run_id = "test_run_no_dispatch"
+    cap = token_logger.max_tokens_per_run
     res_prior = ModelResult(
         text="code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
+        input_tokens=cap - 20000,
         output_tokens=20000,
-        total_tokens=60000,
+        total_tokens=cap,
         latency_ms=10,
         request_id="req1",
         estimated_cost=0.0,

@@ -418,11 +418,11 @@ def test_gate_b_reviewer_catches_defect_and_developer_fixes(tmp_path):
                 current_iter = iter_tracker["iteration"]
                 iter_tracker["iteration"] += 1
                 if current_iter == 1:
-                    # Deliberate broken code in iteration 1
+                    # Deliberate semantic bug in iteration 1
                     patch = {
                         "files": ["main.py"],
                         "file_contents": {
-                            "main.py": "def solve():\n    raise NotImplementedError('Bug in iter 1')\n\nif __name__ == '__main__':\nsolve()\n",
+                            "main.py": "def solve():\n    return 0  # Semantic defect: returns 0 instead of 42\n\nif __name__ == '__main__':\n    print(solve())\n",
                         },
                         "summary": "Incomplete broken patch",
                         "tests_expected": [],
@@ -451,17 +451,53 @@ def test_gate_b_reviewer_catches_defect_and_developer_fixes(tmp_path):
                     parsed_json=patch,
                 )
 
+            elif response_schema and response_schema.__name__ == "TestReport":
+                current_iter = iter_tracker["iteration"]
+                if current_iter <= 2:
+                    rep = {
+                        "passed": False,
+                        "total_tests": 1,
+                        "passed_tests": 0,
+                        "failed_tests": 1,
+                        "errors": 0,
+                        "failures": ["test_solve failed: expected 42, got 0"],
+                        "coverage": 80.0,
+                    }
+                else:
+                    rep = {
+                        "passed": True,
+                        "total_tests": 1,
+                        "passed_tests": 1,
+                        "failed_tests": 0,
+                        "errors": 0,
+                        "failures": [],
+                        "coverage": 100.0,
+                    }
+                import json
+                return ModelResult(
+                    text=json.dumps(rep),
+                    model_name="fake",
+                    provider_model_version="fake-v1",
+                    input_tokens=10,
+                    output_tokens=20,
+                    total_tokens=30,
+                    latency_ms=5,
+                    request_id="req-test",
+                    estimated_cost=0.0,
+                    parsed_json=rep,
+                )
+
             elif response_schema and response_schema.__name__ == "ReviewReport":
-                # Check if the code in user message has NotImplementedError
+                # Check if the code in user message has semantic bug (return 0)
                 user_content = next((m.get("content", "") for m in messages if m.get("role") == "user"), "")
-                if "raise NotImplementedError" in user_content:
+                if "return 0" in user_content:
                     rep = {
                         "status": "FAILED",
                         "critical_issues": 1,
                         "major_issues": 0,
                         "minor_issues": 0,
-                        "findings": ["Function raises NotImplementedError"],
-                        "summary": "Code does not execute properly.",
+                        "findings": ["Function returns 0 instead of required value 42"],
+                        "summary": "Code does not satisfy requirements.",
                     }
                 else:
                     rep = {

@@ -20,7 +20,7 @@ router:
   simple_max: 3
 
 limits:
-  max_tokens_per_run: 60000
+  max_tokens_per_run: 100000
   run_timeout_minutes: 20
   sandbox_execution_timeout_seconds: 45
 
@@ -60,5 +60,14 @@ ablation:
   a2_disable_slicing: false
   a3_disable_grounded_review: false
   a4_single_iteration: false
+
+quality_improvements:
+  delimiter_blocks: true
+  deterministic_repair: true
+  skip_unnecessary_review: true
+  test_driven_repair: true
+  prompt_hygiene: true
+  call_budget_optimization: true
+
 
 

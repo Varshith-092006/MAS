@@ -406,9 +406,15 @@ class DailyTransmissionsCeilingExceededError(Exception):
 
 
 class TokenLogger:
-    """Tracks provider token usage per run and enforces the 60,000 cap with DB persistence."""
+    """Tracks provider token usage per run and enforces the configured cap with DB persistence."""
 
-    def __init__(self, max_tokens_per_run: int = 60000):
+    def __init__(self, max_tokens_per_run: Optional[int] = None):
+        if max_tokens_per_run is None:
+            try:
+                from mas.core.config import get_config
+                max_tokens_per_run = get_config().get("limits", {}).get("max_tokens_per_run", 100000)
+            except Exception:
+                max_tokens_per_run = 100000
         self.max_tokens_per_run = max_tokens_per_run
         self._run_totals: Dict[str, Dict[str, Any]] = {}
         self._reservations: Dict[str, Dict[str, Any]] = {}
@@ -499,6 +505,7 @@ class TokenLogger:
                     "total_tokens": tot_tok,
                     "estimated_cost": round(cost, 6),
                     "call_count": len(calls),
+                    "llm_calls": len(calls),
                     "token_provenance": prov,
                 }
                 self._run_totals[run_id] = totals
@@ -514,6 +521,7 @@ class TokenLogger:
                     "total_tokens": run_row.total_tokens or 0,
                     "estimated_cost": round(run_row.estimated_cost or 0.0, 6),
                     "call_count": 1,
+                    "llm_calls": 1,
                     "token_provenance": run_row.token_provenance or "UNAVAILABLE",
                 }
                 self._run_totals[run_id] = totals
@@ -530,6 +538,7 @@ class TokenLogger:
             "total_tokens": 0,
             "estimated_cost": 0.0,
             "call_count": 0,
+            "llm_calls": 0,
             "token_provenance": "UNAVAILABLE",
         }
 
@@ -551,6 +560,7 @@ class TokenLogger:
                     "total_tokens": 0,
                     "estimated_cost": 0.0,
                     "call_count": 0,
+                    "llm_calls": 0,
                     "token_provenance": result.token_provenance,
                 }
 
@@ -565,6 +575,7 @@ class TokenLogger:
             if result.estimated_cost is not None:
                 totals["estimated_cost"] = round(totals["estimated_cost"] + result.estimated_cost, 6)
             totals["call_count"] += 1
+            totals["llm_calls"] = totals["call_count"]
             totals["token_provenance"] = result.token_provenance
 
             # Persist to database

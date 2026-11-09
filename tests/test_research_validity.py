@@ -610,7 +610,8 @@ def test_25_all_workflow_agents_follow_model_policy_including_skipped_architect(
     assert "manager" in agent_names_called
     assert "developer" in agent_names_called
     assert "tester" in agent_names_called
-    assert "reviewer" in agent_names_called
+    # Phase 4 Change 4: Reviewer is skipped on clean first-try execution to conserve LLM calls
+    assert "reviewer" not in agent_names_called, "Reviewer must be skipped on clean run"
 
     # Verify every LLM call used the exact configured model
     for call in recorded_calls:

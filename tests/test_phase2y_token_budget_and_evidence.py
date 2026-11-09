@@ -97,15 +97,16 @@ def test_post_limit_generation_blocking():
     """Test 2: Provider refuses to generate once token cap has been reached or exceeded."""
     from mas.core.llm import token_logger
     run_id = "test_blocked_run"
+    cap = token_logger.max_tokens_per_run
 
-    # Pre-populate run with 60,000 tokens
+    # Pre-populate run with cap tokens
     res_max = ModelResult(
         text="heavy_code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
+        input_tokens=cap - 20000,
         output_tokens=20000,
-        total_tokens=60000,
+        total_tokens=cap,
         latency_ms=25,
         request_id="req_max",
         estimated_cost=0.0,
@@ -120,7 +121,7 @@ def test_post_limit_generation_blocking():
             run_id=run_id,
             agent_name="tester",
         )
-    assert "reached per-run token ceiling of 60000 tokens" in str(exc_info.value)
+    assert f"reached per-run token ceiling of {cap} tokens" in str(exc_info.value)
 
 
 def test_manifest_pairing_excludes_over_budget_run(tmp_path):
@@ -206,19 +207,20 @@ def test_evaluator_score_determinism(tmp_path):
 
 
 def test_pre_call_budget_gate_constrains_max_tokens():
-    """Test 5: Pre-call budget gate constrains requested max_tokens to the remaining run allowance under 60k."""
+    """Test 5: Pre-call budget gate constrains requested max_tokens to the remaining run allowance under cap."""
     from mas.core.llm import OpenRouterProvider, token_logger, ModelResult
     from unittest.mock import patch, MagicMock
 
     run_id = "test_constrained_tokens_run"
-    # Pre-record 58,500 tokens for this run (leaving 1,500 tokens before 60k limit)
+    cap = token_logger.max_tokens_per_run
+    # Pre-record tokens leaving 1,500 tokens before limit
     res_prior = ModelResult(
         text="prior_code",
         model_name="fake",
         provider_model_version="v1",
-        input_tokens=40000,
+        input_tokens=cap - 20000,
         output_tokens=18500,
-        total_tokens=58500,
+        total_tokens=cap - 1500,
         latency_ms=20,
         request_id="req_prior",
         estimated_cost=0.0,

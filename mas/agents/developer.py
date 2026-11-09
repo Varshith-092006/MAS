@@ -1,13 +1,71 @@
-"""Developer Agent: Writes code and outputs CodePatch artifacts."""
+"""Developer Agent: Writes code and outputs CodePatch artifacts using delimiter blocks or JSON."""
 
+import ast
 import os
-from typing import Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
 import uuid
 
 from mas.agents.base import BaseAgent
 from mas.core.schemas import CodePatch
 from mas.core.state import MASState
 from mas.core.events import event_logger
+
+
+def parse_delimiter_blocks(text: str) -> Optional[Dict[str, Any]]:
+    """Parses source files from delimiter block format:
+    === FILE: <filename> ===
+    <raw code>
+    === END FILE ===
+
+    Robust to:
+    - Reasoning text before the first marker
+    - Multiple files
+    - Missing END FILE marker (recovers up to next FILE or EOF)
+    - Code with quotes, backslashes, and markdown code fences
+    """
+    if not text or "=== FILE:" not in text:
+        return None
+
+    header_pattern = re.compile(r"===\s*FILE:\s*([a-zA-Z0-9_\-\.\/]+)\s*===", re.IGNORECASE)
+    matches = list(header_pattern.finditer(text))
+    if not matches:
+        return None
+
+    file_contents = {}
+    for i, m in enumerate(matches):
+        fname = os.path.basename(m.group(1).strip())
+        content_start = m.end()
+        if i + 1 < len(matches):
+            chunk = text[content_start:matches[i + 1].start()]
+        else:
+            chunk = text[content_start:]
+
+        end_marker = re.search(r"===\s*END\s+FILE\s*===", chunk, re.IGNORECASE)
+        if end_marker:
+            code = chunk[:end_marker.start()]
+        else:
+            code = chunk
+
+        code_str = code.strip()
+        if code_str.startswith("```"):
+            first_line_end = code_str.find("\n")
+            if first_line_end != -1:
+                code_str = code_str[first_line_end + 1:]
+            if code_str.endswith("```"):
+                code_str = code_str[:-3].rstrip()
+
+        file_contents[fname] = code_str
+
+    if not file_contents:
+        return None
+
+    return {
+        "files": list(file_contents.keys()),
+        "file_contents": file_contents,
+        "summary": f"Extracted {len(file_contents)} files from delimiter blocks",
+        "tests_expected": ["Execute main.py entry point and verify outputs"],
+    }
 
 
 class DeveloperAgent(BaseAgent):
@@ -32,6 +90,87 @@ class DeveloperAgent(BaseAgent):
 
         return changed
 
+    def targeted_repair(self, state: MASState, errors: List[str]) -> MASState:
+        """Sends ONE targeted repair prompt containing only failing files and error text."""
+        run_id = state.get("run_id", str(uuid.uuid4()))
+        workspace = state.get("workspace_path", f"./workspace/{run_id}")
+
+        event_logger.emit(
+            run_id=run_id,
+            agent="developer",
+            event="agent_started",
+            summary=f"Developer performing targeted deterministic repair ({len(errors)} issues)",
+        )
+
+        failing_files = {}
+        if os.path.exists(workspace):
+            for fn in os.listdir(workspace):
+                if fn.endswith(".py"):
+                    fp = os.path.join(workspace, fn)
+                    try:
+                        with open(fp, "r", encoding="utf-8") as fh:
+                            failing_files[fn] = fh.read()
+                    except Exception:
+                        pass
+
+        repair_prompt = (
+            f"The following deterministic checks failed:\n"
+            + "\n".join(f"- {e}" for e in errors[:5])
+            + "\n\nCurrent code in failing files:\n"
+            + "\n\n".join(f"=== {fn} ===\n{code}" for fn, code in failing_files.items())
+            + "\n\nFix ONLY these defects and provide complete, corrected files using delimiter blocks:\n"
+            "=== FILE: <filename> ===\n<corrected code>\n=== END FILE ===\n"
+        )
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are DeveloperAgent. Fix the specific deterministic errors identified. "
+                    "Output complete, production-ready, corrected files using delimiter blocks: "
+                    "=== FILE: <filename> ===\n<code>\n=== END FILE ==="
+                ),
+            },
+            {"role": "user", "content": repair_prompt},
+        ]
+
+        target_model = state.get("model") or getattr(self.llm, "default_model", None)
+        res = self.llm.generate(
+            messages=messages,
+            model=target_model,
+            response_schema=CodePatch,
+            run_id=run_id,
+            agent_name="developer",
+            max_tokens=4000,
+        )
+
+        data = parse_delimiter_blocks(res.text)
+        if not data and res.parsed_json:
+            data = res.parsed_json
+        if not data and res.text:
+            from mas.core.llm import extract_json
+            data = extract_json(res.text)
+
+        if data and isinstance(data, dict) and "file_contents" in data:
+            files_list = data.get("files") or list(data["file_contents"].keys())
+            patch = CodePatch(
+                files=files_list,
+                file_contents=data["file_contents"],
+                summary=data.get("summary", "Targeted repair patch applied"),
+                tests_expected=data.get("tests_expected", ["Run main.py entry point"]),
+            )
+            changed = self.apply_patch(patch, workspace)
+            state["changed_files"] = changed
+            state["artifacts"]["CodePatch"] = patch.model_dump()
+            event_logger.emit(
+                run_id=run_id,
+                agent="developer",
+                event="agent_completed",
+                summary=f"Targeted repair applied: {len(changed)} files updated ({', '.join(changed)})",
+            )
+
+        return state
+
     def run(self, state: MASState) -> MASState:
         run_id = state.get("run_id", str(uuid.uuid4()))
         workspace = state.get("workspace_path", f"./workspace/{run_id}")
@@ -48,15 +187,14 @@ class DeveloperAgent(BaseAgent):
             req = state.get("requirement", "")
             plan = state.get("artifacts", {}).get("TaskPlan", {})
             acceptance_criteria = plan.get("acceptance_criteria", [])
-            sprint_goals = plan.get("sprint_goals", [])
             arch = state.get("artifacts", {}).get("Architecture") or state.get("architecture", {})
             user_story = state.get("artifacts", {}).get("UserStory", {})
             if user_story and not acceptance_criteria:
                 acceptance_criteria = user_story.get("acceptance_criteria", [])
-            sprint_goals = plan.get("sprint_goals", [])
             uml_slice = state.get("relevant_uml", [])
-            review_feedback = state.get("review_report", {}).get("findings", [])
-            test_feedback = state.get("mas_pytest_report", {}).get("details", [])
+            # Cap review findings to latest 5 items for prompt hygiene
+            review_feedback = (state.get("review_report", {}).get("findings", []))[-5:]
+            test_feedback = (state.get("mas_pytest_report", {}).get("details", []))[-5:]
             sandbox_err = state.get("sandbox_execution", {}).get("stderr", "")
 
             prompt_sections = [
@@ -74,7 +212,7 @@ class DeveloperAgent(BaseAgent):
             if test_feedback:
                 prompt_sections.append("Test Diagnostics:\n" + "\n".join(f"- {t}" for t in test_feedback) + "\n")
             if sandbox_err:
-                prompt_sections.append(f"Sandbox Error:\n{sandbox_err}\n")
+                prompt_sections.append(f"Sandbox Error:\n{sandbox_err[:300]}\n")
             if feedback:
                 prompt_sections.append(f"Validator Feedback:\n{feedback}\n")
 
@@ -85,17 +223,11 @@ class DeveloperAgent(BaseAgent):
                 "- Do NOT use trivial stubs, 'pass', or placeholder comments.\n"
                 "- When input cannot be resolved, handle bad input cleanly without raising uncaught exceptions or crashing.\n"
                 "- When the task specifies automated tests (e.g. test_main.py), generate test_main.py alongside main.py.\n\n"
-                "Return a single JSON object matching this schema:\n"
-                "{\n"
-                '  "files": ["main.py", "test_main.py"],\n'
-                '  "file_contents": {\n'
-                '    "main.py": "<complete python code for main.py>",\n'
-                '    "test_main.py": "<complete python code for test_main.py>"\n'
-                '  },\n'
-                '  "summary": "Implementation summary",\n'
-                '  "tests_expected": ["test case 1", "test case 2"]\n'
-                "}\n\n"
-                "Generate the CodePatch JSON now starting immediately with '{' and ending with '}':"
+                "Format your output using delimiter blocks for each file:\n"
+                "=== FILE: main.py ===\n"
+                "<complete python code for main.py>\n"
+                "=== END FILE ===\n\n"
+                "(If additional files or tests are needed, include additional === FILE: <filename> === blocks).\n"
             )
             prompt = "\n".join(prompt_sections)
 
@@ -103,13 +235,13 @@ class DeveloperAgent(BaseAgent):
                 {
                     "role": "system",
                     "content": (
-                        "You are DeveloperAgent. Output ONLY a valid JSON object matching the CodePatch schema, starting with { and ending with }.\n"
-                        "Mandatory instructions:\n"
-                        "1. Return ONLY a single valid JSON object matching the CodePatch schema.\n"
-                        "2. Do NOT output any conversational preamble, chain-of-thought analysis, or markdown outside the JSON.\n"
-                        "3. Generate complete, production-ready, executable Python code with entry point in main.py.\n"
-                        "4. The code must strictly satisfy the task requirements and all acceptance criteria without placeholders.\n"
-                        "5. Ensure the complete JSON object is properly closed."
+                        "You are DeveloperAgent. Output complete, production-ready, executable Python code with entry point in main.py.\n"
+                        "Format each file using delimiter blocks:\n"
+                        "=== FILE: <filename> ===\n"
+                        "<raw code>\n"
+                        "=== END FILE ===\n"
+                        "Do NOT use placeholders, pass-only stubs, or TODO comments.\n"
+                        "Return complete, functional code."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -124,6 +256,13 @@ class DeveloperAgent(BaseAgent):
                 agent_name="developer",
                 max_tokens=4000,
             )
+
+            # 1. First priority: Delimiter blocks format
+            block_data = parse_delimiter_blocks(res.text)
+            if block_data:
+                return block_data
+
+            # 2. Second priority: parsed JSON or extracted JSON
             data = res.parsed_json
             if not data and res.text:
                 from mas.core.llm import extract_json
@@ -132,9 +271,7 @@ class DeveloperAgent(BaseAgent):
             if data and isinstance(data, dict) and "files" in data and "file_contents" in data:
                 return data
 
-            # Fallback 1: Extract multi-file markdown code blocks
-            import re
-            import ast
+            # 3. Third priority: Extract multi-file markdown code blocks
             file_pattern = re.compile(
                 r"(?:#{1,4}\s*[`*]*([a-zA-Z0-9_\-\.\/]+\.py)[`*]*|(?:\*\*|`)([a-zA-Z0-9_\-\.\/]+\.py)(?:\*\*|`):?|#\s*(?:file|filename):\s*([a-zA-Z0-9_\-\.\/]+\.py))\s*\n[\s\S]*?```(?:python)?\s*([\s\S]*?)(?:```|$)",
                 re.IGNORECASE,
@@ -159,7 +296,7 @@ class DeveloperAgent(BaseAgent):
                         "tests_expected": ["Execute main.py entry point and verify outputs"],
                     }
 
-            # Fallback 2: Single python code block
+            # 4. Fourth priority: Single python code block
             code_match = re.search(r"```(?:python)?\s*([\s\S]*?)(?:```|$)", res.text or "")
             if code_match and len(code_match.group(1).strip()) > 30:
                 extracted_code = code_match.group(1).strip()
@@ -174,9 +311,8 @@ class DeveloperAgent(BaseAgent):
                 except SyntaxError:
                     pass
 
-            # Return error payload to trigger produce_valid_artifact retry mechanism without polluting context
             return {
-                "error": "Developer LLM output could not be parsed as CodePatch JSON. Return a valid JSON object with 'files' and 'file_contents'."
+                "error": "Developer LLM output could not be parsed as CodePatch. Return files using delimiter blocks: === FILE: <filename> === ... === END FILE ==="
             }
 
         patch: CodePatch = self.produce_valid_artifact("CodePatch", produce_code, state, CodePatch)

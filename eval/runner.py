@@ -90,6 +90,12 @@ def update_benchmark_manifest(
     manifest = load_benchmark_manifest(target_path)
     existing_runs = {r["run_id"]: r for r in manifest.get("runs", [])}
 
+    try:
+        from mas.core.config import get_config
+        token_cap = get_config().get("limits", {}).get("max_tokens_per_run", 100000)
+    except Exception:
+        token_cap = 100000
+
     for rec in records:
         run_id = rec["run_id"]
         existing_runs[run_id] = rec
@@ -163,13 +169,13 @@ def update_benchmark_manifest(
         r_is_compliant = (
             r.get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
             and r.get("execution_mode") == "LIVE_API"
-            and (r.get("tokens") or 0) <= 60000
+            and (r.get("tokens") or 0) <= token_cap
         )
         prev_is_compliant = (
             prev is not None
             and prev.get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
             and prev.get("execution_mode") == "LIVE_API"
-            and (prev.get("tokens") or 0) <= 60000
+            and (prev.get("tokens") or 0) <= token_cap
         )
         if prev is None:
             by_pair[key][s_name] = r
@@ -200,13 +206,13 @@ def update_benchmark_manifest(
             "mas" in sys_dict
             and sys_dict["mas"].get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
             and sys_dict["mas"].get("execution_mode") == "LIVE_API"
-            and (sys_dict["mas"].get("tokens") or 0) <= 60000
+            and (sys_dict["mas"].get("tokens") or 0) <= token_cap
         )
         has_cd = (
             "chatdev" in sys_dict
             and sys_dict["chatdev"].get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
             and sys_dict["chatdev"].get("execution_mode") == "LIVE_API"
-            and (sys_dict["chatdev"].get("tokens") or 0) <= 60000
+            and (sys_dict["chatdev"].get("tokens") or 0) <= token_cap
         )
         is_paired = has_mas and has_cd
         if is_paired:
@@ -236,10 +242,10 @@ def update_benchmark_manifest(
         and "chatdev" in v
         and v["mas"].get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
         and v["mas"].get("execution_mode") == "LIVE_API"
-        and (v["mas"].get("tokens") or 0) <= 60000
+        and (v["mas"].get("tokens") or 0) <= token_cap
         and v["chatdev"].get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
         and v["chatdev"].get("execution_mode") == "LIVE_API"
-        and (v["chatdev"].get("tokens") or 0) <= 60000
+        and (v["chatdev"].get("tokens") or 0) <= token_cap
     )
     mas_live_count = len({
         (r.get("task_id"), r.get("repeat_no"))
@@ -248,7 +254,7 @@ def update_benchmark_manifest(
         and r.get("system") == "mas"
         and r.get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
         and r.get("execution_mode") == "LIVE_API"
-        and (r.get("tokens") or 0) <= 60000
+        and (r.get("tokens") or 0) <= token_cap
     })
     cd_live_count = len({
         (r.get("task_id"), r.get("repeat_no"))
@@ -257,7 +263,7 @@ def update_benchmark_manifest(
         and r.get("system") == "chatdev"
         and r.get("status") in ("COMPLETED", "COMPLETED_QUALITY_GATE")
         and r.get("execution_mode") == "LIVE_API"
-        and (r.get("tokens") or 0) <= 60000
+        and (r.get("tokens") or 0) <= token_cap
     })
     sim_count = sum(
         1 for r in runs_list if r.get("status") == "SIMULATION_ONLY" or r.get("execution_mode") == "SIMULATED"
@@ -740,10 +746,10 @@ class EvaluationRunner:
                                 actual_mas_status = st_status
                                 actual_mas_exec_mode = st_status
                                 mas_failure_reason = state.get("stop_reason")
-                            elif not use_fake and tot_tok > 60000:
+                            elif not use_fake and tot_tok > token_cap:
                                 actual_mas_status = "STOPPED_BUDGET_CEILING"
                                 actual_mas_exec_mode = "STOPPED_BUDGET_CEILING"
-                                mas_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
+                                mas_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > {token_cap})"
 
                             with get_session() as session:
                                 mas_row = session.query(Run).filter(Run.run_id == mas_run_id).first()
@@ -799,6 +805,7 @@ class EvaluationRunner:
                                 "radon": mas_metrics["radon_mi"],
                                 "tokens": tot_tok,
                                 "cost": mas_cost,
+                                "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                 "status": actual_mas_status,
                                 "execution_mode": actual_mas_exec_mode,
                                 "token_provenance": prov_mode,
@@ -957,10 +964,10 @@ class EvaluationRunner:
                                     actual_cd_status = "INCOMPLETE"
                                     actual_cd_exec_mode = "INCOMPLETE"
                                     cd_failure_reason = "Missing required artifact: main.py was not produced."
-                                elif not use_fake and tot_tok > 60000:
+                                elif not use_fake and tot_tok > token_cap:
                                     actual_cd_status = "STOPPED_BUDGET_CEILING"
                                     actual_cd_exec_mode = "STOPPED_BUDGET_CEILING"
-                                    cd_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > 60000)"
+                                    cd_failure_reason = f"TokenCapExceededError: Run exceeded token cap ({tot_tok} > {token_cap})"
                                 else:
                                     actual_cd_status = run_status
                                     actual_cd_exec_mode = exec_mode
@@ -1020,6 +1027,7 @@ class EvaluationRunner:
                                     "radon": cd_metrics["radon_mi"] if is_cd_success else None,
                                     "tokens": tot_tok,
                                     "cost": cd_cost,
+                                    "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                     "status": actual_cd_status,
                                     "execution_mode": actual_cd_exec_mode,
                                     "token_provenance": prov_mode,

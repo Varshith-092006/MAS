@@ -1,0 +1,48 @@
+% Table 1: Literature Published Baselines
+\begin{table}[htbp]
+\centering
+\caption{Indicative Published Baselines from Literature (You et al., 2026). Indicative only; evaluated on commercial models and not executed locally.}
+\label{tab:published-baselines}
+\small
+\begin{tabular}{llrrrrrr}
+\hline
+\textbf{Model} & \textbf{System} & \textbf{Tasks} & \textbf{Completeness} & \textbf{Executability} & \textbf{Consistency} & \textbf{Quality} & \textbf{Tokens/Task} \\
+\hline
+GPT-3.5 Turbo & ChatDev & 100 & 0.9022 & 0.8100 & 0.8084 & 0.5906 & 22,327 \\
+GPT-3.5 Turbo & iCoder & 100 & 0.9521 & 0.8800 & 0.8238 & 0.6902 & 411,145 \\
+GPT-4o & ChatDev & 20 & 1.0000 & 0.8000 & 0.8187 & 0.6550 & 30,417 \\
+GPT-4o & iCoder & 20 & 0.9960 & 0.9500 & 0.8375 & 0.7924 & 104,883 \\
+\hline
+\end{tabular}
+\end{table}
+
+% Table 2: Primary Benchmark Comparison
+\begin{table}[htbp]
+\centering
+\caption{Primary Benchmark Comparison on Pinned Model}
+\label{tab:primary-comparison}
+\begin{tabular}{lrrrrrrr}
+\hline
+\textbf{System} & \textbf{N} & \textbf{Completeness} & \textbf{Executability} & \textbf{Consistency} & \textbf{Quality} & \textbf{Wilcoxon $p$} & \textbf{Cohen's $d$} \\
+\hline
+MAS (Ours) & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN \\
+ChatDev & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN \\
+\hline
+\end{tabular}
+\end{table}
+
+% Table 3: Efficiency and Computational Overhead
+\begin{table}[htbp]
+\centering
+\caption{Efficiency and Computational Overhead}
+\label{tab:efficiency}
+\begin{tabular}{lrrrrrr}
+\hline
+\textbf{System} & \textbf{Tokens/Task} & \textbf{Quality/1k Tok} & \textbf{Est. Cost (\$)} & \textbf{LLM Calls} & \textbf{Time (s)} & \textbf{LOC} \\
+\hline
+
+MAS (Ours) & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN \\
+ChatDev & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN & NOT RUN \\
+\hline
+\end{tabular}
+\end{table}

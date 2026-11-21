@@ -86,6 +86,9 @@ def test_exploratory_reads_model_calls_and_skips_fake(tmp_path):
     assert ex["systems"]["mas"]["completed_runs"] == 1
     assert [h["run_id"] for h in ex["history"]] == ["r1"]
     assert ex["history"][0]["duration_s"] == 60.0
+    # A benchmark (official-tier) run must never also appear in the exploratory tier.
+    ex2 = md.build_exploratory(str(db), exclude_run_ids={"r1"})
+    assert ex2["agents"] == [] and ex2["history"] == [] and ex2["systems"] == {}
 
 
 def test_cli_writes_self_contained_html(tmp_path):

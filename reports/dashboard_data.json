@@ -1,43 +1,340 @@
 {
-  "generated_utc": "2026-11-21 19:03 UTC",
+  "generated_utc": "2026-11-21 22:14 UTC",
   "sources": {
     "manifest": "eval\\benchmark_manifest.json",
     "db": "mas.db"
   },
   "simulation_rows_excluded": 3,
   "official": {
-    "count": 0,
-    "models": [],
+    "count": 15,
+    "series": "v2",
+    "other_series_official": [
+      "v1"
+    ],
+    "other_series_count": 15,
+    "models": [
+      "gemini-3.5-flash-lite"
+    ],
     "summary": {
       "mas": {
-        "n": 0
+        "n": 5,
+        "quality": 0.5017,
+        "quality_ci": [
+          0.4315,
+          0.567
+        ],
+        "completeness": 1.0,
+        "executability": 1.0,
+        "consistency": 0.5017,
+        "tokens": 22792.4,
+        "llm_calls": 7.2,
+        "wall_clock_seconds": 33.682,
+        "loc": 852.4,
+        "cost": 0.0,
+        "quality_per_1k_tokens": 0.022,
+        "success_rate": 1.0
       },
       "chatdev": {
-        "n": 0
+        "n": 5,
+        "quality": 0.1417,
+        "quality_ci": [
+          0.0,
+          0.4252
+        ],
+        "completeness": 0.8,
+        "executability": 0.2,
+        "consistency": 0.4855,
+        "tokens": 51521.8,
+        "llm_calls": 15.8,
+        "wall_clock_seconds": 287.54,
+        "loc": 112.0,
+        "cost": 0.0,
+        "quality_per_1k_tokens": 0.0028,
+        "success_rate": 0.8
       },
       "single": {
-        "n": 0
+        "n": 5,
+        "quality": 0.4068,
+        "quality_ci": [
+          0.2032,
+          0.562
+        ],
+        "completeness": 1.0,
+        "executability": 0.8,
+        "consistency": 0.5065,
+        "tokens": 3802.8,
+        "llm_calls": 1.0,
+        "wall_clock_seconds": 8.016,
+        "loc": 294.8,
+        "cost": 0.0,
+        "quality_per_1k_tokens": 0.107,
+        "success_rate": 1.0
       }
     },
-    "comparisons": {},
-    "agents": {
-      "mas": {},
-      "chatdev": {},
-      "single": {}
+    "comparisons": {
+      "chatdev": {
+        "quality_change_pct": 254.06,
+        "token_change_pct": -55.76,
+        "calls_change_pct": -54.43,
+        "pairs": 5,
+        "p_value": 0.125
+      },
+      "single": {
+        "quality_change_pct": 23.33,
+        "token_change_pct": 499.36,
+        "calls_change_pct": 620.0,
+        "pairs": 5,
+        "p_value": 0.8125
+      }
     },
-    "ablations": {},
-    "runs": []
+    "agents": {
+      "mas": {
+        "manager": {
+          "calls": 5,
+          "input_tokens": 3316,
+          "output_tokens": 1611,
+          "total_tokens": 4927,
+          "latency_ms": 9679
+        },
+        "developer": {
+          "calls": 18,
+          "input_tokens": 20906,
+          "output_tokens": 48463,
+          "total_tokens": 69369,
+          "latency_ms": 127166
+        },
+        "reviewer": {
+          "calls": 11,
+          "input_tokens": 36913,
+          "output_tokens": 1538,
+          "total_tokens": 38451,
+          "latency_ms": 16586
+        },
+        "architect": {
+          "calls": 2,
+          "input_tokens": 690,
+          "output_tokens": 525,
+          "total_tokens": 1215,
+          "latency_ms": 2916
+        }
+      },
+      "chatdev": {
+        "chatdev": {
+          "calls": 79,
+          "input_tokens": 183932,
+          "output_tokens": 73677,
+          "total_tokens": 257609,
+          "latency_ms": 248419
+        }
+      },
+      "single": {
+        "single_agent": {
+          "calls": 5,
+          "input_tokens": 1505,
+          "output_tokens": 17509,
+          "total_tokens": 19014,
+          "latency_ms": 39792
+        }
+      }
+    },
+    "ablations": {
+      "A0": {
+        "n": 5,
+        "quality": 0.5017,
+        "quality_ci": [
+          0.4315,
+          0.567
+        ],
+        "completeness": 1.0,
+        "executability": 1.0,
+        "consistency": 0.5017,
+        "tokens": 22792.4,
+        "llm_calls": 7.2,
+        "wall_clock_seconds": 33.682,
+        "loc": 852.4,
+        "cost": 0.0,
+        "quality_per_1k_tokens": 0.022,
+        "success_rate": 1.0
+      }
+    },
+    "runs": [
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt9",
+        "task_id": "srdd_educ_01",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.5772,
+        "tokens": 10489,
+        "llm_calls": 4,
+        "wall_clock_seconds": 27.16
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt10",
+        "task_id": "srdd_educ_01",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "INCOMPLETE",
+        "quality": 0.0,
+        "tokens": 71751,
+        "llm_calls": 22,
+        "wall_clock_seconds": 292.73
+      },
+      {
+        "run_id": "single_srdd_educ_01_r1_attempt3",
+        "task_id": "srdd_educ_01",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 4334,
+        "llm_calls": 1,
+        "wall_clock_seconds": 9.52
+      },
+      {
+        "run_id": "cd_srdd_educ_02_r1_attempt2",
+        "task_id": "srdd_educ_02",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 42476,
+        "llm_calls": 15,
+        "wall_clock_seconds": 298.41
+      },
+      {
+        "run_id": "single_srdd_educ_02_r1_attempt2",
+        "task_id": "srdd_educ_02",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.4273,
+        "tokens": 3654,
+        "llm_calls": 1,
+        "wall_clock_seconds": 7.74
+      },
+      {
+        "run_id": "mas_srdd_educ_03_r1_attempt2",
+        "task_id": "srdd_educ_03",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.465,
+        "tokens": 24953,
+        "llm_calls": 9,
+        "wall_clock_seconds": 35.56
+      },
+      {
+        "run_id": "cd_srdd_educ_03_r1_attempt2",
+        "task_id": "srdd_educ_03",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.7086,
+        "tokens": 47499,
+        "llm_calls": 14,
+        "wall_clock_seconds": 258.08
+      },
+      {
+        "run_id": "single_srdd_educ_03_r1_attempt2",
+        "task_id": "srdd_educ_03",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.6006,
+        "tokens": 3600,
+        "llm_calls": 1,
+        "wall_clock_seconds": 7.38
+      },
+      {
+        "run_id": "mas_srdd_educ_04_r1_attempt2",
+        "task_id": "srdd_educ_04",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.3717,
+        "tokens": 25089,
+        "llm_calls": 8,
+        "wall_clock_seconds": 32.3
+      },
+      {
+        "run_id": "cd_srdd_educ_04_r1_attempt2",
+        "task_id": "srdd_educ_04",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 48656,
+        "llm_calls": 14,
+        "wall_clock_seconds": 298.01
+      },
+      {
+        "run_id": "single_srdd_educ_04_r1_attempt2",
+        "task_id": "srdd_educ_04",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.4154,
+        "tokens": 3149,
+        "llm_calls": 1,
+        "wall_clock_seconds": 6.78
+      },
+      {
+        "run_id": "mas_srdd_work_01_r1_attempt2",
+        "task_id": "srdd_work_01",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.5088,
+        "tokens": 38414,
+        "llm_calls": 11,
+        "wall_clock_seconds": 50.47
+      },
+      {
+        "run_id": "cd_srdd_work_01_r1_attempt2",
+        "task_id": "srdd_work_01",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 47227,
+        "llm_calls": 14,
+        "wall_clock_seconds": 290.47
+      },
+      {
+        "run_id": "single_srdd_work_01_r1_attempt2",
+        "task_id": "srdd_work_01",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.5908,
+        "tokens": 4277,
+        "llm_calls": 1,
+        "wall_clock_seconds": 8.66
+      },
+      {
+        "run_id": "mas_srdd_educ_02_r1_attempt3",
+        "task_id": "srdd_educ_02",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.5858,
+        "tokens": 15017,
+        "llm_calls": 4,
+        "wall_clock_seconds": 22.92
+      }
+    ]
   },
   "exploratory": {
     "available": true,
     "agents": [
       {
         "agent": "developer",
-        "calls": 103,
-        "input_tokens": 69743,
-        "output_tokens": 455430,
-        "total_tokens": 525173,
-        "avg_latency_ms": 44184
+        "calls": 106,
+        "input_tokens": 74893,
+        "output_tokens": 462350,
+        "total_tokens": 537243,
+        "avg_latency_ms": 43161
       },
       {
         "agent": "chatdev",
@@ -49,19 +346,19 @@
       },
       {
         "agent": "reviewer",
-        "calls": 68,
-        "input_tokens": 110173,
-        "output_tokens": 170292,
-        "total_tokens": 280465,
-        "avg_latency_ms": 27411
+        "calls": 69,
+        "input_tokens": 113636,
+        "output_tokens": 170424,
+        "total_tokens": 284060,
+        "avg_latency_ms": 27039
       },
       {
         "agent": "manager",
-        "calls": 55,
-        "input_tokens": 33129,
-        "output_tokens": 107985,
-        "total_tokens": 141114,
-        "avg_latency_ms": 19611
+        "calls": 56,
+        "input_tokens": 33786,
+        "output_tokens": 108333,
+        "total_tokens": 142119,
+        "avg_latency_ms": 19304
       },
       {
         "agent": "tester",
@@ -94,6 +391,10 @@
         "calls": 13
       },
       {
+        "model": "gemini-3.5-flash-lite",
+        "calls": 5
+      },
+      {
         "model": "liquid/lfm-2.5-2.6b:free",
         "calls": 2
       },
@@ -116,12 +417,12 @@
         "completed_tokens": 173094
       },
       "mas": {
-        "runs": 32,
-        "calls": 276,
-        "tokens": 1028502,
-        "completed_runs": 9,
-        "completed_calls": 82,
-        "completed_tokens": 302371
+        "runs": 33,
+        "calls": 281,
+        "tokens": 1045172,
+        "completed_runs": 10,
+        "completed_calls": 87,
+        "completed_tokens": 319041
       }
     },
     "statuses": [
@@ -158,7 +459,7 @@
       {
         "system": "mas",
         "status": "COMPLETED",
-        "count": 5
+        "count": 6
       },
       {
         "system": "mas",
@@ -177,6 +478,15 @@
       }
     ],
     "history": [
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt7",
+        "system": "mas",
+        "model": "gemini-3.5-flash-lite",
+        "status": "COMPLETED",
+        "tokens": 16670,
+        "started_at": "2026-11-21 21:09:12",
+        "duration_s": 30.2
+      },
       {
         "run_id": "cd_srdd_educ_01_r3_attempt2",
         "system": "chatdev",
@@ -527,15 +837,6 @@
         "tokens": 0,
         "started_at": "2026-10-17 06:53:41",
         "duration_s": 0.4
-      },
-      {
-        "run_id": "mas_dev_inv_b_1792220015",
-        "system": "mas",
-        "model": "cohere/north-mini-code:free",
-        "status": "STOPPED_BUDGET_CEILING",
-        "tokens": 0,
-        "started_at": "2026-10-17 06:53:35",
-        "duration_s": 0.3
       }
     ]
   },

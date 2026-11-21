@@ -1,33 +1,154 @@
-run_id,task_id,system,model,repeat_no,ablation,quality,quality_per_1k_tokens,completeness,executability,consistency,shared_test,ruff,bandit,radon,tokens,cost,pytest_pass_rate,coverage,status
-sim_mas_srdd_educ_01_r1,srdd_educ_01,mas,fake,1,A0,0.0,0.0,1.0,1.0,0.0,0.5,0,0,100.0,1626,0.0,,,SIMULATION_ONLY
-sim_cd_srdd_educ_01_r1,srdd_educ_01,chatdev,fake,1,A0,0.4286,0.1429,1.0,1.0,0.4286,0.5,0,0,100.0,3000,0.0,,,SIMULATION_ONLY
-mas_srdd_educ_01_r1,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,,,,,,,,,,51682,0.0,,,FAILED
-mas_srdd_educ_01_r1_attempt2,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.4286,0.0068,1.0,1.0,0.4286,0.5,0,0,100.0,62871,0.0,,,STOPPED_BUDGET_CEILING
-cd_srdd_educ_01_r1,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,5228,0.0,,,FAILED
-mas_srdd_educ_01_r2,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,0.0,0.0,1.0,0.0,0.5714,0.0,0,0,100.0,62178,0.0,,,STOPPED_BUDGET_CEILING
-cd_srdd_educ_01_r2,srdd_educ_01,chatdev,cohere/north-mini-code:free,2,A0,,,,,,,0,0,,4290,0.0,,,FAILED
-mas_test_pair_r1,srdd_test_01,mas,cohere/north-mini-code:free,1,A0,,,,,,,,,,45000,0.0,,,COMPLETED
-cd_test_pair_r1,srdd_test_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,4200,0.0,,,FAILED
-mas_srdd_educ_01_r1_attempt3,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.0,0.0,1.0,0.0,0.2857,0.0,0,0,100.0,58690,0.0,,,STOPPED_BUDGET_CEILING
-cd_srdd_educ_01_r1_attempt2,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,4385,0.0,,,FAILED
-mas_srdd_educ_01_r1_attempt4,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.7143,0.0125,1.0,1.0,0.7143,1.0,0,0,100.0,57053,0.0,,,COMPLETED
-cd_srdd_educ_01_r1_attempt3,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,3251,0.0,,,FAILED
-sim_cd_srdd_educ_01_r1_attempt2,srdd_educ_01,chatdev,fake,1,A0,,,,,,,,,,3000,0.0,,,SIMULATION_ONLY
-cd_srdd_educ_01_r1_attempt4,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,42935,0.0,,,FAILED
-cd_srdd_educ_01_r1_attempt5,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,25423,0.0,,,FAILED
-cd_srdd_educ_01_r1_attempt6,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,,,,,,,,,,43468,0.0,,,FAILED
-cd_srdd_educ_01_r1_attempt7,srdd_educ_01,chatdev,cohere/north-mini-code:free,1,A0,0.8571,0.0149,1.0,1.0,0.8571,0.5,0,0,100.0,57453,0.0,,,COMPLETED
-mas_srdd_educ_01_r2_attempt2,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,0.4286,0.0072,1.0,1.0,0.4286,1.0,0,0,100.0,59486,0.0,,,STOPPED_BUDGET_CEILING
-cd_srdd_educ_01_r2_attempt2,srdd_educ_01,chatdev,cohere/north-mini-code:free,2,A0,0.4897,0.0087,0.8571,1.0,0.5714,0.5,0,0,100.0,56038,0.0,,,COMPLETED
-mas_srdd_educ_01_r2_attempt3,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,6446,0.0,,,FAILED
-mas_srdd_educ_01_r2_attempt4,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,28502,0.0,,,FAILED
-mas_srdd_educ_01_r2_attempt5,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,13456,0.0,,,FAILED
-mas_srdd_educ_01_r2_attempt6,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,,,,,,,,,,22400,0.0,,,FAILED
-mas_srdd_educ_01_r2_attempt7,srdd_educ_01,mas,cohere/north-mini-code:free,2,A0,0.5714,0.0337,1.0,1.0,0.5714,1.0,0,0,100.0,16959,0.0,,,COMPLETED
-mas_srdd_educ_01_r1_attempt8,srdd_educ_01,mas,cohere/north-mini-code:free,1,A0,0.7143,0.012,1.0,1.0,0.7143,0.5,0,0,100.0,59285,0.0,,,STOPPED_BUDGET_CEILING
-mas_srdd_educ_01_r3,srdd_educ_01,mas,cohere/north-mini-code:free,3,A0,,,,,,,,,,19510,0.0,,,FAILED
-cd_srdd_educ_01_r3,srdd_educ_01,chatdev,cohere/north-mini-code:free,3,A0,,,,,,,,,,11191,0.0,,,FAILED
-mas_srdd_educ_01_r3_attempt2,srdd_educ_01,mas,cohere/north-mini-code:free,3,A0,,,,,,,,,,9503,0.0,,,FAILED
-mas_srdd_educ_01_r3_attempt3,srdd_educ_01,mas,cohere/north-mini-code:free,3,A0,,,,,,,,,,15785,0.0,,,FAILED
-mas_srdd_educ_01_r3_attempt4,srdd_educ_01,mas,cohere/north-mini-code:free,3,A0,0.4286,0.0176,1.0,1.0,0.4286,1.0,0,0,100.0,24384,0.0,,,COMPLETED
-cd_srdd_educ_01_r3_attempt2,srdd_educ_01,chatdev,cohere/north-mini-code:free,3,A0,0.7143,0.0125,1.0,1.0,0.7143,0.5,0,0,100.0,57084,0.0,,,COMPLETED
+run_id,task_id,system,provider,model,actual_model,repeat_no,ablation,series,official,retry_reason,quality,quality_per_1k_tokens,completeness,executability,consistency,consistency_method,shared_test,ruff,bandit,radon,tokens,cost,llm_calls,wall_clock_seconds,loc,pytest_pass_rate,coverage,status,failure_classification
+sim_mas_srdd_educ_01_r1,srdd_educ_01,mas,,fake,,1,A0,,false,SIMULATION_ONLY,0.0,0.0,1.0,1.0,0.0,,0.5,0,0,100.0,1626,0.0,,,,,,SIMULATION_ONLY,SUCCESS
+sim_cd_srdd_educ_01_r1,srdd_educ_01,chatdev,,fake,,1,A0,,false,SIMULATION_ONLY,0.4286,0.1429,1.0,1.0,0.4286,,0.5,0,0,100.0,3000,0.0,,,,,,SIMULATION_ONLY,SUCCESS
+mas_srdd_educ_01_r1,srdd_educ_01,mas,,cohere/north-mini-code:free,,1,A0,,true,,0.0,0.0,,,,,,,,,51682,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r1_attempt2,srdd_educ_01,mas,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,0.4286,0.0068,1.0,1.0,0.4286,,0.5,0,0,100.0,62871,0.0,,,,,,STOPPED_BUDGET_CEILING,QUALITY_FAILURE
+cd_srdd_educ_01_r1,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,true,,0.0,0.0,,,,,,,,,5228,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r2,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,true,,0.0,0.0,1.0,0.0,0.5714,,0.0,0,0,100.0,62178,0.0,,,,,,STOPPED_BUDGET_CEILING,QUALITY_FAILURE
+cd_srdd_educ_01_r2,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,2,A0,,true,,0.0,0.0,,,,,,0,0,,4290,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_test_pair_r1,srdd_test_01,mas,,cohere/north-mini-code:free,,1,A0,,true,,,,,,,,,,,,45000,0.0,,,,,,COMPLETED,SUCCESS
+cd_test_pair_r1,srdd_test_01,chatdev,,cohere/north-mini-code:free,,1,A0,,true,,0.0,0.0,,,,,,,,,4200,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r1_attempt3,srdd_educ_01,mas,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,0.0,0.0,1.0,0.0,0.2857,,0.0,0,0,100.0,58690,0.0,,,,,,STOPPED_BUDGET_CEILING,QUALITY_FAILURE
+cd_srdd_educ_01_r1_attempt2,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,,,,,,,,,,,4385,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r1_attempt4,srdd_educ_01,mas,,cohere/north-mini-code:free,,1,A0,LEGACY_EXPLORATORY_BASELINE,true,,0.7143,0.0125,1.0,1.0,0.7143,,1.0,0,0,100.0,57053,0.0,,,,,,COMPLETED,SUCCESS
+cd_srdd_educ_01_r1_attempt3,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,,,,,,,,,,,3251,0.0,,,,,,FAILED,QUALITY_FAILURE
+sim_cd_srdd_educ_01_r1_attempt2,srdd_educ_01,chatdev,,fake,,1,A0,,false,SIMULATION_ONLY,,,,,,,,,,,3000,0.0,,,,,,SIMULATION_ONLY,SUCCESS
+cd_srdd_educ_01_r1_attempt4,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,,,,,,,,,,,42935,0.0,,,,,,FAILED,QUALITY_FAILURE
+cd_srdd_educ_01_r1_attempt5,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,,,,,,,,,,,25423,0.0,,,,,,FAILED,INFRA_ERROR
+cd_srdd_educ_01_r1_attempt6,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,,,,,,,,,,,43468,0.0,,,,,,FAILED,QUALITY_FAILURE
+cd_srdd_educ_01_r1_attempt7,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,1,A0,LEGACY_EXPLORATORY_BASELINE,true,,0.8571,0.0149,1.0,1.0,0.8571,,0.5,0,0,100.0,57453,0.0,,,,,,COMPLETED,SUCCESS
+mas_srdd_educ_01_r2_attempt2,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,false,Subsequent attempt after official result,0.4286,0.0072,1.0,1.0,0.4286,,1.0,0,0,100.0,59486,0.0,,,,,,STOPPED_BUDGET_CEILING,QUALITY_FAILURE
+cd_srdd_educ_01_r2_attempt2,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,2,A0,PRIMARY_FROZEN_SERIES,true,,0.4897,0.0087,0.8571,1.0,0.5714,,0.5,0,0,100.0,56038,0.0,,,,,,COMPLETED,SUCCESS
+mas_srdd_educ_01_r2_attempt3,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,false,Subsequent attempt after official result,,,,,,,,,,,6446,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r2_attempt4,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,false,Subsequent attempt after official result,,,,,,,,,,,28502,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r2_attempt5,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,false,Subsequent attempt after official result,,,,,,,,,,,13456,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r2_attempt6,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,,false,Subsequent attempt after official result,,,,,,,,,,,22400,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r2_attempt7,srdd_educ_01,mas,,cohere/north-mini-code:free,,2,A0,PRIMARY_FROZEN_SERIES,true,,0.5714,0.0337,1.0,1.0,0.5714,,1.0,0,0,100.0,16959,0.0,,,,,,COMPLETED,SUCCESS
+mas_srdd_educ_01_r1_attempt8,srdd_educ_01,mas,,cohere/north-mini-code:free,,1,A0,,false,Subsequent attempt after official result,0.7143,0.012,1.0,1.0,0.7143,,0.5,0,0,100.0,59285,0.0,,,,,,STOPPED_BUDGET_CEILING,QUALITY_FAILURE
+mas_srdd_educ_01_r3,srdd_educ_01,mas,,cohere/north-mini-code:free,,3,A0,,true,,0.0,0.0,,,,,,,,,19510,0.0,,,,,,FAILED,QUALITY_FAILURE
+cd_srdd_educ_01_r3,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,3,A0,,true,,0.0,0.0,,,,,,,,,11191,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r3_attempt2,srdd_educ_01,mas,,cohere/north-mini-code:free,,3,A0,,false,Subsequent attempt after official result,,,,,,,,,,,9503,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r3_attempt3,srdd_educ_01,mas,,cohere/north-mini-code:free,,3,A0,,false,Subsequent attempt after official result,,,,,,,,,,,15785,0.0,,,,,,FAILED,QUALITY_FAILURE
+mas_srdd_educ_01_r3_attempt4,srdd_educ_01,mas,,cohere/north-mini-code:free,,3,A0,PRIMARY_FROZEN_SERIES,true,,0.4286,0.0176,1.0,1.0,0.4286,,1.0,0,0,100.0,24384,0.0,,,,,,COMPLETED,SUCCESS
+cd_srdd_educ_01_r3_attempt2,srdd_educ_01,chatdev,,cohere/north-mini-code:free,,3,A0,PRIMARY_FROZEN_SERIES,true,,0.7143,0.0125,1.0,1.0,0.7143,,0.5,0,0,100.0,57084,0.0,,,,,,COMPLETED,SUCCESS
+mas_srdd_educ_01_r1_attempt5,srdd_educ_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,,false,"INFRA_ERROR: OPENROUTER_ERROR_400: OpenRouter Request Error (400) on model 'gemini-3.5-flash-lite': message: '[{
+  ""error"": {
+    ""code"": 400,
+    ""message"": ""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field."",
+    ""status"": ""INVALID_ARGUMENT"",
+    ""details"": [
+      {
+        ""@type"": ""type.googleapis.com/google.rpc.BadRequest"",
+        ""fieldViolations"": [
+          {
+            ""description"": ""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field.""
+          }
+        ]
+      }
+    ]
+  }
+}
+]'",,,0.0,0.0,,unavailable,0.0,0,0,100.0,0,0.0,0,1.08,0,,,FAILED,INFRA_ERROR
+cd_srdd_educ_01_r1_attempt8,srdd_educ_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,false,"INFRA_ERROR: ChatDev exited with code 1: Traceback (most recent call last):
+  File ""C:\Users\The Mighty King\AppData\Roaming\Python\Python311\site-packages\tenacity\__init__.py"", line 473, in __call__
+    result = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\camel\utils.py"", line 148, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\camel\agents\chat_agent.py"", line 191, in step
+    response = self.model_backend.run(messages=openai_messages)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\camel\model_backend.py"", line 108, in run
+    raise RuntimeError(f""OpenAI / Proxy error {resp.status_code}: {resp.text}"")
+RuntimeError: OpenAI / Proxy error 400: [{""error"":{""code"":400,""message"":""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field."",""status"":""INVALID_ARGUMENT"",""details"":[{""@type"":""type.googleapis.com/google.rpc.BadRequest"",""fieldViolations"":[{""description"":""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field.""}]}]}}]
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\run.py"", line 125, in <module>
+    chat_chain.execute_chain()
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\chatdev\chat_chain.py"", line 164, in execute_chain
+    self.execute_step(phase_item)
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\chatdev\chat_chain.py"", line 134, in execute_step
+    self.chat_env = self.phases[phase].execute(self.chat_env,
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\chatdev\phase.py"", line 302, in execute
+    self.chatting(chat_env=chat_env,
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\chatdev\utils.py"", line 77, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\chatdev\phase.py"", line 133, in chatting
+    assistant_response, user_response = role_play_session.step(input_user_msg, chat_turn_limit == 1)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\Desktop\Final Year Project\external\ChatDev\camel\agents\role_playing.py"", line 242, in step
+    assistant_response = self.assistant_agent.step(user_msg_rst)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\AppData\Roaming\Python\Python311\site-packages\tenacity\__init__.py"", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\AppData\Roaming\Python\Python311\site-packages\tenacity\__init__.py"", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\AppData\Roaming\Python\Python311\site-packages\tenacity\__init__.py"", line 371, in iter
+    result = action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\The Mighty King\AppData\Roaming\Python\Python311\site-packages\tenacity\__init__.py"", line 414, in exc_check
+    raise retry_exc from fut.exception()
+tenacity.RetryError: RetryError[<Future at 0x26df061a410 state=finished raised RuntimeError>]; missing required artifact: main.py",,,,,,unavailable,,,,,0,0.0,0,38.84,0,,,FAILED,INFRA_ERROR
+single_srdd_educ_01_r1,srdd_educ_01,single,gemini,gemini-3.5-flash-lite,,1,A0,,false,"INFRA_ERROR: OpenRouterAPIError: OpenRouter Request Error (400) on model 'gemini-3.5-flash-lite': message: '[{
+  ""error"": {
+    ""code"": 400,
+    ""message"": ""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field."",
+    ""status"": ""INVALID_ARGUMENT"",
+    ""details"": [
+      {
+        ""@type"": ""type.googleapis.com/google.rpc.BadRequest"",
+        ""fieldViolations"": [
+          {
+            ""description"": ""Invalid JSON payload received. Unknown name \""seed\"": Cannot find field.""
+          }
+        ]
+      }
+    ]
+  }
+}
+]'",0.0,0.0,,,,unavailable,,,,,0,0.0,0,0.72,0,,,FAILED,INFRA_ERROR
+mas_srdd_educ_01_r1_attempt6,srdd_educ_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.5131,0.0145,1.0,1.0,0.5131,embedding,1.0,0,0,100.0,35294,0.0,9,51.99,1164,,,COMPLETED,SUCCESS
+cd_srdd_educ_01_r1_attempt9,srdd_educ_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.5165,embedding,0.0,0,0,100.0,52298,0.0,15,303.01,174,,,COMPLETED,SUCCESS
+single_srdd_educ_01_r1_attempt2,srdd_educ_01,single,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.4689,0.076,1.0,1.0,0.4689,embedding,0.5,0,0,100.0,6172,0.0,1,12.19,457,,,COMPLETED,SUCCESS
+mas_srdd_educ_02_r1,srdd_educ_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.6922,embedding,0.0,0,0,100.0,43596,0.0,10,53.04,1342,,,COMPLETED,SUCCESS
+cd_srdd_educ_02_r1,srdd_educ_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.6,embedding,0.0,0,0,100.0,42354,0.0,14,269.23,221,,,COMPLETED,SUCCESS
+single_srdd_educ_02_r1,srdd_educ_02,single,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.5075,embedding,0.0,0,0,100.0,4643,0.0,1,9.01,361,,,COMPLETED,SUCCESS
+mas_srdd_educ_03_r1,srdd_educ_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.4131,0.0402,1.0,1.0,0.4131,embedding,1.0,0,0,100.0,10287,0.0,4,16.28,426,,,COMPLETED,SUCCESS
+cd_srdd_educ_03_r1,srdd_educ_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.4079,embedding,0.0,0,0,100.0,47906,0.0,15,281.58,151,,,COMPLETED,SUCCESS
+single_srdd_educ_03_r1,srdd_educ_03,single,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.5881,embedding,0.0,0,0,100.0,2561,0.0,1,5.8,187,,,COMPLETED,SUCCESS
+mas_srdd_educ_04_r1,srdd_educ_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.4361,0.024,1.0,1.0,0.4361,embedding,1.0,0,0,100.0,18158,0.0,7,25.98,806,,,COMPLETED,SUCCESS
+cd_srdd_educ_04_r1,srdd_educ_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.567,embedding,0.0,0,0,100.0,50040,0.0,15,277.75,228,,,COMPLETED,SUCCESS
+single_srdd_educ_04_r1,srdd_educ_04,single,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.4856,embedding,0.0,0,0,100.0,5452,0.0,1,10.86,380,,,COMPLETED,SUCCESS
+mas_srdd_work_01_r1,srdd_work_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,,,,,,,,,16931,0.0,,,,,,FAILED,QUALITY_FAILURE
+cd_srdd_work_01_r1,srdd_work_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.5563,embedding,0.0,0,0,100.0,53693,0.0,15,294.89,195,,,COMPLETED,SUCCESS
+single_srdd_work_01_r1,srdd_work_01,single,gemini,gemini-3.5-flash-lite,,1,A0,,true,,0.0,0.0,1.0,0.0,0.4551,embedding,0.0,0,0,100.0,4279,0.0,1,8.08,313,,,COMPLETED,SUCCESS
+mas_srdd_educ_01_r1_attempt9,srdd_educ_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.5772,0.055,1.0,1.0,0.5772,embedding,1.0,0,0,100.0,10489,0.0,4,27.16,520,,,COMPLETED,SUCCESS
+cd_srdd_educ_01_r1_attempt10,srdd_educ_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.0,0.0,,,,embedding,,,,,71751,0.0,22,292.73,0,,,INCOMPLETE,QUALITY_FAILURE
+single_srdd_educ_01_r1_attempt3,srdd_educ_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.0,0.0,1.0,0.0,0.4983,embedding,0.0,0,0,100.0,4334,0.0,1,9.52,324,,,COMPLETED,SUCCESS
+mas_srdd_educ_02_r1_attempt2,srdd_educ_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,false,"INFRA_ERROR: OPENROUTER_SERVER_ERROR_503: OpenRouter Request Error (503) on model 'gemini-3.5-flash-lite': message: '[{
+  ""error"": {
+    ""code"": 503,
+    ""message"": ""This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."",
+    ""status"": ""UNAVAILABLE""
+  }
+}
+]'",,,0.0,0.0,,unavailable,0.0,0,0,100.0,0,0.0,0,1.43,0,,,FAILED_INFRASTRUCTURE,INFRA_ERROR
+cd_srdd_educ_02_r1_attempt2,srdd_educ_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.0,0.0,1.0,0.0,0.6064,embedding,0.0,0,0,100.0,42476,0.0,15,298.41,53,,,COMPLETED,SUCCESS
+single_srdd_educ_02_r1_attempt2,srdd_educ_02,single,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.4273,0.1169,1.0,1.0,0.4273,embedding,1.0,0,0,100.0,3654,0.0,1,7.74,294,,,COMPLETED,SUCCESS
+mas_srdd_educ_03_r1_attempt2,srdd_educ_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.465,0.0186,1.0,1.0,0.465,embedding,1.0,0,0,100.0,24953,0.0,9,35.56,724,,,COMPLETED,SUCCESS
+cd_srdd_educ_03_r1_attempt2,srdd_educ_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.7086,0.0149,1.0,1.0,0.7086,embedding,1.0,0,0,100.0,47499,0.0,14,258.08,192,,,COMPLETED,SUCCESS
+single_srdd_educ_03_r1_attempt2,srdd_educ_03,single,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.6006,0.1668,1.0,1.0,0.6006,embedding,1.0,0,0,100.0,3600,0.0,1,7.38,294,,,COMPLETED,SUCCESS
+mas_srdd_educ_04_r1_attempt2,srdd_educ_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.3717,0.0148,1.0,1.0,0.3717,embedding,1.0,0,0,100.0,25089,0.0,8,32.3,782,,,COMPLETED,SUCCESS
+cd_srdd_educ_04_r1_attempt2,srdd_educ_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.0,0.0,1.0,0.0,0.5242,embedding,0.0,0,0,100.0,48656,0.0,14,298.01,171,,,COMPLETED,SUCCESS
+single_srdd_educ_04_r1_attempt2,srdd_educ_04,single,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.4154,0.1319,1.0,1.0,0.4154,embedding,1.0,0,0,100.0,3149,0.0,1,6.78,239,,,COMPLETED,SUCCESS
+mas_srdd_work_01_r1_attempt2,srdd_work_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.5088,0.0132,1.0,1.0,0.5088,embedding,1.0,0,0,100.0,38414,0.0,11,50.47,1478,,,COMPLETED,SUCCESS
+cd_srdd_work_01_r1_attempt2,srdd_work_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.0,0.0,1.0,0.0,0.5885,embedding,0.0,0,0,100.0,47227,0.0,14,290.47,144,,,COMPLETED,SUCCESS
+single_srdd_work_01_r1_attempt2,srdd_work_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.5908,0.1381,1.0,1.0,0.5908,embedding,1.0,0,0,100.0,4277,0.0,1,8.66,323,,,COMPLETED,SUCCESS
+mas_srdd_educ_02_r1_attempt3,srdd_educ_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v2,true,,0.5858,0.039,1.0,1.0,0.5858,embedding,1.0,0,0,100.0,15017,0.0,4,22.92,758,,,COMPLETED,SUCCESS

@@ -405,6 +405,16 @@ class DailyTransmissionsCeilingExceededError(Exception):
     pass
 
 
+BENCHMARK_SEED = 42
+
+
+def provider_supports_seed(base_url: Optional[str]) -> bool:
+    """Gemini's OpenAI-compatible endpoint rejects the 'seed' field with HTTP 400
+    ("Unknown name \\"seed\\""), so it is omitted there (DEC-043). Applied identically to
+    MAS, the single-agent baseline (direct client) and ChatDev (logging proxy)."""
+    return "generativelanguage.googleapis.com" not in (base_url or "").lower()
+
+
 class TokenLogger:
     """Tracks provider token usage per run and enforces the configured cap with DB persistence."""
 
@@ -1046,9 +1056,10 @@ class OpenRouterProvider(LLMProvider):
             "model": target_model,
             "messages": processed_messages,
             "temperature": temperature,
-            "seed": 42,
             "max_tokens": effective_max_tokens,
         }
+        if provider_supports_seed(self.base_url):
+            payload["seed"] = BENCHMARK_SEED
         if "openrouter.ai" in self.base_url.lower():
             payload["provider"] = {
                 "allow_fallbacks": False,

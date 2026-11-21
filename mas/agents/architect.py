@@ -45,7 +45,11 @@ class ArchitectAgent(BaseAgent):
             messages = [
                 {
                     "role": "system",
-                    "content": "You are ArchitectAgent. Produce clean modular Architecture with UML class diagram and module dependencies.",
+                    "content": (
+                        "You are ArchitectAgent. Produce clean modular Architecture with UML class diagram and module dependencies. "
+                        "Plan at most 4 Python files including main.py, because the whole project is written in one answer "
+                        "with a limited output length. Use only the Python standard library."
+                    ),
                 },
                 {
                     "role": "user",

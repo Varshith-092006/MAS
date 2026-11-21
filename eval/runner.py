@@ -82,6 +82,15 @@ def resolve_attempt_run_id(
         return canonical_id
 
 
+def current_series() -> str:
+    """The active benchmark series from config.yaml (benchmark.series); 'v1' if unset (DEC-044)."""
+    try:
+        from mas.core.config import get_config
+        return str((get_config().get("benchmark") or {}).get("series") or "v1")
+    except Exception:
+        return "v1"
+
+
 def update_benchmark_manifest(
     records: List[Dict[str, Any]],
     manifest_path: Optional[str] = None,
@@ -120,6 +129,9 @@ def update_benchmark_manifest(
         err = r.get("error") or r.get("failure_reason")
         if st in ("COMPLETED", "COMPLETED_QUALITY_GATE", "SIMULATION_ONLY"):
             r["failure_classification"] = "SUCCESS"
+        elif r.get("is_live_benchmark") and not (r.get("tokens") or 0) and not (r.get("llm_calls") or 0):
+            # The model produced nothing at all, so there is no output to judge (DEC-043).
+            r["failure_classification"] = "INFRA_ERROR"
         else:
             r["failure_classification"] = classify_failure(status=st, error_msg=err)
 
@@ -130,11 +142,15 @@ def update_benchmark_manifest(
             r["official"] = False
             r["retry_reason"] = "SIMULATION_ONLY"
             continue
+        # Scoped by model (DEC-043): runs on an older model must never hold the official
+        # slot for the pinned benchmark model.
         key = (
             r.get("task_id"),
             r.get("system"),
             r.get("repeat_no", 1),
             r.get("ablation", "A0"),
+            str(r.get("model") or "").lower(),
+            str(r.get("series") or "v1"),
         )
         groups[key].append(r)
 
@@ -146,7 +162,7 @@ def update_benchmark_manifest(
             if not official_assigned:
                 if cls == "INFRA_ERROR":
                     r["official"] = False
-                    if not r.get("retry_reason"):
+                    if not r.get("retry_reason") or r.get("retry_reason") == "Subsequent attempt after official result":
                         r["retry_reason"] = f"INFRA_ERROR: {r.get('error') or r.get('status')}"
                 else:
                     r["official"] = True
@@ -227,14 +243,17 @@ def update_benchmark_manifest(
         canonical_task_ids = set()
         is_production_manifest = (os.path.abspath(target_path) == os.path.abspath(MANIFEST_FILE))
         if is_production_manifest:
-            tasks_file = os.path.abspath("eval/tasks.json")
-            if os.path.exists(tasks_file):
-                try:
-                    with open(tasks_file, "r", encoding="utf-8") as tf:
-                        tasks_data = json.load(tf)
-                        canonical_task_ids = {t["task_id"] for t in tasks_data if "task_id" in t}
-                except Exception:
-                    pass
+            # DEC-044: the benchmark runs on eval/tasks_v2.json; reading only the old tasks.json
+            # mislabelled v2 tasks as "non-canonical test runs" in the summary.
+            for rel in ("eval/tasks.json", "eval/tasks_v2.json"):
+                tasks_file = os.path.abspath(rel)
+                if os.path.exists(tasks_file):
+                    try:
+                        with open(tasks_file, "r", encoding="utf-8") as tf:
+                            tasks_data = json.load(tf)
+                            canonical_task_ids |= {t["task_id"] for t in tasks_data if "task_id" in t}
+                    except Exception:
+                        pass
 
     paired_count = sum(
         1
@@ -333,7 +352,13 @@ def classify_failure(
         "429", "rate limit", "daily ceiling", "daily transmissions", "model mismatch",
         "500", "502", "503", "504", "timeout", "connecterror", "connection refused",
         "stopped_provider_quota", "stopped_daily_ceiling", "modelmismatcherror",
-        "dailytransmissionsceilingexceedederror", "quota"
+        "dailytransmissionsceilingexceedederror", "quota",
+        # Provider rejected the request itself (bad payload, auth, unknown model): a setup
+        # error on our side, never a judgement of generated code (DEC-043).
+        "(400)", "error 400", "error_400", "invalid_argument", "invalid json payload",
+        "(401)", "error 401", "error_401", "unauthenticated",
+        "(403)", "error 403", "error_403", "permission_denied",
+        "(404)", "error 404", "error_404",
     ]
     if any(m in text for m in infra_markers):
         return "INFRA_ERROR"
@@ -925,12 +950,17 @@ class EvaluationRunner:
             if "chatdev" in systems:
                 start_proxy_daemon_if_needed(port=8089)
 
+        series = current_series()
+        print(f"Benchmark series: {series}")
+
         # Resume index - skips tasks that already have an official row
         completed_keys: Set[Tuple[str, str, int, str]] = set()
         if resume:
             manifest = load_benchmark_manifest()
             for r in manifest.get("runs", []):
-                if r.get("official") is True or str(r.get("official")).lower() == "true":
+                same_model = str(r.get("model") or "").lower() == str(model or "").lower()
+                same_model = same_model and str(r.get("series") or "v1") == series
+                if same_model and (r.get("official") is True or str(r.get("official")).lower() == "true"):
                     completed_keys.add((
                         r.get("task_id"),
                         r.get("system"),
@@ -938,7 +968,7 @@ class EvaluationRunner:
                         r.get("ablation", "A0"),
                     ))
 
-        eval_id = f"eval_{int(time.time())}_{benchmark_name}"
+        eval_id = f"eval_{int(time.time())}_{benchmark_name}_{os.urandom(3).hex()}"  # unique even within one second
         init_db()
 
         # Persist Evaluation record
@@ -1407,6 +1437,7 @@ class EvaluationRunner:
             _ptype = "fake" if use_fake else "unknown"
         for _rec in all_records:
             _rec.setdefault("provider", _ptype)
+            _rec.setdefault("series", series)
 
         # Export CSV & Stats report & Update persistent manifest
         manifest = update_benchmark_manifest(all_records)

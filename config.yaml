@@ -21,6 +21,9 @@ router:
 
 limits:
   max_tokens_per_run: 100000
+  # Per-call output cap, identical for MAS, single-agent and ChatDev (proxy). 4000 truncated
+  # multi-file answers from the Lite model in the pilot run (DEC-044).
+  max_output_tokens: 8192
   run_timeout_minutes: 20
   sandbox_execution_timeout_seconds: 45
 
@@ -36,6 +39,12 @@ adaptive:
   stop_epsilon: 0.02
   patience: 2
   max_iterations: 3
+
+benchmark:
+  # Benchmark series. Bump it whenever system code or prompts change during the benchmark, so
+  # runs from different code versions are never mixed. Rows without a series are 'v1'
+  # (the Phase 8 pilot run). Official rows, --resume and reports are all scoped to a series.
+  series: "v2"
 
 database:
   url: "sqlite:///./mas.db"

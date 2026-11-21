@@ -47,12 +47,22 @@ def is_simulation(r: Dict[str, Any]) -> bool:
     )
 
 
-def is_official(r: Dict[str, Any]) -> bool:
+def current_series() -> str:
+    try:
+        from eval.runner import current_series as _cs
+        return _cs()
+    except Exception:
+        return "v1"
+
+
+def is_official(r: Dict[str, Any], series: Optional[str] = None) -> bool:
+    """Official, live, provider gemini and (when given) in the active benchmark series."""
     off = r.get("official")
     return (
         not is_simulation(r)
         and (off is True or str(off).lower() == "true")
         and str(r.get("provider", "")).lower() == "gemini"
+        and (series is None or str(r.get("series") or "v1") == series)
     )
 
 
@@ -70,7 +80,12 @@ def system_summary(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Honest counting: an official run without a quality score counts as Quality 0.
     q = [(_f(r.get("quality")) or 0.0) for r in runs]
     def m(key):
-        vals = [_f(r.get(key)) for r in runs if _f(r.get(key)) is not None]
+        # Quality components follow the same honest counting as Quality: an official run that
+        # produced no project scores 0 (matches scripts/make_report.py). Cost metrics skip gaps.
+        if key in ("completeness", "executability", "consistency"):
+            vals = [(_f(r.get(key)) or 0.0) for r in runs]
+        else:
+            vals = [_f(r.get(key)) for r in runs if _f(r.get(key)) is not None]
         return round(mean(vals), 4) if vals else None
     tokens = [_f(r.get("tokens")) or 0.0 for r in runs]
     ci = bootstrap_ci(q) if len(q) > 1 else (q[0], q[0])
@@ -118,8 +133,8 @@ def paired_test(a_runs, b_runs) -> Dict[str, Any]:
     return {"pairs": len(keys), "p_value": wilcoxon_signed_rank_test([a[k] for k in keys], [b[k] for k in keys])}
 
 
-def build_official(manifest_runs: List[Dict[str, Any]]) -> Dict[str, Any]:
-    official = [r for r in manifest_runs if is_official(r)]
+def build_official(manifest_runs: List[Dict[str, Any]], series: Optional[str] = None) -> Dict[str, Any]:
+    official = [r for r in manifest_runs if is_official(r, series)]
     a0 = [r for r in official if (r.get("ablation") or "A0") == "A0"]
     by_sys = {s: [r for r in a0 if r.get("system") == s] for s, _ in SYSTEMS}
     summ = {s: system_summary(v) for s, v in by_sys.items()}
@@ -140,6 +155,11 @@ def build_official(manifest_runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     models = sorted({str(r.get("model")) for r in official})
     return {
         "count": len(official),
+        "series": series,
+        "other_series_official": sorted({
+            str(r.get("series") or "v1") for r in manifest_runs if is_official(r) and not is_official(r, series)
+        }) if series else [],
+        "other_series_count": sum(1 for r in manifest_runs if is_official(r) and series and not is_official(r, series)),
         "models": models,
         "summary": summ,
         "comparisons": comparisons,
@@ -153,13 +173,17 @@ def build_official(manifest_runs: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------------------- exploratory tier
-def build_exploratory(db_path: str) -> Dict[str, Any]:
+def build_exploratory(db_path: str, exclude_run_ids: Optional[set] = None) -> Dict[str, Any]:
+    """exclude_run_ids: benchmark runs (provider gemini) that belong to the official tier, so
+    no run is ever counted in both tiers."""
     if not os.path.exists(db_path):
         return {"available": False}
     con = sqlite3.connect(db_path)
     try:
+        con.execute("CREATE TEMP TABLE excluded (run_id TEXT PRIMARY KEY)")
+        con.executemany("INSERT OR IGNORE INTO excluded VALUES (?)", [(r,) for r in (exclude_run_ids or ())])
         q = lambda sql, *a: con.execute(sql, a).fetchall()  # noqa: E731
-        live = "lower(c.model) != 'fake' AND c.agent NOT IN ('test_agent')"
+        live = "lower(c.model) != 'fake' AND c.agent NOT IN ('test_agent') AND c.run_id NOT IN (SELECT run_id FROM excluded)"
         agents = q(f"""
             SELECT c.agent, COUNT(*), SUM(c.input_tokens), SUM(c.output_tokens), SUM(c.total_tokens), AVG(c.latency_ms)
             FROM model_calls c WHERE {live} GROUP BY c.agent ORDER BY SUM(c.total_tokens) DESC""")
@@ -171,10 +195,12 @@ def build_exploratory(db_path: str) -> Dict[str, Any]:
         statuses = q("""
             SELECT system, status, COUNT(*) FROM runs
             WHERE execution_mode NOT IN ('SIMULATED') AND lower(model) != 'fake' AND status != 'SIMULATION_ONLY'
+              AND run_id NOT IN (SELECT run_id FROM excluded)
             GROUP BY system, status ORDER BY system, 3 DESC""")
         history = q("""
             SELECT run_id, system, model, status, total_tokens, started_at, finished_at FROM runs
             WHERE execution_mode NOT IN ('SIMULATED') AND lower(model) != 'fake' AND status != 'SIMULATION_ONLY'
+              AND run_id NOT IN (SELECT run_id FROM excluded)
             ORDER BY started_at DESC LIMIT 40""")
     finally:
         con.close()
@@ -213,7 +239,7 @@ def build_exploratory(db_path: str) -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------------------- html
-def build_data(manifest_path: str, db_path: str) -> Dict[str, Any]:
+def build_data(manifest_path: str, db_path: str, series: Optional[str] = None) -> Dict[str, Any]:
     runs: List[Dict[str, Any]] = []
     if os.path.exists(manifest_path):
         with open(manifest_path, "r", encoding="utf-8") as fh:
@@ -222,8 +248,10 @@ def build_data(manifest_path: str, db_path: str) -> Dict[str, Any]:
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "sources": {"manifest": os.path.relpath(manifest_path, ROOT), "db": os.path.relpath(db_path, ROOT)},
         "simulation_rows_excluded": sum(1 for r in runs if is_simulation(r)),
-        "official": build_official(runs),
-        "exploratory": build_exploratory(db_path),
+        "official": build_official(runs, series),
+        "exploratory": build_exploratory(
+            db_path, {r.get("run_id") for r in runs if str(r.get("provider", "")).lower() == "gemini"}
+        ),
         "published": PUBLISHED_REFERENCES,
         "systems": dict(SYSTEMS),
     }
@@ -246,9 +274,10 @@ def main() -> None:
     ap.add_argument("--manifest", default=os.path.join(ROOT, "eval", "benchmark_manifest.json"))
     ap.add_argument("--db", default=os.path.join(ROOT, "mas.db"))
     ap.add_argument("--out", default=os.path.join(ROOT, "reports", "dashboard.html"))
+    ap.add_argument("--series", default=None, help="Benchmark series to show as official (default: config benchmark.series)")
     args = ap.parse_args()
 
-    data = build_data(args.manifest, args.db)
+    data = build_data(args.manifest, args.db, series=args.series or current_series())
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(render_html(data))
@@ -256,7 +285,9 @@ def main() -> None:
         json.dump(data, fh, indent=2, default=str)
 
     off = data["official"]
-    print(f"[DASHBOARD] Official runs (gemini, live): {off['count']}" + ("" if off["count"] else "  -> tables show NOT RUN"))
+    print(f"[DASHBOARD] Official runs (gemini, live, series {off['series']}): {off['count']}" + ("" if off["count"] else "  -> tables show NOT RUN"))
+    if off.get("other_series_count"):
+        print(f"[DASHBOARD] Official rows in other series (not shown as results): {off['other_series_count']} ({', '.join(off['other_series_official'])})")
     ex = data["exploratory"]
     if ex.get("available"):
         print(f"[DASHBOARD] Exploratory live LLM calls profiled: {sum(a['calls'] for a in ex['agents'])} (labelled EXPLORATORY)")

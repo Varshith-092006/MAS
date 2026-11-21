@@ -142,7 +142,8 @@ const SYS = [["mas", "MAS (ours)"], ["chatdev", "ChatDev"], ["single", "Single-a
   $("srcs").textContent = `${D.sources.manifest}, ${D.sources.db}, eval/published_references.py`;
   let h = "";
   if (!o.count) h += `<div class="banner warn"><b>No official benchmark runs yet.</b> Official = live, provider <code>gemini</code>, pinned model, first non-infrastructure attempt. Every official table below shows NOT RUN until <code>python -m eval.runner --benchmark --live ...</code> has been executed.</div>`;
-  else h += `<div class="banner info"><b>${o.count} official runs</b> on model(s) ${esc(o.models.join(", "))}.</div>`;
+  else h += `<div class="banner info"><b>${o.count} official runs</b> in series <code>${esc(o.series)}</code> on model(s) ${esc(o.models.join(", "))}.</div>`;
+  if (o.other_series_count) h += `<div class="banner warn">${o.other_series_count} official rows from earlier series (${esc(o.other_series_official.join(", "))}) are kept in the manifest for audit but not shown here: they ran on older system code. Series <code>v1</code> is the Phase 8 pilot.</div>`;
   h += `<div class="banner info">${D.simulation_rows_excluded} simulation (FakeLLM) rows excluded from every table and chart.</div>`;
   $("provenance").innerHTML = h;
 })();

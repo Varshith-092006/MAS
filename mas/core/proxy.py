@@ -60,14 +60,22 @@ async def chat_completions(request: Request, authorization: str = Header(None)):
     elif "reasoning" in model.lower() or "cohere" in model.lower():
         body["reasoning"] = {"max_tokens": 0}
 
+    # Same per-call output cap as MAS and the single-agent baseline (DEC-044).
+    from mas.agents.developer import max_output_tokens
+    _cap = max_output_tokens()
     if "max_tokens" in body:
-        body["max_tokens"] = min(int(body["max_tokens"]), 4000)
+        body["max_tokens"] = min(int(body["max_tokens"]), _cap)
     else:
-        body["max_tokens"] = 4000
+        body["max_tokens"] = _cap
 
-    # Enforce deterministic temperature and seed for benchmark fairness across MAS and ChatDev
+    # Enforce deterministic temperature and seed for benchmark fairness across MAS and ChatDev.
+    # The seed is omitted where the provider rejects it (Gemini), exactly as the direct client does.
     body["temperature"] = 0.0
-    body["seed"] = 42
+    from mas.core.llm import BENCHMARK_SEED, provider_supports_seed
+    if provider_supports_seed(upstream_url):
+        body["seed"] = BENCHMARK_SEED
+    else:
+        body.pop("seed", None)
 
     run_id = request.headers.get("X-Run-ID", "global-run")
     agent_name = request.headers.get("X-Agent-Name", "chatdev_or_external")

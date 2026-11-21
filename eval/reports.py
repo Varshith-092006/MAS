@@ -15,7 +15,7 @@ def export_results_csv(records: List[Dict[str, Any]], output_path: str = "result
 
     fieldnames = [
         "run_id", "task_id", "system", "provider", "model", "actual_model",
-        "repeat_no", "ablation", "official", "retry_reason",
+        "repeat_no", "ablation", "series", "official", "retry_reason",
         "quality", "quality_per_1k_tokens", "completeness", "executability",
         "consistency", "consistency_method", "shared_test", "ruff", "bandit", "radon",
         "tokens", "cost", "llm_calls", "wall_clock_seconds", "loc", "pytest_pass_rate", "coverage", "status", "failure_classification",

@@ -27,7 +27,8 @@ def parse_delimiter_blocks(text: str) -> Optional[Dict[str, Any]]:
     if not text or "=== FILE:" not in text:
         return None
 
-    header_pattern = re.compile(r"===\s*FILE:\s*([a-zA-Z0-9_\-\.\/]+)\s*===", re.IGNORECASE)
+    # Tolerates `main.py`, "main.py" and **main.py** around the name (Lite-model variants).
+    header_pattern = re.compile(r"===\s*FILE:\s*[`'\"*]*([a-zA-Z0-9_\-\.\/]+)[`'\"*]*\s*===", re.IGNORECASE)
     matches = list(header_pattern.finditer(text))
     if not matches:
         return None
@@ -41,7 +42,8 @@ def parse_delimiter_blocks(text: str) -> Optional[Dict[str, Any]]:
         else:
             chunk = text[content_start:]
 
-        end_marker = re.search(r"===\s*END\s+FILE\s*===", chunk, re.IGNORECASE)
+        # Accepts "=== END FILE ===" and variants such as "=== END FILE: main.py ===" (DEC-044).
+        end_marker = re.search(r"===\s*END\s+FILE\b[^\n=]*===", chunk, re.IGNORECASE)
         if end_marker:
             code = chunk[:end_marker.start()]
         else:
@@ -66,6 +68,30 @@ def parse_delimiter_blocks(text: str) -> Optional[Dict[str, Any]]:
         "summary": f"Extracted {len(file_contents)} files from delimiter blocks",
         "tests_expected": ["Execute main.py entry point and verify outputs"],
     }
+
+
+def max_output_tokens() -> int:
+    """Per-call output cap shared by MAS, the single-agent baseline and the ChatDev proxy (DEC-044)."""
+    try:
+        from mas.core.config import get_config
+        return int(get_config().get("limits", {}).get("max_output_tokens", 8192))
+    except Exception:
+        return 8192
+
+
+# Generic code-generation rules (no task-specific content). Used by the MAS Developer and the
+# single-agent baseline so that MAS vs single isolates the multi-agent structure (DEC-044).
+GENERATION_RULES = "".join(
+    line + "\n"
+    for line in (
+        "- Start your answer directly with the first === FILE: block. No plan or explanation before it.",
+        "- Keep the project small enough to write completely in one answer (at most 4 files). "
+        "If a planned design has more modules, merge them: complete working code matters more than file count.",
+        "- Use only the Python standard library; no third-party packages.",
+        "- The program must not crash when no keyboard input is available: catch EOFError around input() "
+        "and exit cleanly. 'python main.py --help' must print usage and exit with code 0.",
+    )
+)
 
 
 class DeveloperAgent(BaseAgent):
@@ -141,7 +167,7 @@ class DeveloperAgent(BaseAgent):
             response_schema=CodePatch,
             run_id=run_id,
             agent_name="developer",
-            max_tokens=4000,
+            max_tokens=max_output_tokens(),
         )
 
         data = parse_delimiter_blocks(res.text)
@@ -216,6 +242,7 @@ class DeveloperAgent(BaseAgent):
             if feedback:
                 prompt_sections.append(f"Validator Feedback:\n{feedback}\n")
 
+            prompt_sections.append("Generation Rules:\n" + GENERATION_RULES)
             prompt_sections.append(
                 "Instructions:\n"
                 "- Write complete, self-contained, executable Python code with entry point in main.py.\n"
@@ -254,7 +281,7 @@ class DeveloperAgent(BaseAgent):
                 response_schema=CodePatch,
                 run_id=run_id,
                 agent_name="developer",
-                max_tokens=4000,
+                max_tokens=max_output_tokens(),
             )
 
             # 1. First priority: Delimiter blocks format

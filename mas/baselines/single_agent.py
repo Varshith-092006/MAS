@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from mas.agents.developer import parse_delimiter_blocks
+from mas.agents.developer import GENERATION_RULES, max_output_tokens, parse_delimiter_blocks
 from mas.core.llm import LLMProvider, FakeLLMProvider, token_logger
 
 SYSTEM_ID = "single"
@@ -27,7 +27,8 @@ SYSTEM_PROMPT = (
     "=== FILE: <filename> ===\n"
     "<raw code>\n"
     "=== END FILE ===\n"
-    "Do not use placeholders, pass-only stubs or TODO comments. Output only the file blocks."
+    "Do not use placeholders, pass-only stubs or TODO comments. Output only the file blocks.\n"
+    + GENERATION_RULES
 )
 
 
@@ -48,7 +49,7 @@ class SingleAgentBaseline:
         run_id: Optional[str] = None,
         model: Optional[str] = None,
         workspace_base: str = "./eval/workspaces",
-        max_tokens: int = 6000,
+        max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         run_id = run_id or f"single_{uuid.uuid4().hex[:8]}"
         workspace = os.path.abspath(os.path.join(workspace_base, run_id))
@@ -68,7 +69,7 @@ class SingleAgentBaseline:
                 model=model or getattr(self.llm, "default_model", None),
                 run_id=run_id,
                 agent_name=AGENT_NAME,
-                max_tokens=max_tokens,
+                max_tokens=max_tokens or max_output_tokens(),
             )
             blocks = parse_delimiter_blocks(res.text or "")
             if not blocks and isinstance(res.parsed_json, dict) and "file_contents" in res.parsed_json:

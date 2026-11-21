@@ -758,3 +758,34 @@ This document tracks architectural decisions, source precedence, specification c
 - **Amends**: DEC-013 item 4 ("the key must start with `AIza`").
 - **Tests**: 2 new tests in `tests/test_provider_config.py` (an `AQ.` key passes; an unknown prefix still fails). Existing tests unchanged.
 - **Hermetic tests**: once the maintainer's `.env` held a real Gemini key and `BENCH_MODEL`, 10 tests failed, because modules call `load_dotenv()` on import and the runtime model pinning replaced each test's requested model with the real `BENCH_MODEL`. None of them made a network call (HTTP was mocked). `tests/conftest.py` now pins the provider variables to empty values before any import, sets a dummy `OPENROUTER_API_KEY` (ChatDev's camel library only checks that the variable exists; its backend is mocked), and blocks every non-loopback socket connection, which enforces AGENTS.md rule 7. Result: 324 passed with network blocked.
+
+---
+
+### Record: Fixes from the First Live Gemini Smoke Test (seed, failure classification, per-model official rows)
+
+- **ID**: DEC-043
+- **Date**: 2026-11-22
+- **Trigger**: The maintainer's first live smoke test (task srdd_educ_01, model gemini-3.5-flash-lite, systems mas/chatdev/single) failed on every request with HTTP 400 `Invalid JSON payload received. Unknown name "seed"`. No output was generated (0 tokens) for any system.
+- **Decision**:
+  1. **Seed omitted on Gemini**: Gemini's OpenAI-compatible endpoint rejects the `seed` field. `provider_supports_seed()` in `mas/core/llm.py` drops it for `generativelanguage.googleapis.com`, both in the direct client (MAS, single-agent) and in the logging proxy (ChatDev), so all systems still send identical parameters. `temperature=0` is still enforced for every call. **Deviation from AGENTS.md rule 5 ("identical seed")**: no seed is sent on Gemini, so there is no provider-side seed for any system. Runs at temperature 0 can still vary slightly, which is one reason to report repeats and CIs. Other providers still get seed 42.
+  2. **Provider rejections are INFRA_ERROR**: `classify_failure` now treats provider request errors (400 / INVALID_ARGUMENT / 401 / 403 / 404) as infrastructure errors. Any live run that consumed 0 tokens and 0 calls is also INFRA_ERROR, because there is no model output to judge. Before this, the smoke run's single-agent row was stored as an **official Quality 0** result.
+  3. **Official rows chosen per model**: the official-row group key was (task, system, repeat, ablation). The old OpenRouter runs on srdd_educ_01 therefore held the official slot, the Gemini MAS/ChatDev rows were marked "subsequent attempt", and `--resume` would have skipped MAS and ChatDev on that task for the Gemini benchmark. The model is now part of the key, and `--resume` only skips rows of the model being run. `scripts/make_report.py` gains `--model` (default `BENCH_MODEL`), because several models can now each have official rows. The dashboard already restricts official rows to provider gemini.
+  4. **Records corrected**: the manifest was reclassified with no new records. The 3 smoke rows are now INFRA_ERROR and not official; their error text is kept for audit. `results.csv` was re-exported.
+  5. **Unique evaluation IDs**: `evaluation_id` was `eval_<unix seconds>_<benchmark>`, so two batches started in the same second collided on the primary key. A 6-hex random suffix was added.
+- **Tests**: `tests/test_phase8_gemini_live_fixes.py` (7 tests: seed in direct client and proxy, classification, zero-output rule, per-model official slot, resume scoping). No existing test changed.
+
+---
+
+### Record: Fixes from the 5-Task Gemini Pilot; Benchmark Series v2
+
+- **ID**: DEC-044
+- **Date**: 2026-11-22
+- **Trigger**: The first 5-task live run (srdd_educ_01-04, srdd_work_01; MAS, ChatDev, single-agent; gemini-3.5-flash-lite) scored Quality 0 in 11 of 15 runs. Every zero came from Executability = 0. Re-running the frozen evaluator's smoke protocol on each workspace showed real start-up crashes: ChatDev left markdown fences in files, emptied `main.py`, and had syntax and `tkinter.ttk` errors; the single agent left a delimiter line in code and imported uninstalled packages (`rich`, `PyQt5`, `networkx`); MAS blocked on `input()` without stdin (EOFError) on one task and lost one task entirely because all 3 Developer answers hit the 4,000-token output cap (3,993-3,996 tokens; the Architect had planned 10 files).
+- **Decision** (all generic; no task-specific content):
+  1. **Parser** (`parse_delimiter_blocks`, shared by the MAS Developer and the single agent): accepts `=== END FILE: name ===` variants and quoted or backticked file names. Before, the end marker stayed in the code as a syntax error. This was our bug.
+  2. **One per-call output cap for every system**: `limits.max_output_tokens: 8192` is used by the MAS Developer, the single agent and the ChatDev proxy (which was hard-capped at 4,000). The request count is unchanged.
+  3. **Generic generation rules** (`GENERATION_RULES`), given to the MAS Developer and the single agent so that MAS vs single still isolates the multi-agent structure: start straight with the file blocks; at most 4 files; standard library only; catch EOFError around `input()`; `--help` exits 0. The Architect now plans at most 4 files. ChatDev keeps its published prompts (it is the as-published baseline, as in the paper).
+  4. **Benchmark series**: `benchmark.series: "v2"` in config.yaml. Every new record carries `series`; rows without one are `v1`. Official rows, `--resume`, the dashboard and `make_report.py` are all scoped to the active series, so runs from different code versions never mix. **The pilot (all Gemini rows so far, including the smoke test) is series v1**: it is kept in the manifest for audit, shown only as a count on the dashboard, and is not reported as results. `results.csv` gains a `series` column.
+  5. **Manifest summary**: canonical task IDs now come from `eval/tasks.json` and `eval/tasks_v2.json`. Before, v2 tasks were miscounted as "non-canonical test runs".
+- **Methodological note**: these changes were made after seeing pilot results on 5 benchmark tasks. They fix generic failure modes (parsing, truncation, environment assumptions), not task content. The v2 series must be run from scratch, and v1 must not be pooled with it.
+- **Tests**: `tests/test_phase8_pilot_fixes.py` (10 tests). `tests/test_phase2ad_chatdev_and_mas_fixes.py::test_production_manifest_summary_is_reconciled` changed on purpose: it pinned exact historical counts (0-3) from the production manifest, which live runs now legitimately exceed, so it now checks consistency (pairs <= completed runs per system). 341 passed.

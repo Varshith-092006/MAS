@@ -14,7 +14,7 @@ This document provides the exact, step-by-step procedure to execute the empirica
 ```powershell
 Copy-Item .env.example .env
 # Then open .env in a text editor and fill in:
-#   PROVIDER_API_KEY  — your Google AI Studio key (starts with AIza)
+#   PROVIDER_API_KEY  — your Google AI Studio key (starts with AIza or AQ.)
 #   PROVIDER_BASE_URL — already set in the example (keep the trailing slash)
 #   BENCH_MODEL       — leave blank for now; fill after running list_models
 ```

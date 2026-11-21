@@ -747,3 +747,14 @@ This document tracks architectural decisions, source precedence, specification c
 - **Tests changed on purpose**: `tests/test_research_validity.py::test_25` (Tester no longer calls the LLM; Reviewer runs once), `tests/test_phase4_quality_and_call_reduction.py` (review-once test; legacy-mode skip test added; trim test pinned to `mode="llm"`).
 - **Not changed**: frozen evaluator (`eval/neutral_evaluator.py`, `eval/scorers/*`, `eval/checks/*`), benchmark hashes, task files, ChatDev, HLD/LLD/PDF, frontend.
 - **Impact**: 322 passed (baseline before this phase: 293 passed, 2 failed). No live model calls were made.
+
+---
+
+### Record: Accept the Newer Google API Key Format ("AQ.")
+
+- **ID**: DEC-042
+- **Date**: 2026-11-22
+- **Decision**: The Gemini key check (`eval/provider_config.py`) accepted only keys starting with `AIza`. Google AI Studio now also issues keys in a newer format starting with `AQ.`. The maintainer's `AQ.` key failed preflight even though `scripts/list_models.py` listed models with it against the Gemini endpoint. Both prefixes are now accepted (`GOOGLE_KEY_PREFIXES`). OpenRouter `sk-or-` keys and unknown prefixes still fail. The key is never printed: only its length and prefix class are reported.
+- **Amends**: DEC-013 item 4 ("the key must start with `AIza`").
+- **Tests**: 2 new tests in `tests/test_provider_config.py` (an `AQ.` key passes; an unknown prefix still fails). Existing tests unchanged.
+- **Hermetic tests**: once the maintainer's `.env` held a real Gemini key and `BENCH_MODEL`, 10 tests failed, because modules call `load_dotenv()` on import and the runtime model pinning replaced each test's requested model with the real `BENCH_MODEL`. None of them made a network call (HTTP was mocked). `tests/conftest.py` now pins the provider variables to empty values before any import, sets a dummy `OPENROUTER_API_KEY` (ChatDev's camel library only checks that the variable exists; its backend is mocked), and blocks every non-loopback socket connection, which enforces AGENTS.md rule 7. Result: 324 passed with network blocked.

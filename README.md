@@ -106,7 +106,7 @@ For complete step-by-step instructions refer to **[`RUN_FINAL.md`](./RUN_FINAL.m
 ```powershell
 # Step 0: Copy and fill in provider config
 Copy-Item .env.example .env
-# Edit .env: set PROVIDER_API_KEY (starts with AIza), PROVIDER_BASE_URL (Gemini URL), leave BENCH_MODEL blank
+# Edit .env: set PROVIDER_API_KEY (starts with AIza or AQ.), PROVIDER_BASE_URL (Gemini URL), leave BENCH_MODEL blank
 
 # Discover the exact model ID (prints "Provider: gemini (...)" at the top)
 python scripts/list_models.py

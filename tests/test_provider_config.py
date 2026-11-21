@@ -203,6 +203,22 @@ class TestOpenRouterKeyOnGeminiEndpoint:
         ok, msgs = validate_key_only(s)
         assert ok, f"AIza key on Gemini endpoint should pass key check, got: {msgs}"
 
+    def test_new_format_AQ_key_on_gemini_endpoint_passes(self):
+        """DEC-042: newer Google AI Studio keys start with 'AQ.' and must be accepted."""
+        fake_aq_key = "AQ.FakeNewFormatGoogleKey_1234567890abcdefghijklmnop"  # never real
+        e = _env(provider_key=fake_aq_key, provider_url=GEMINI_URL, bench_model="gemini-3.5-flash-lite")
+        s = resolve_provider_settings(e)
+        ok, msgs = validate_key_only(s)
+        assert ok and any("looks like a Google key" in m for m in msgs), msgs
+        ok_live, live_msgs = validate_for_live_run(s)
+        assert not any("does not look like a Google key" in m for m in live_msgs), live_msgs
+
+    def test_unknown_key_prefix_on_gemini_still_fails(self):
+        e = _env(provider_key="xyz-not-a-google-key-1234567890", provider_url=GEMINI_URL, bench_model="gemini-3.5-flash-lite")
+        ok, msgs = validate_for_live_run(resolve_provider_settings(e))
+        assert not ok
+        assert any("does not look like a Google key" in m for m in msgs)
+
     def test_sk_or_key_on_gemini_fails_key_only_check(self):
         e = _env(provider_key=FAKE_OR_KEY, provider_url=GEMINI_URL, bench_model="gemini-3.5-flash-lite")
         s = resolve_provider_settings(e)

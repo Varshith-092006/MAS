@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAS Results Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0; --surface-1: #fcfcfb; --border: #e2e0da;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --grid: #e9e7e1;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --warn-bg: #fff4dc; --warn-ink: #6b4a00; --info-bg: #e8f1fc; --info-ink: #184f95;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2d2a;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --grid: #2a2927;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --warn-bg: #3a2e10; --warn-ink: #f3d98f; --info-bg: #14263d; --info-ink: #b7d3f6;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2d2a;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --grid: #2a2927;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --warn-bg: #3a2e10; --warn-ink: #f3d98f; --info-bg: #14263d; --info-ink: #b7d3f6;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 17px; margin: 0 0 4px; }
+.sub { color: var(--text-secondary); margin: 0 0 16px; }
+.muted { color: var(--text-muted); font-size: 12px; }
+section { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px; margin: 16px 0; overflow: hidden; }
+.tier { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; margin-left: 8px; vertical-align: 2px; }
+.tier.official { color: var(--series-1); } .tier.expl { color: var(--warn-ink); } .tier.pub { color: var(--text-secondary); }
+.banner { border-radius: 8px; padding: 10px 12px; margin: 10px 0; font-size: 13px; }
+.banner.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.banner.info { background: var(--info-bg); color: var(--info-ink); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 12px 0; }
+.tile { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.tile .k { color: var(--text-secondary); font-size: 12px; }
+.tile .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .d { font-size: 12px; color: var(--text-muted); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+td.nr { color: var(--text-muted); font-style: italic; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 6px 0; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+svg text { fill: var(--text-secondary); font-size: 11px; }
+svg .val { fill: var(--text-primary); }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.15); display: none; z-index: 10; max-width: 280px; }
+.bar:hover { opacity: .85; }
+code { font-size: 12px; background: var(--surface-0); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MAS Results Dashboard</h1>
+  <p class="sub">MAS vs ChatDev vs single-agent baseline, iCoder metrics (You et al., IST 198, 2026). Generated __GENERATED__ from recorded data only.</p>
+  <div id="provenance"></div>
+
+  <section id="official"></section>
+  <section id="agents-official"></section>
+  <section id="ablations"></section>
+  <section id="published"></section>
+  <section id="exploratory"></section>
+  <section id="history"></section>
+  <p class="muted">Rules applied: no invented numbers (missing data shows NOT RUN); simulation rows excluded; published values are indicative only (different model and tasks). Source files: <span id="srcs"></span>.</p>
+</main>
+<div id="tip"></div>
+<script>
+const D = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const NR = '<td class="nr">NOT RUN</td>';
+const fmt = (v, d = 4) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : Number(v).toFixed(d);
+const int = (v) => (v === null || v === undefined) ? "–" : Math.round(v).toLocaleString();
+const sgn = (v) => (v === null || v === undefined) ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+const tip = $("tip");
+function bindTips(root) {
+  root.querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mousemove", e => { tip.innerHTML = el.dataset.tip; tip.style.display = "block";
+      tip.style.left = Math.min(e.clientX + 12, innerWidth - 290) + "px"; tip.style.top = (e.clientY + 12) + "px"; });
+    el.addEventListener("mouseleave", () => tip.style.display = "none");
+  });
+}
+
+// Horizontal bar chart; series = [{key,label,color}], stacked when >1. rows = [{label, values:{key:num}, tip}]
+function hbar(rows, series, opts = {}) {
+  const W = 520, rowH = 26, left = opts.left || 120, right = 70, top = 6;
+  const H = top + rows.length * rowH + 22;
+  const raw = Math.max(1e-9, ...rows.map(r => series.reduce((a, s) => a + (r.values[s.key] || 0), 0)));
+  const mag = Math.pow(10, Math.floor(Math.log10(raw))), steps = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10];
+  const max = mag * steps.find(s => s * mag >= raw);
+  const x = v => (W - left - right) * v / max;
+  let g = "";
+  for (let t = 0; t <= 4; t++) {
+    const xv = left + (W - left - right) * t / 4;
+    g += `<line x1="${xv}" x2="${xv}" y1="${top}" y2="${H - 18}" stroke="var(--grid)"/>`;
+    g += `<text x="${xv}" y="${H - 4}" text-anchor="middle">${esc(opts.tick ? opts.tick(max * t / 4) : int(max * t / 4))}</text>`;
+  }
+  rows.forEach((r, i) => {
+    const y = top + i * rowH + 5, h = rowH - 10;
+    g += `<text x="${left - 8}" y="${y + h / 2 + 4}" text-anchor="end">${esc(r.label)}</text>`;
+    let cx = left, total = 0;
+    series.forEach((s, si) => {
+      const v = r.values[s.key] || 0; total += v; if (!v) return;
+      const w = Math.max(1, x(v) - (si < series.length - 1 ? 2 : 0));
+      const rad = si === series.length - 1 ? 4 : 0;
+      g += `<path class="bar" fill="${s.color}" data-tip="${esc(r.label)}<br>${esc(s.label)}: <b>${esc(opts.fmtv ? opts.fmtv(v) : int(v))}</b>${r.tip ? "<br>" + esc(r.tip) : ""}"
+        d="M${cx},${y} h${Math.max(0, w - rad)} a${rad},${rad} 0 0 1 ${rad},${rad} v${h - 2 * rad} a${rad},${rad} 0 0 1 -${rad},${rad} h-${Math.max(0, w - rad)} z"/>`;
+      cx += x(v);
+    });
+    g += `<text class="val" x="${cx + 6}" y="${y + h / 2 + 4}">${esc(opts.fmtv ? opts.fmtv(total) : int(total))}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(opts.aria || "bar chart")}">${g}</svg>`;
+}
+const legend = (series) => `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join("")}</div>`;
+const C1 = "var(--series-1)", C2 = "var(--series-2)", C3 = "var(--series-3)";
+const SYS = [["mas", "MAS (ours)"], ["chatdev", "ChatDev"], ["single", "Single-agent"]];
+
+// ---------------------------------------------------------------- provenance
+(function () {
+  const o = D.official, ex = D.exploratory;
+  $("srcs").textContent = `${D.sources.manifest}, ${D.sources.db}, eval/published_references.py`;
+  let h = "";
+  if (!o.count) h += `<div class="banner warn"><b>No official benchmark runs yet.</b> Official = live, provider <code>gemini</code>, pinned model, first non-infrastructure attempt. Every official table below shows NOT RUN until <code>python -m eval.runner --benchmark --live ...</code> has been executed.</div>`;
+  else h += `<div class="banner info"><b>${o.count} official runs</b> on model(s) ${esc(o.models.join(", "))}.</div>`;
+  h += `<div class="banner info">${D.simulation_rows_excluded} simulation (FakeLLM) rows excluded from every table and chart.</div>`;
+  $("provenance").innerHTML = h;
+})();
+
+// ---------------------------------------------------------------- official comparison
+(function () {
+  const o = D.official, S = o.summary;
+  const cols = [["n","N",0],["quality","Quality",4],["completeness","Completeness",4],["executability","Executability",4],["consistency","Consistency",4],["tokens","Tokens/task",-1],["llm_calls","LLM calls/task",1],["wall_clock_seconds","Time/task (s)",1],["quality_per_1k_tokens","Quality/1k tok",4],["success_rate","Success rate",2]];
+  let rows = SYS.map(([k, name]) => {
+    const s = S[k] || {n: 0};
+    if (!s.n) return `<tr><td>${name}</td>${cols.map(() => NR).join("")}</tr>`;
+    return `<tr><td>${name}</td>${cols.map(([c, , d]) => {
+      if (c === "quality") return `<td>${fmt(s.quality)} <span class="muted">[${fmt(s.quality_ci[0], 3)}, ${fmt(s.quality_ci[1], 3)}]</span></td>`;
+      return `<td>${d < 0 ? int(s[c]) : d === 0 ? s[c] : fmt(s[c], d)}</td>`; }).join("")}</tr>`;
+  }).join("");
+  let comp = ["chatdev", "single"].map(b => {
+    const c = o.comparisons[b]; const name = b === "chatdev" ? "ChatDev" : "Single-agent";
+    if (!c) return `<tr><td>MAS vs ${name}</td>${NR}${NR}${NR}${NR}</tr>`;
+    return `<tr><td>MAS vs ${name}</td><td>${sgn(c.quality_change_pct)}</td><td>${sgn(c.token_change_pct)}</td><td>${sgn(c.calls_change_pct)}</td><td>${c.p_value == null ? "n/a (" + c.pairs + " pairs)" : fmt(c.p_value, 4) + " (" + c.pairs + " pairs)"}</td></tr>`;
+  }).join("");
+  let chart = "";
+  const have = SYS.filter(([k]) => (S[k] || {}).n);
+  if (have.length) {
+    const colors = {mas: C1, chatdev: C2, single: C3};
+    chart = `<div class="grid2"><div><h2 style="font-size:14px">Mean Quality</h2>${hbar(have.map(([k, n]) => ({label: n, values: {q: S[k].quality}, tip: `95% CI [${fmt(S[k].quality_ci[0],3)}, ${fmt(S[k].quality_ci[1],3)}], N=${S[k].n}`})), [{key: "q", label: "Quality", color: C1}], {fmtv: v => fmt(v, 3), tick: v => fmt(v, 2), aria: "Mean quality per system"})}</div>
+      <div><h2 style="font-size:14px">Tokens per task</h2>${hbar(have.map(([k, n]) => ({label: n, values: {t: S[k].tokens}, tip: `LLM calls/task ${fmt(S[k].llm_calls, 1)}`})), [{key: "t", label: "Tokens", color: C1}], {aria: "Tokens per task per system"})}</div></div>`;
+  }
+  $("official").innerHTML = `<h2>Benchmark comparison <span class="tier official">OFFICIAL</span></h2>
+    <p class="muted">Same tasks, requirement text, model, temperature and seed for all systems. Failed official runs count as Quality 0. Quality CI: bootstrap 95%, 10,000 resamples.</p>
+    <div class="tablewrap"><table><thead><tr><th>System</th>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
+    <h2 style="margin-top:16px;font-size:14px">Relative change (MAS minus baseline, % of baseline)</h2>
+    <div class="tablewrap"><table><thead><tr><th>Comparison</th><th>Quality</th><th>Tokens</th><th>LLM calls</th><th>Wilcoxon p (paired)</th></tr></thead><tbody>${comp}</tbody></table></div>${chart}`;
+  bindTips($("official"));
+})();
+
+// ---------------------------------------------------------------- per-agent (official)
+function agentSection(el, title, tier, agents, note) {
+  const rows = agents.slice().sort((a, b) => b.total_tokens - a.total_tokens);
+  const series = [{key: "input_tokens", label: "Input tokens", color: C1}, {key: "output_tokens", label: "Output tokens", color: C2}];
+  const tbl = rows.map(a => `<tr><td>${esc(a.agent)}</td><td>${a.calls}</td><td>${int(a.input_tokens)}</td><td>${int(a.output_tokens)}</td><td>${int(a.total_tokens)}</td><td>${int(a.total_tokens / Math.max(1, a.calls))}</td><td>${a.avg_latency_ms != null ? fmt(a.avg_latency_ms / 1000, 1) : "–"}</td></tr>`).join("");
+  el.innerHTML = `<h2>${title} ${tier}</h2>${note}
+   <div class="grid2"><div><h2 style="font-size:14px">Tokens by agent</h2>${legend(series)}${hbar(rows.map(a => ({label: a.agent, values: a, tip: a.calls + " calls"})), series, {aria: "tokens by agent"})}</div>
+   <div><h2 style="font-size:14px">Mean latency per call (s)</h2>${hbar(rows.map(a => ({label: a.agent, values: {l: (a.avg_latency_ms || 0) / 1000}, tip: a.calls + " calls"})), [{key: "l", label: "Latency (s)", color: C1}], {fmtv: v => fmt(v, 1), tick: v => fmt(v, v < 10 && v % 1 ? 1 : 0), aria: "latency by agent"})}</div></div>
+   <div class="tablewrap"><table><thead><tr><th>Agent</th><th>Calls</th><th>Input</th><th>Output</th><th>Total</th><th>Tokens/call</th><th>Latency/call (s)</th></tr></thead><tbody>${tbl}</tbody></table></div>`;
+  bindTips(el);
+}
+(function () {
+  const ag = D.official.agents.mas || {};
+  const list = Object.entries(ag).map(([agent, v]) => ({agent, ...v, avg_latency_ms: v.calls ? v.latency_ms / v.calls : null}));
+  if (!list.length) {
+    $("agents-official").innerHTML = `<h2>MAS per-agent cost <span class="tier official">OFFICIAL</span></h2><p class="muted">NOT RUN. Filled from each official run's <code>agent_breakdown</code> (provider-reported usage per call).</p>`;
+    return;
+  }
+  agentSection($("agents-official"), "MAS per-agent cost", '<span class="tier official">OFFICIAL</span>', list, `<p class="muted">Summed over official MAS runs (A0). Provider-reported tokens per call.</p>`);
+})();
+
+// ---------------------------------------------------------------- ablations
+(function () {
+  const A = D.official.ablations, names = {A0: "Full MAS", A1: "Always Architect (no router)", A2: "Full repo context (no slicing)", A3: "No evidence-grounded review", A4: "Single iteration (no reflection)"};
+  const base = (A.A0 || {}).quality;
+  const rows = Object.keys(names).map(k => { const a = A[k];
+    if (!a) return `<tr><td>${k} · ${names[k]}</td>${NR}${NR}${NR}${NR}${NR}</tr>`;
+    return `<tr><td>${k} · ${names[k]}</td><td>${a.n}</td><td>${fmt(a.quality)}</td><td>${int(a.tokens)}</td><td>${fmt(a.llm_calls, 1)}</td><td>${base != null && k !== "A0" ? fmt(a.quality - base) : "–"}</td></tr>`; }).join("");
+  $("ablations").innerHTML = `<h2>Ablations <span class="tier official">OFFICIAL</span></h2><div class="tablewrap"><table><thead><tr><th>Condition</th><th>N</th><th>Quality</th><th>Tokens/task</th><th>LLM calls/task</th><th>Δ Quality vs A0</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+})();
+
+// ---------------------------------------------------------------- published
+(function () {
+  const P = D.published, r = (m, sys) => { const p = P[m]; return `<tr><td>${m === "gpt-4o" ? "GPT-4o" : "GPT-3.5 Turbo"} · ${sys === "icoder" ? "iCoder" : "ChatDev"}</td><td>${p.tasks_evaluated}</td><td>${fmt(p[sys + "_completeness"])}</td><td>${fmt(p[sys + "_executability"])}</td><td>${fmt(p[sys + "_consistency"])}</td><td>${fmt(p[sys + "_quality"])}</td><td>${int(p[sys + "_tokens_per_task"])}</td><td>${fmt(p[sys + "_duration_seconds"], 0)}</td></tr>`; };
+  $("published").innerHTML = `<h2>Published paper results <span class="tier pub">INDICATIVE ONLY</span></h2>
+   <div class="banner warn">Different models (GPT-3.5 Turbo, GPT-4o), different task samples and the authors' own evaluator. Never read these as beaten or matched by local runs.</div>
+   <div class="tablewrap"><table><thead><tr><th>Condition</th><th>Tasks</th><th>Completeness</th><th>Executability</th><th>Consistency</th><th>Quality</th><th>Tokens/task</th><th>Time (s)</th></tr></thead>
+   <tbody>${r("gpt-3.5-turbo","chatdev")}${r("gpt-3.5-turbo","icoder")}${r("gpt-4o","chatdev")}${r("gpt-4o","icoder")}</tbody></table></div>`;
+})();
+
+// ---------------------------------------------------------------- exploratory
+(function () {
+  const ex = D.exploratory, el = $("exploratory");
+  if (!ex.available || !ex.agents.length) { el.innerHTML = `<h2>Exploratory live calls <span class="tier expl">EXPLORATORY</span></h2><p class="muted">No recorded live calls.</p>`; return; }
+  const note = `<div class="banner warn"><b>Not benchmark results.</b> Real provider-reported calls from earlier development runs (legacy MAS versions, OpenRouter free models: ${esc(ex.models.map(m => m.model + " ×" + m.calls).join(", "))}; mostly one SRDD task). Shown only to profile where tokens go per agent. These runs predate the Phase 8 deterministic Tester, so the <code>tester</code> row is LLM cost that no longer exists.</div>`;
+  agentSection(el, "Per-agent token profile", '<span class="tier expl">EXPLORATORY</span>', ex.agents, note);
+  const sy = ex.systems, sysRows = Object.entries(sy).map(([k, s]) => `<tr><td>${esc(k)}</td><td>${s.runs}</td><td>${fmt(s.calls / s.runs, 1)}</td><td>${int(s.tokens / s.runs)}</td><td>${s.completed_runs}</td><td>${s.completed_runs ? fmt(s.completed_calls / s.completed_runs, 1) : "–"}</td><td>${s.completed_runs ? int(s.completed_tokens / s.completed_runs) : "–"}</td></tr>`).join("");
+  const st = ex.statuses.map(s => `<tr><td>${esc(s.system)}</td><td>${esc(s.status)}</td><td>${s.count}</td></tr>`).join("");
+  el.insertAdjacentHTML("beforeend", `<h2 style="margin-top:16px;font-size:14px">Per-run cost by system (runs with recorded calls)</h2>
+   <div class="tablewrap"><table><thead><tr><th>System</th><th>Runs</th><th>Calls/run</th><th>Tokens/run</th><th>Completed runs</th><th>Calls/completed</th><th>Tokens/completed</th></tr></thead><tbody>${sysRows}</tbody></table></div>
+   <h2 style="margin-top:16px;font-size:14px">Run outcomes (all non-simulated runs in mas.db)</h2>
+   <div class="tablewrap"><table><thead><tr><th>System</th><th>Status</th><th>Runs</th></tr></thead><tbody>${st}</tbody></table></div>`);
+})();
+
+// ---------------------------------------------------------------- history
+(function () {
+  const o = D.official.runs, ex = D.exploratory;
+  let h = `<h2>Run history</h2>`;
+  h += `<h2 style="font-size:14px;margin-top:8px">Official runs <span class="tier official">OFFICIAL</span></h2>`;
+  h += o.length ? `<div class="tablewrap"><table><thead><tr><th>Run</th><th>System</th><th>Task</th><th>Ablation</th><th>Status</th><th>Quality</th><th>Tokens</th><th>Calls</th><th>Time (s)</th></tr></thead><tbody>${o.map(r => `<tr><td>${esc(r.run_id)}</td><td>${esc(r.system)}</td><td>${esc(r.task_id)}</td><td>${esc(r.ablation)}</td><td>${esc(r.status)}</td><td>${fmt(r.quality)}</td><td>${int(r.tokens)}</td><td>${r.llm_calls ?? "–"}</td><td>${fmt(r.wall_clock_seconds, 1)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">NOT RUN</p>`;
+  if (ex.available && ex.history.length) {
+    h += `<h2 style="font-size:14px;margin-top:16px">Latest 40 non-simulated runs in mas.db <span class="tier expl">EXPLORATORY</span></h2><div class="tablewrap"><table><thead><tr><th>Run</th><th>System</th><th>Model</th><th>Status</th><th>Tokens</th><th>Started (UTC)</th><th>Duration (s)</th></tr></thead><tbody>${ex.history.map(r => `<tr><td>${esc(r.run_id)}</td><td>${esc(r.system)}</td><td>${esc(r.model)}</td><td>${esc(r.status)}</td><td>${int(r.tokens)}</td><td>${esc(r.started_at)}</td><td>${fmt(r.duration_s, 0)}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  $("history").innerHTML = h;
+})();
+</script>
+</body>
+</html>

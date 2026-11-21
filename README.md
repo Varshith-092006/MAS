@@ -115,18 +115,25 @@ python scripts/list_models.py
 # Step 1: Preflight verification (zero quota, zero model calls)
 python -m eval.runner --preflight
 
-# Step 2: Smoke test — first task only, both systems, live (you run this, NOT the agent)
-python -m eval.runner --smoke --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
+# Step 2: Smoke test — first task only, all systems, live (you run this, NOT the agent)
+python -m eval.runner --smoke --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
 
 # Step 3: Full benchmark (20 tasks, 1 repeat, resumable)
-python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 
 # Step 4: Resume after quota reset (same command, --resume skips completed tasks)
-python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 
 # Step 5: Generate reports (Tables 1-6, LaTeX, CSV, figures)
 python scripts/make_report.py --results results.csv --manifest eval/benchmark_manifest.json --output-dir reports
+
+# Step 6: Results dashboard (offline HTML: official vs exploratory vs published tiers)
+python scripts/make_dashboard.py
 ```
+
+See [`PAPER_MAPPING.md`](./PAPER_MAPPING.md) for how each part of the iCoder paper maps to this code,
+and DECISIONS.md DEC-041 for the Phase 8 changes (deterministic Tester, single-agent baseline,
+design-conformance check, per-agent telemetry, dashboard).
 
 ---
 

@@ -49,25 +49,15 @@ class DeterministicRepairChecker:
                 errors.append(f"SyntaxError in {fname} line {se.lineno}: {se.msg}")
                 continue
 
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    # Check empty 'pass' body
-                    if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
-                        errors.append(f"Placeholder detected in {fname}: function '{node.name}' has empty 'pass' body.")
-                    # Check ellipsis '...' body
-                    elif (
-                        len(node.body) == 1
-                        and isinstance(node.body[0], ast.Expr)
-                        and isinstance(node.body[0].value, ast.Constant)
-                        and node.body[0].value.value is Ellipsis
-                    ):
-                        errors.append(f"Placeholder detected in {fname}: function '{node.name}' has ellipsis '...' body.")
-                    # Check NotImplementedError body
-                    elif len(node.body) == 1 and isinstance(node.body[0], ast.Raise):
-                        exc = node.body[0].exc
-                        exc_id = getattr(exc, "id", "") or getattr(getattr(exc, "func", None), "id", "")
-                        if "NotImplemented" in str(exc_id):
-                            errors.append(f"Placeholder detected in {fname}: function '{node.name}' raises NotImplementedError.")
+
+        # Placeholder scan (pass / ... / NotImplementedError / docstring-only bodies / TODO markers).
+        # Shared with TesterAgent so the repair loop and the test report use one definition.
+        try:
+            from mas.agents.tester import scan_placeholders
+            _, _, ph_findings = scan_placeholders(workspace_path)
+            errors.extend(f"Placeholder detected: {f}" for f in ph_findings)
+        except Exception:
+            pass
 
         # Check 3: Fast sandbox smoke run
         if run_smoke and has_main and not any("SyntaxError" in e for e in errors):

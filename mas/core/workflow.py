@@ -271,6 +271,20 @@ class MASWorkflow:
                     summary=f"AST Analysis: {ast_rep['module_count']} modules, {len(ast_rep['cycles'])} cycles",
                 )
 
+                # Reverse-architecture conformance (design vs built code), STRUCTURED path only
+                arch_art = state.get("artifacts", {}).get("Architecture")
+                if arch_art:
+                    from mas.analysis.conformance import check_conformance
+                    conf = check_conformance(arch_art, workspace_path)
+                    state["conformance_report"] = conf
+                    if conf.get("applicable"):
+                        event_logger.emit(
+                            run_id=run_id,
+                            agent="ast",
+                            event="conformance_checked",
+                            summary=f"Design conformance {conf['conformance_score']:.2f}; deviations: {len(conf['findings'])}",
+                        )
+
                 # Static quality analysis (Ruff, Bandit, Radon)
                 q_rep = QualityTools.run_all(workspace_path)
                 state["quality_report"] = q_rep
@@ -290,7 +304,14 @@ class MASWorkflow:
                     and test_rep.get("failed_tests", 0) == 0
                 )
 
-                if is_clean and skip_review_cfg and not a3_disable_grounded_review and active_ablation != "A3":
+                # Phase 8: the Tester is now deterministic (0 LLM calls), so "clean" no longer
+                # implies the requirement is met. The semantic review therefore always runs at
+                # least once; it is skipped only when an earlier review already PASSED and the
+                # code is still clean (saves the call on later iterations without losing review).
+                prev_review_passed = bool(state.get("review_passed_once", False))
+                deterministic_tester = getattr(tester, "mode", "llm") == "deterministic"
+                can_skip = is_clean and (prev_review_passed or not deterministic_tester)
+                if can_skip and skip_review_cfg and not a3_disable_grounded_review and active_ablation != "A3":
                     state["review_report"] = {
                         "status": "PASSED",
                         "critical_issues": 0,
@@ -308,6 +329,8 @@ class MASWorkflow:
                     )
                 else:
                     state = reviewer.run(state)
+                    if state.get("review_report", {}).get("status") == "PASSED":
+                        state["review_passed_once"] = True
 
                 # Reflection & Adaptive Stopper
                 state = reflection.run(state)

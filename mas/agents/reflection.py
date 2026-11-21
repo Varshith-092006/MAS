@@ -166,7 +166,7 @@ class ReflectionAgent(BaseAgent):
             "radon_mi": radon_mi,
             "reviewer_critical": rev_rep.get("critical_issues", 0),
             "reviewer_major": rev_rep.get("major_issues", 0),
-            "completeness": 1.0,
+            "completeness": float(state.get("internal_completeness", 1.0)),
             "executability": exec_ok,
         }
 

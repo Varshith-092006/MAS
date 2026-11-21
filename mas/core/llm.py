@@ -823,6 +823,24 @@ class FakeLLMProvider(LLMProvider):
             }
             text = json.dumps(parsed)
 
+        elif agent_name == "single_agent":
+            # Simulation-only single-agent baseline output (delimiter blocks, one file).
+            text = (
+                "=== FILE: main.py ===\n"
+                "import argparse\n\n"
+                "def process(items):\n"
+                "    \"\"\"Returns the number of items.\"\"\"\n"
+                "    return len(items)\n\n"
+                "def main():\n"
+                "    parser = argparse.ArgumentParser(description='Simulated baseline program')\n"
+                "    parser.parse_args()\n"
+                "    print(process([1, 2, 3]))\n\n"
+                "if __name__ == '__main__':\n"
+                "    main()\n"
+                "=== END FILE ===\n"
+            )
+            parsed = {}
+
         else:
             text = "Deterministic response"
             parsed = {"status": "ok"}

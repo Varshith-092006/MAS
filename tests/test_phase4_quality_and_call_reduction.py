@@ -128,15 +128,15 @@ def test_change3_deterministic_checker_detects_defects(tmp_path):
     assert any("NotImplementedError" in e for e in errs3)
 
 
-def test_change4_skip_unnecessary_llm_review_when_clean(tmp_path):
-    """Verify Reviewer LLM call is skipped when deterministic checks, smoke run, and tests pass clean."""
-    reviewer_called = False
+def test_change4_review_runs_once_then_is_skipped_when_clean(tmp_path):
+    """Phase 8 (DEC-041): with a deterministic Tester the Reviewer runs once per run; the
+    skip only applies once a review has PASSED and the code is still clean."""
+    reviewer_calls = []
 
     class TrackingLLM(FakeLLMProvider):
         def generate(self, messages, agent_name=None, **kwargs):
-            nonlocal reviewer_called
             if agent_name == "reviewer":
-                reviewer_called = True
+                reviewer_calls.append(1)
             return super().generate(messages, agent_name=agent_name, **kwargs)
 
     llm = TrackingLLM()
@@ -147,10 +147,34 @@ def test_change4_skip_unnecessary_llm_review_when_clean(tmp_path):
         run_id="test_run_skip_review",
         workspace_base=str(tmp_path),
     )
-
-    # Clean execution should skip the reviewer LLM call
-    assert reviewer_called is False
+    assert len(reviewer_calls) == 1
     assert state.get("review_report", {}).get("status") == "PASSED"
+
+
+def test_change4_legacy_llm_tester_still_skips_review_when_clean(tmp_path, monkeypatch):
+    """Legacy mode (deterministic_tester: false) keeps the Phase 4 skip rule."""
+    import mas.agents.tester as tester_mod
+    orig_init = tester_mod.TesterAgent.__init__
+
+    def legacy_init(self, llm, mode=None, **kw):
+        orig_init(self, llm, mode="llm", **kw)
+
+    monkeypatch.setattr(tester_mod.TesterAgent, "__init__", legacy_init)
+    reviewer_calls = []
+
+    class TrackingLLM(FakeLLMProvider):
+        def generate(self, messages, agent_name=None, **kwargs):
+            if agent_name == "reviewer":
+                reviewer_calls.append(1)
+            return super().generate(messages, agent_name=agent_name, **kwargs)
+
+    state = MASWorkflow(llm=TrackingLLM()).run(
+        requirement="CLI hello application",
+        task_id="test_skip_review_legacy",
+        run_id="test_run_skip_review_legacy",
+        workspace_base=str(tmp_path),
+    )
+    assert reviewer_calls == []
     assert "skipped" in state.get("review_report", {}).get("summary", "").lower()
 
 
@@ -173,7 +197,7 @@ def test_change5_tester_trims_assertion_output_to_40_lines():
 
     from mas.agents.tester import TesterAgent
     llm = MockTesterLLM()
-    tester = TesterAgent(llm=llm)
+    tester = TesterAgent(llm=llm, mode="llm")
     state = create_initial_state("test_trim", "req", "task", "./tmp")
     state["artifacts"]["TaskPlan"] = {"acceptance_criteria": ["Run tests"]}
 
@@ -186,7 +210,7 @@ def test_change5_tester_trims_assertion_output_to_40_lines():
 
 
 def test_change7_clean_first_iteration_uses_at_most_3_calls(tmp_path):
-    """Verify that a clean first iteration consumes at most 3 LLM calls (Manager, Developer, Tester)."""
+    """A clean first iteration consumes at most 3 LLM calls (Manager, Developer, Reviewer; Tester is deterministic)."""
     calls_made = []
 
     class CallTrackingLLM(FakeLLMProvider):

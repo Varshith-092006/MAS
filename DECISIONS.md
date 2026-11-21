@@ -727,3 +727,23 @@ This document tracks architectural decisions, source precedence, specification c
 
 
 
+
+---
+
+### Record: Phase 8 Deterministic Tester, Review-Once Policy, Single-Agent Baseline, Conformance Check, Dashboard
+
+- **ID**: DEC-041
+- **Date**: 2026-11-22
+- **Decision**:
+  1. **Deterministic Tester (behaviour change, intended)**: `TesterAgent` used to ask the LLM to *write* a TestReport (pass rate, coverage) from the requirement and the smoke exit code, so the numbers were model-invented and cost 1 LLM call per iteration (plus retries on JSON failures). It now builds the report from real execution with **zero LLM calls**: entry-point smoke protocol, `python main.py --help` exit code (part of the shared requirement text, so no information asymmetry), placeholder scan (pass / ... / NotImplementedError / docstring-only bodies / TODO/FIXME), and any `test_*.py` the Developer wrote, run by a dependency-free in-sandbox runner (`python:3.11-slim` has no pytest). `coverage` is 0.0 (not measured, never invented). Legacy mode stays behind `quality_improvements.deterministic_tester: false`.
+  2. **Real completeness signal**: Reflection used a hardcoded `completeness: 1.0`; it now uses the Tester's measured internal completeness. The DeterministicRepairChecker uses the same placeholder scan, so the repair loop and the report agree. This is the paper's ReviewBot rule (no TODO/pass placeholders, Sec. 3.2.4), not a copy of the frozen evaluator (which is unchanged).
+  3. **Review-once policy (behaviour change, intended)**: with honest test signals, the Phase 4 skip rule would have skipped semantic review on almost every run. The Reviewer now runs at least once per run and is skipped only when a previous review PASSED and the code is still clean. A clean SIMPLE run is still 3 LLM calls (Manager, Developer, Reviewer); the third call now does useful review instead of producing a TestReport. Every non-clean iteration saves 1 call (no Tester LLM). In the 394 recorded exploratory live calls, the LLM Tester was 46 of 280 MAS calls (16%) and 74,168 of 1,038,112 MAS-agent tokens (7%); that cost is gone.
+  4. **Reverse-architecture conformance (new, 0 LLM calls)**: `mas/analysis/conformance.py` diffs the Architect's design (planned files, classes in the class diagram, module dependencies) with an AST model of the built code (iCoder Sec. 3.2.2 reverse validation). Deviations go to the Reviewer as evidence. STRUCTURED path only.
+  5. **Single-agent baseline (`--systems single`)**: one LLM call per task, generic prompt, same augmented requirement, provider, model, temperature, seed, token logger and frozen evaluator as MAS and ChatDev. Unparseable output is a quality failure (Quality 0), never re-sent.
+  6. **Runner bug fix**: `token_cap` was referenced in `run_benchmark` but never defined there, so every normally finished *live* MAS/ChatDev run would have raised NameError and been stored as FAILED. Simulation never reached that line, so tests did not catch it. Now defined from `limits.max_tokens_per_run`; regression test added.
+  7. **Telemetry**: every run record now carries `agent_breakdown` (per-agent calls, input/output/total tokens, latency, summed from provider-reported `model_calls` rows), `provider`, `iterations` and `complexity`. The end-of-batch summary no longer prints "MAS vs iCoder" deltas or "token reduction vs iCoder" (different model and tasks); it prints the published numbers as indicative only.
+  8. **Dashboard**: `scripts/make_dashboard.py` writes a self-contained `reports/dashboard.html` (+ `_data.json`) with three separated tiers: OFFICIAL (official, live, provider gemini), EXPLORATORY (older real calls in mas.db, labelled, never shown as results), and published references (indicative). Simulation rows are excluded. Empty tiers show NOT RUN.
+  9. **Report script**: `scripts/make_report.py` forces UTF-8 stdout (fixed 2 failing tests on Windows cp1252 consoles).
+- **Tests changed on purpose**: `tests/test_research_validity.py::test_25` (Tester no longer calls the LLM; Reviewer runs once), `tests/test_phase4_quality_and_call_reduction.py` (review-once test; legacy-mode skip test added; trim test pinned to `mode="llm"`).
+- **Not changed**: frozen evaluator (`eval/neutral_evaluator.py`, `eval/scorers/*`, `eval/checks/*`), benchmark hashes, task files, ChatDev, HLD/LLD/PDF, frontend.
+- **Impact**: 322 passed (baseline before this phase: 293 passed, 2 failed). No live model calls were made.

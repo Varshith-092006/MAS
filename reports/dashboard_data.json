@@ -1,0 +1,595 @@
+{
+  "generated_utc": "2026-11-21 19:03 UTC",
+  "sources": {
+    "manifest": "eval\\benchmark_manifest.json",
+    "db": "mas.db"
+  },
+  "simulation_rows_excluded": 3,
+  "official": {
+    "count": 0,
+    "models": [],
+    "summary": {
+      "mas": {
+        "n": 0
+      },
+      "chatdev": {
+        "n": 0
+      },
+      "single": {
+        "n": 0
+      }
+    },
+    "comparisons": {},
+    "agents": {
+      "mas": {},
+      "chatdev": {},
+      "single": {}
+    },
+    "ablations": {},
+    "runs": []
+  },
+  "exploratory": {
+    "available": true,
+    "agents": [
+      {
+        "agent": "developer",
+        "calls": 103,
+        "input_tokens": 69743,
+        "output_tokens": 455430,
+        "total_tokens": 525173,
+        "avg_latency_ms": 44184
+      },
+      {
+        "agent": "chatdev",
+        "calls": 114,
+        "input_tokens": 142181,
+        "output_tokens": 183471,
+        "total_tokens": 325652,
+        "avg_latency_ms": 16842
+      },
+      {
+        "agent": "reviewer",
+        "calls": 68,
+        "input_tokens": 110173,
+        "output_tokens": 170292,
+        "total_tokens": 280465,
+        "avg_latency_ms": 27411
+      },
+      {
+        "agent": "manager",
+        "calls": 55,
+        "input_tokens": 33129,
+        "output_tokens": 107985,
+        "total_tokens": 141114,
+        "avg_latency_ms": 19611
+      },
+      {
+        "agent": "tester",
+        "calls": 46,
+        "input_tokens": 27023,
+        "output_tokens": 47145,
+        "total_tokens": 74168,
+        "avg_latency_ms": 11036
+      },
+      {
+        "agent": "architect",
+        "calls": 8,
+        "input_tokens": 2906,
+        "output_tokens": 14286,
+        "total_tokens": 17192,
+        "avg_latency_ms": 19897
+      }
+    ],
+    "models": [
+      {
+        "model": "cohere/north-mini-code:free",
+        "calls": 356
+      },
+      {
+        "model": "openai/gpt-4o",
+        "calls": 21
+      },
+      {
+        "model": "openai/gpt-4o-mini",
+        "calls": 13
+      },
+      {
+        "model": "liquid/lfm-2.5-2.6b:free",
+        "calls": 2
+      },
+      {
+        "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "calls": 1
+      },
+      {
+        "model": "dots-studio/dots-3-note-preview:free",
+        "calls": 1
+      }
+    ],
+    "systems": {
+      "chatdev": {
+        "runs": 13,
+        "calls": 106,
+        "tokens": 317218,
+        "completed_runs": 4,
+        "completed_calls": 57,
+        "completed_tokens": 173094
+      },
+      "mas": {
+        "runs": 32,
+        "calls": 276,
+        "tokens": 1028502,
+        "completed_runs": 9,
+        "completed_calls": 82,
+        "completed_tokens": 302371
+      }
+    },
+    "statuses": [
+      {
+        "system": "chatdev",
+        "status": "FAILED",
+        "count": 9
+      },
+      {
+        "system": "chatdev",
+        "status": "COMPLETED",
+        "count": 4
+      },
+      {
+        "system": "chatdev",
+        "status": "SKIPPED",
+        "count": 1
+      },
+      {
+        "system": "chatdev",
+        "status": "DIAGNOSTIC_RUN",
+        "count": 1
+      },
+      {
+        "system": "mas",
+        "status": "FAILED",
+        "count": 20
+      },
+      {
+        "system": "mas",
+        "status": "STOPPED_BUDGET_CEILING",
+        "count": 9
+      },
+      {
+        "system": "mas",
+        "status": "COMPLETED",
+        "count": 5
+      },
+      {
+        "system": "mas",
+        "status": "COMPLETED_QUALITY_GATE",
+        "count": 4
+      },
+      {
+        "system": "mas",
+        "status": "MODEL_MISMATCH_DIAGNOSTIC",
+        "count": 2
+      },
+      {
+        "system": "mas",
+        "status": "STOPPED_MAX_ITERATIONS_WITH_OPEN_FINDINGS",
+        "count": 1
+      }
+    ],
+    "history": [
+      {
+        "run_id": "cd_srdd_educ_01_r3_attempt2",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 57084,
+        "started_at": "2026-11-08 14:58:34",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r3_attempt4",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 24384,
+        "started_at": "2026-11-08 14:47:15",
+        "duration_s": 93.9
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r3_attempt3",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 15785,
+        "started_at": "2026-11-07 04:58:22",
+        "duration_s": 99.8
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r3_attempt2",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 9503,
+        "started_at": "2026-11-07 04:52:17",
+        "duration_s": 58.5
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r3",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 11191,
+        "started_at": "2026-11-07 04:48:28",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r3",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 19510,
+        "started_at": "2026-11-07 04:44:30",
+        "duration_s": 126.1
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt8",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 59285,
+        "started_at": "2026-11-07 03:49:23",
+        "duration_s": 221.9
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt7",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 16959,
+        "started_at": "2026-11-06 19:28:04",
+        "duration_s": 53.8
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt6",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 22400,
+        "started_at": "2026-11-06 19:19:14",
+        "duration_s": 79.8
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt5",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 13456,
+        "started_at": "2026-11-06 18:25:53",
+        "duration_s": 56.3
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt4",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 28502,
+        "started_at": "2026-11-06 17:48:53",
+        "duration_s": 135.6
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt3",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 6446,
+        "started_at": "2026-11-06 16:17:31",
+        "duration_s": 35.4
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r2_attempt2",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 56038,
+        "started_at": "2026-11-05 15:38:51",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2_attempt2",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 59486,
+        "started_at": "2026-11-05 15:22:14",
+        "duration_s": 387.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt7",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 57453,
+        "started_at": "2026-11-04 14:52:26",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt6",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 43468,
+        "started_at": "2026-11-03 08:20:36",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt5",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 25423,
+        "started_at": "2026-11-03 07:47:54",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt4",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 42935,
+        "started_at": "2026-11-03 06:00:50",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt3",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 3251,
+        "started_at": "2026-10-23 10:14:49",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt4",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED",
+        "tokens": 57053,
+        "started_at": "2026-10-23 09:59:53",
+        "duration_s": 810.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1_attempt2",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 4385,
+        "started_at": "2026-10-23 07:41:34",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt3",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 58690,
+        "started_at": "2026-10-23 07:31:02",
+        "duration_s": 534.2
+      },
+      {
+        "run_id": "test_run",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 0,
+        "started_at": "2026-10-21 15:44:34",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r2",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 4290,
+        "started_at": "2026-10-21 14:48:42",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r2",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 62178,
+        "started_at": "2026-10-21 14:38:47",
+        "duration_s": 517.0
+      },
+      {
+        "run_id": "cd_srdd_educ_01_r1",
+        "system": "chatdev",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 5228,
+        "started_at": "2026-10-20 14:23:33",
+        "duration_s": 0.0
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r1_attempt2",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 62871,
+        "started_at": "2026-10-20 14:13:06",
+        "duration_s": 550.8
+      },
+      {
+        "run_id": "mas_srdd_educ_01_r1",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 53308,
+        "started_at": "2026-10-20 13:11:20",
+        "duration_s": 666.8
+      },
+      {
+        "run_id": "mas_dev_toc_d_p2m_repeat_1792418892",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED_QUALITY_GATE",
+        "tokens": 11223,
+        "started_at": "2026-10-19 14:08:13",
+        "duration_s": 209.1
+      },
+      {
+        "run_id": "mas_dev_log_c_p2m_1792418269",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED_QUALITY_GATE",
+        "tokens": 49936,
+        "started_at": "2026-10-19 13:57:49",
+        "duration_s": 600.5
+      },
+      {
+        "run_id": "mas_dev_inv_b_p2m_1792417660",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED_QUALITY_GATE",
+        "tokens": 33201,
+        "started_at": "2026-10-19 13:47:40",
+        "duration_s": 585.4
+      },
+      {
+        "run_id": "mas_dev_inv_b_p2m_1792416873",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 33053,
+        "started_at": "2026-10-19 13:34:33",
+        "duration_s": 297.6
+      },
+      {
+        "run_id": "mas_dev_toc_a_p2m_1792332881",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "COMPLETED_QUALITY_GATE",
+        "tokens": 27970,
+        "started_at": "2026-10-18 14:14:41",
+        "duration_s": 1528.7
+      },
+      {
+        "run_id": "mas_dev_toc_a_p2m_1792331989",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 31563,
+        "started_at": "2026-10-18 13:59:49",
+        "duration_s": 256.4
+      },
+      {
+        "run_id": "mas_dev_toc_a_p2m_1792331622",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 30680,
+        "started_at": "2026-10-18 13:53:42",
+        "duration_s": 191.3
+      },
+      {
+        "run_id": "mas_dev_toc_a_p2m_1792330468",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "FAILED",
+        "tokens": 27767,
+        "started_at": "2026-10-18 13:34:29",
+        "duration_s": 202.9
+      },
+      {
+        "run_id": "mas_dev_toc_a_p2m_1792329507",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_MAX_ITERATIONS_WITH_OPEN_FINDINGS",
+        "tokens": 54960,
+        "started_at": "2026-10-18 13:18:27",
+        "duration_s": 434.0
+      },
+      {
+        "run_id": "mas_dev_toc_d_repeat_1792220026",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 0,
+        "started_at": "2026-10-17 06:53:46",
+        "duration_s": 0.2
+      },
+      {
+        "run_id": "mas_dev_log_c_1792220021",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 0,
+        "started_at": "2026-10-17 06:53:41",
+        "duration_s": 0.4
+      },
+      {
+        "run_id": "mas_dev_inv_b_1792220015",
+        "system": "mas",
+        "model": "cohere/north-mini-code:free",
+        "status": "STOPPED_BUDGET_CEILING",
+        "tokens": 0,
+        "started_at": "2026-10-17 06:53:35",
+        "duration_s": 0.3
+      }
+    ]
+  },
+  "published": {
+    "gpt-3.5-turbo": {
+      "model_condition": "gpt-3.5-turbo",
+      "tasks_evaluated": 100,
+      "source_paper": "You et al., Information and Software Technology 198 (2026) 108224",
+      "quality_table": "Table 1, Page 12",
+      "overhead_table": "Table 3, Page 13",
+      "icoder_quality": 0.690192,
+      "chatdev_quality": 0.590626,
+      "icoder_completeness": 0.95206186,
+      "chatdev_completeness": 0.90219378,
+      "icoder_executability": 0.88,
+      "chatdev_executability": 0.81,
+      "icoder_consistency": 0.8238,
+      "chatdev_consistency": 0.808389,
+      "icoder_tokens_per_task": 411144.62,
+      "chatdev_tokens_per_task": 22327.02,
+      "icoder_duration_seconds": 2700.43,
+      "chatdev_duration_seconds": 439.59,
+      "icoder_loc": 168.92,
+      "chatdev_loc": 113.93,
+      "metric_definition": "Quality = Completeness \u00d7 Executability \u00d7 Consistency",
+      "status_label": "PUBLISHED REFERENCE \u2014 NOT EXECUTED LOCALLY"
+    },
+    "gpt-4o": {
+      "model_condition": "gpt-4o",
+      "tasks_evaluated": 20,
+      "source_paper": "You et al., Information and Software Technology 198 (2026) 108224",
+      "quality_table": "Table 2, Page 12",
+      "overhead_table": "Table 4, Page 13",
+      "icoder_quality": 0.792398,
+      "chatdev_quality": 0.65499,
+      "icoder_completeness": 0.99599198,
+      "chatdev_completeness": 1.0,
+      "icoder_executability": 0.95,
+      "chatdev_executability": 0.8,
+      "icoder_consistency": 0.83746,
+      "chatdev_consistency": 0.818738,
+      "icoder_tokens_per_task": 104883.2,
+      "chatdev_tokens_per_task": 30416.6,
+      "icoder_duration_seconds": 1620.05,
+      "chatdev_duration_seconds": 1058.7,
+      "icoder_loc": 216.15,
+      "chatdev_loc": 125.95,
+      "metric_definition": "Quality = Completeness \u00d7 Executability \u00d7 Consistency",
+      "status_label": "PUBLISHED REFERENCE \u2014 NOT EXECUTED LOCALLY"
+    }
+  },
+  "systems": {
+    "mas": "MAS (ours)",
+    "chatdev": "ChatDev",
+    "single": "Single-agent"
+  }
+}

@@ -81,6 +81,14 @@ class ReviewerAgent(BaseAgent):
                 f"- Internal Test Pass Rate: {test_report.get('pass_rate', 0.0)}\n"
                 f"- Test Failures / Output: {test_report.get('details', [])}\n\n"
             )
+            conf = state.get("conformance_report") or {}
+            if conf.get("applicable"):
+                evidence_section += (
+                    f"Design Conformance (Architect plan vs built code, AST):\n"
+                    f"- Score: {conf.get('conformance_score')}\n"
+                    + "".join(f"- {f}\n" for f in conf.get("findings", [])[:5])
+                    + "\n"
+                )
 
         attempt_count = 0
 

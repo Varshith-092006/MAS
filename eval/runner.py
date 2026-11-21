@@ -24,6 +24,7 @@ from eval.reports import export_results_csv, generate_stats_markdown_report
 from eval.scorers.icoder_metrics import is_embedding_available
 from eval.srdd_loader import load_srdd_benchmark_tasks, save_and_persist_tasks
 from eval.task_text import CLI_CONTRACT_SUFFIX, get_augmented_requirement
+from eval.telemetry import get_agent_breakdown
 from mas.core.llm import FakeLLMProvider, OpenRouterProvider, token_logger
 from mas.core.workflow import MASWorkflow, generate_artifacts_manifest
 from mas.db.models import Evaluation, Run
@@ -776,6 +777,88 @@ class EvaluationRunner:
 
 
 
+    def _run_single_agent(
+        self,
+        llm,
+        req: str,
+        t_id: str,
+        t_name: str,
+        model: str,
+        r_num: int,
+        ablation: str,
+        run_id: str,
+        eval_id: str,
+        use_fake: bool,
+        token_cap: int,
+    ) -> Dict[str, Any]:
+        """Runs the single-call baseline and scores it with the same frozen evaluator."""
+        from mas.baselines.single_agent import SingleAgentBaseline
+
+        exec_mode = "SIMULATED" if use_fake else "LIVE_API"
+        prov_mode = "SIMULATED" if use_fake else "PROVIDER_REPORTED"
+        t_start = datetime.utcnow()
+        out = SingleAgentBaseline(llm).run(requirement=req, run_id=run_id, model=model)
+        t_end = datetime.utcnow()
+        totals = token_logger.get_run_totals(run_id)
+        tot_tok = totals.get("total_tokens", 0)
+
+        status = "SIMULATION_ONLY" if use_fake else out["status"]
+        if out["status"] == "FAILED":
+            status = "FAILED"
+        elif not use_fake and tot_tok > token_cap:
+            status = "STOPPED_BUDGET_CEILING"
+        ok = status in ("COMPLETED", "SIMULATION_ONLY")
+
+        metrics: Dict[str, Any] = {}
+        if ok:
+            metrics = self.evaluator.evaluate_project(
+                workspace_path=out["workspace_path"], requirement=req, task_id=t_id, run_id=run_id,
+            )
+        q = metrics.get("quality") if ok else None
+        with get_session() as session:
+            row = session.query(Run).filter(Run.run_id == run_id).first()
+            if row:
+                row.evaluation_id = eval_id
+                row.task_id = t_id
+                row.status = status
+                session.commit()
+
+        rec = {
+            "run_id": run_id,
+            "task_id": t_id,
+            "task_name": t_name,
+            "system": "single",
+            "model": model,
+            "repeat_no": r_num,
+            "ablation": ablation,
+            "quality": q,
+            "quality_per_1k_tokens": round(q / (tot_tok / 1000), 4) if (q is not None and tot_tok) else None,
+            "completeness": metrics.get("completeness"),
+            "executability": metrics.get("executability"),
+            "consistency": metrics.get("consistency"),
+            "consistency_method": metrics.get("consistency_method", "unavailable"),
+            "shared_test": metrics.get("shared_test"),
+            "ruff": metrics.get("ruff_violations"),
+            "bandit": metrics.get("bandit_high"),
+            "radon": metrics.get("radon_mi"),
+            "tokens": tot_tok,
+            "cost": 0.0 if use_fake else totals.get("estimated_cost", 0.0),
+            "llm_calls": totals.get("llm_calls", 0),
+            "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
+            "loc": count_code_loc(out["workspace_path"]) if ok else 0,
+            "agent_breakdown": get_agent_breakdown(run_id),
+            "status": status,
+            "execution_mode": exec_mode if ok else status,
+            "token_provenance": prov_mode,
+            "is_live_benchmark": not use_fake,
+            "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        if out.get("error"):
+            rec["error"] = out["error"]
+        q_disp = f"{q:.4f}" if q is not None else "None"
+        print(f"   [{status}] SINGLE:  Quality={q_disp} | Tokens={tot_tok} | Calls={rec['llm_calls']}")
+        return rec
+
     def run_benchmark(
         self,
         task_count: int = 20,
@@ -795,6 +878,13 @@ class EvaluationRunner:
     ) -> Dict[str, Any]:
         """Executes full benchmark evaluation across sampled SRDD tasks under identical conditions."""
         systems = systems or ["mas", "chatdev"]
+        # Phase 8 fix: token_cap was referenced below (live path only) but never defined here,
+        # so every normally finished live MAS/ChatDev run raised NameError and was saved FAILED.
+        try:
+            from mas.core.config import get_config
+            token_cap = get_config().get("limits", {}).get("max_tokens_per_run", 100000)
+        except Exception:
+            token_cap = 100000
         all_tasks = self.load_tasks(tasks_file=tasks_file)
         if task_id:
             tasks = [t for t in all_tasks if t.get("task_id") == task_id]
@@ -864,6 +954,7 @@ class EvaluationRunner:
 
         mas_records = []
         cd_records = []
+        sa_records = []
         all_records = []
 
         llm = FakeLLMProvider() if use_fake else OpenRouterProvider(default_model=model)
@@ -988,6 +1079,9 @@ class EvaluationRunner:
                                 "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                 "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
                                 "loc": count_code_loc(state.get("workspace_path", "")),
+                                "agent_breakdown": get_agent_breakdown(mas_run_id),
+                                "iterations": state.get("iteration", 1),
+                                "complexity": state.get("complexity"),
                                 "status": actual_mas_status,
                                 "execution_mode": actual_mas_exec_mode,
                                 "token_provenance": prov_mode,
@@ -1215,6 +1309,7 @@ class EvaluationRunner:
                                     "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                     "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
                                     "loc": count_code_loc(cd_out.get("workspace_dir", "")) if is_cd_success else 0,
+                                    "agent_breakdown": get_agent_breakdown(cd_run_id),
                                     "status": actual_cd_status,
                                     "execution_mode": actual_cd_exec_mode,
                                     "token_provenance": prov_mode,
@@ -1289,6 +1384,30 @@ class EvaluationRunner:
                                 cd_records.append(fail_rec)
                                 all_records.append(fail_rec)
 
+                # 3. Run single-agent baseline (1 LLM call per task)
+                if "single" in systems:
+                    sa_key = (t_id, "single", r_num, ablation)
+                    if resume and sa_key in completed_keys:
+                        print(f"   [SKIPPED] SINGLE: Task {t_id} repeat {r_num} already has official row on resume.")
+                    else:
+                        sa_run_id = resolve_attempt_run_id(prefix, "single", t_id, r_num, start_attempt=attempt)
+                        rec = self._run_single_agent(
+                            llm=llm, req=req, t_id=t_id, t_name=t_name, model=model, r_num=r_num,
+                            ablation=ablation, run_id=sa_run_id, eval_id=eval_id, use_fake=use_fake,
+                            token_cap=token_cap,
+                        )
+                        sa_records.append(rec)
+                        all_records.append(rec)
+
+        # Tag provider on every record so reports can separate official (gemini) runs
+        try:
+            from eval.provider_config import resolve_provider_settings
+            _ptype = "fake" if use_fake else resolve_provider_settings().provider_type
+        except Exception:
+            _ptype = "fake" if use_fake else "unknown"
+        for _rec in all_records:
+            _rec.setdefault("provider", _ptype)
+
         # Export CSV & Stats report & Update persistent manifest
         manifest = update_benchmark_manifest(all_records)
         export_results_csv(manifest.get("runs", []), self.results_path)
@@ -1310,16 +1429,25 @@ class EvaluationRunner:
         print("=" * 70)
         print(f"MAS Quality:         {mas_avg_q:.4f}  (Tokens/task: {mas_avg_tok:,.1f})")
         print(f"ChatDev Quality:     {cd_avg_q:.4f}  (Tokens/task: {cd_avg_tok:,.1f})")
-        print(f"iCoder (Published):  0.7924  (Tokens/task: 104,883.2)")
+        sa_valid_q = [r["quality"] for r in sa_records if r.get("quality") is not None]
+        sa_avg_q = sum(sa_valid_q) / len(sa_valid_q) if sa_valid_q else 0.0
+        sa_avg_tok = sum(r["tokens"] for r in sa_records) / len(sa_records) if sa_records else 0.0
+        if sa_records:
+            print(f"Single-agent Quality:{sa_avg_q:.4f}  (Tokens/task: {sa_avg_tok:,.1f})")
         print(f"Manifest Updated:    {MANIFEST_FILE} (Completed Paired Repeats: {manifest['summary']['completed_paired_repeats']})")
         print("-" * 70)
-        if cd_avg_q > 0:
+        if cd_avg_q > 0 and mas_records:
             gain_vs_cd = ((mas_avg_q - cd_avg_q) / cd_avg_q) * 100
-            print(f"MAS Quality Difference vs ChatDev: {gain_vs_cd:+.1f}%")
-        gain_vs_icoder = ((mas_avg_q - 0.7924) / 0.7924) * 100
-        print(f"MAS Quality Difference vs iCoder:  {gain_vs_icoder:+.1f}%")
-        tok_reduction = (1.0 - (mas_avg_tok / 104883.2)) * 100
-        print(f"MAS Token Reduction vs iCoder:    {tok_reduction:.1f}% LESS tokens consumed")
+            print(f"MAS Quality Difference vs ChatDev (same model and tasks): {gain_vs_cd:+.1f}%")
+        if sa_avg_q > 0 and mas_records:
+            gain_vs_sa = ((mas_avg_q - sa_avg_q) / sa_avg_q) * 100
+            print(f"MAS Quality Difference vs Single-agent (same model and tasks): {gain_vs_sa:+.1f}%")
+        from eval.published_references import PUBLISHED_REFERENCES
+        _ref = PUBLISHED_REFERENCES["gpt-4o"]
+        print(
+            f"Published iCoder (GPT-4o, different 20 tasks; indicative only, NOT a local result): "
+            f"Quality={_ref['icoder_quality']:.4f}, Tokens/task={_ref['icoder_tokens_per_task']:,.0f}"
+        )
         print("=" * 70 + "\n")
 
         return {
@@ -1329,6 +1457,8 @@ class EvaluationRunner:
             "chatdev_quality": cd_avg_q,
             "mas_tokens_per_task": mas_avg_tok,
             "chatdev_tokens_per_task": cd_avg_tok,
+            "single_quality": sa_avg_q,
+            "single_tokens_per_task": sa_avg_tok,
             "icoder_reference_quality": 0.7924,
             "icoder_reference_tokens": 104883.2,
             "manifest_summary": manifest["summary"],

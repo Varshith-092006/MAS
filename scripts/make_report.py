@@ -582,6 +582,12 @@ def generate_figures(mas_runs: List[Dict[str, Any]], cd_runs: List[Dict[str, Any
 
 
 def main():
+    # Windows consoles default to cp1252; force UTF-8 so non-ASCII table text never crashes or garbles.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     parser = argparse.ArgumentParser(description="MAS Benchmark Report Generator (Tables 1-6 & LaTeX)")
     parser.add_argument("--results", type=str, default="results.csv", help="Path to results.csv")
     parser.add_argument("--manifest", type=str, default="eval/benchmark_manifest.json", help="Path to benchmark manifest JSON")

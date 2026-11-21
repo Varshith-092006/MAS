@@ -68,6 +68,9 @@ quality_improvements:
   test_driven_repair: true
   prompt_hygiene: true
   call_budget_optimization: true
+  # Phase 8: Tester builds its report from real execution (smoke, --help, placeholder scan,
+  # developer-written pytest) with zero LLM calls. false = legacy LLM-written TestReport.
+  deterministic_tester: true
 
 
 

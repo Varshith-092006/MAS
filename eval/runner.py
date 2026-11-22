@@ -1111,6 +1111,7 @@ class EvaluationRunner:
                                 "loc": count_code_loc(state.get("workspace_path", "")),
                                 "agent_breakdown": get_agent_breakdown(mas_run_id),
                                 "iterations": state.get("iteration", 1),
+                                "shipped_iteration": state.get("shipped_iteration", state.get("iteration", 1)),
                                 "complexity": state.get("complexity"),
                                 "status": actual_mas_status,
                                 "execution_mode": actual_mas_exec_mode,
@@ -1455,22 +1456,33 @@ class EvaluationRunner:
         mas_avg_tok = sum(r["tokens"] for r in mas_records) / len(mas_records) if mas_records else 0.0
         cd_avg_tok = sum(r["tokens"] for r in cd_records) / len(cd_records) if cd_records else 0.0
 
-        print("\n" + "=" * 70)
-        print("EMPIRICAL BENCHMARK BATCH COMPLETE — SUMMARY")
-        print("=" * 70)
-        print(f"MAS Quality:         {mas_avg_q:.4f}  (Tokens/task: {mas_avg_tok:,.1f})")
-        print(f"ChatDev Quality:     {cd_avg_q:.4f}  (Tokens/task: {cd_avg_tok:,.1f})")
         sa_valid_q = [r["quality"] for r in sa_records if r.get("quality") is not None]
         sa_avg_q = sum(sa_valid_q) / len(sa_valid_q) if sa_valid_q else 0.0
         sa_avg_tok = sum(r["tokens"] for r in sa_records) / len(sa_records) if sa_records else 0.0
-        if sa_records:
-            print(f"Single-agent Quality:{sa_avg_q:.4f}  (Tokens/task: {sa_avg_tok:,.1f})")
+
+        def _line(label, records, valid_q, avg_q, avg_tok):
+            # DEC-046: never print 0.0000 (or a -100% delta) for a system with no scored run.
+            if not records:
+                return
+            n_infra = sum(1 for r in records if r.get("quality") is None)
+            if not valid_q:
+                print(f"{label}n/a (0 of {len(records)} runs scored; {n_infra} infrastructure failures, rerun with --resume)")
+            else:
+                note = f", {n_infra} infra failures to rerun" if n_infra else ""
+                print(f"{label}{avg_q:.4f}  over {len(valid_q)} runs (Tokens/run: {avg_tok:,.1f}{note})")
+
+        print("\n" + "=" * 70)
+        print("EMPIRICAL BENCHMARK BATCH COMPLETE — SUMMARY (this batch only; dashboard has all official runs)")
+        print("=" * 70)
+        _line("MAS Quality:         ", mas_records, mas_valid_q, mas_avg_q, mas_avg_tok)
+        _line("ChatDev Quality:     ", cd_records, cd_valid_q, cd_avg_q, cd_avg_tok)
+        _line("Single-agent Quality:", sa_records, sa_valid_q, sa_avg_q, sa_avg_tok)
         print(f"Manifest Updated:    {MANIFEST_FILE} (Completed Paired Repeats: {manifest['summary']['completed_paired_repeats']})")
         print("-" * 70)
-        if cd_avg_q > 0 and mas_records:
+        if cd_valid_q and mas_valid_q and cd_avg_q > 0:
             gain_vs_cd = ((mas_avg_q - cd_avg_q) / cd_avg_q) * 100
             print(f"MAS Quality Difference vs ChatDev (same model and tasks): {gain_vs_cd:+.1f}%")
-        if sa_avg_q > 0 and mas_records:
+        if sa_valid_q and mas_valid_q and sa_avg_q > 0:
             gain_vs_sa = ((mas_avg_q - sa_avg_q) / sa_avg_q) * 100
             print(f"MAS Quality Difference vs Single-agent (same model and tasks): {gain_vs_sa:+.1f}%")
         from eval.published_references import PUBLISHED_REFERENCES

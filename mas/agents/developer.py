@@ -94,6 +94,45 @@ GENERATION_RULES = "".join(
 )
 
 
+MAX_DIAGRAM_CHARS = 2000
+MAX_CONTEXT_CODE_CHARS = 24000  # about 6k input tokens; input is cheap, requests are not
+
+SELF_TEST_GUIDANCE = (
+    "Note on failing unit tests: some failing tests were written by you in an earlier iteration. "
+    "First decide whether the program or the test is wrong. If a test's expected value is wrong, "
+    "fix the test and keep the correct program behaviour. Do not spend the whole iteration on tests: "
+    "also fix review findings about missing requirements.\n"
+)
+
+
+def current_code_section(files: Dict[str, str], budget: int = MAX_CONTEXT_CODE_CHARS) -> str:
+    """Formats the current workspace code for the Developer prompt (P1, DEC-045).
+
+    Files are shown in delimiter-block form so the model sees exactly the format it must
+    return. When the budget runs out, the remaining files are listed by name only.
+    """
+    py_files = {k.replace("\\", "/"): v for k, v in files.items() if k.endswith(".py")}
+    if not py_files:
+        return ""
+    # main.py first, then the rest in a stable order
+    order = sorted(py_files, key=lambda f: (f != "main.py", f))
+    parts, used, omitted = [], 0, []
+    for name in order:
+        code = py_files[name]
+        block = f"=== FILE: {name} ===\n{code.rstrip()}\n=== END FILE ===\n"
+        if used + len(block) > budget:
+            omitted.append(name)
+            continue
+        parts.append(block)
+        used += len(block)
+    header = (
+        "Current Code (from the previous iteration). Return ONLY the files you change, each one "
+        "complete. Files you do not return are kept exactly as they are.\n"
+    )
+    tail = f"(Not shown, unchanged unless you return them: {', '.join(omitted)})\n" if omitted else ""
+    return header + "".join(parts) + tail
+
+
 class DeveloperAgent(BaseAgent):
     """Generates source code implementations and applies CodePatch to workspace."""
 
@@ -231,12 +270,30 @@ class DeveloperAgent(BaseAgent):
                 files_planned = arch.get("file_structure", [])
                 if files_planned:
                     prompt_sections.append("Planned Architecture Modules:\n" + "\n".join(f"- {fp}" for fp in files_planned) + "\n")
+                # P2 (DEC-045): the Architect's class diagram reaches the Developer. Long
+                # diagrams are replaced by the slice relevant to the files in play.
+                diagram = str(arch.get("uml_class_diagram") or "").strip()
+                if len(diagram) > MAX_DIAGRAM_CHARS and uml_slice:
+                    diagram = "\n".join(uml_slice)
+                if diagram:
+                    prompt_sections.append(
+                        "Design (class diagram from the Architect). Use these class and method names "
+                        "unless that would break the program:\n" + diagram[:MAX_DIAGRAM_CHARS] + "\n"
+                    )
+            # P1 (DEC-045): from iteration 2 on, show the current code (changed files plus their
+            # AST dependents, chosen by the ContextSlicer) and ask only for the files that change.
+            code_section = current_code_section(state.get("context_files") or {})
+            if iteration > 1 and code_section:
+                prompt_sections.append(code_section)
             if acceptance_criteria:
                 prompt_sections.append("Acceptance Criteria:\n" + "\n".join(f"- {ac}" for ac in acceptance_criteria) + "\n")
             if review_feedback:
                 prompt_sections.append("Review Findings to Fix:\n" + "\n".join(f"- {f}" for f in review_feedback) + "\n")
             if test_feedback:
                 prompt_sections.append("Test Diagnostics:\n" + "\n".join(f"- {t}" for t in test_feedback) + "\n")
+                # P4 (DEC-045): failing unit tests that the Developer wrote may themselves be wrong.
+                if any("FAILED pytest" in str(t) for t in test_feedback):
+                    prompt_sections.append(SELF_TEST_GUIDANCE)
             if sandbox_err:
                 prompt_sections.append(f"Sandbox Error:\n{sandbox_err[:300]}\n")
             if feedback:
@@ -315,7 +372,8 @@ class DeveloperAgent(BaseAgent):
                             extracted_files[os.path.basename(fname)] = fcontent
                         except SyntaxError:
                             pass
-                if extracted_files and "main.py" in extracted_files:
+                # From iteration 2 a patch may legitimately change only other files (DEC-045).
+                if extracted_files and ("main.py" in extracted_files or iteration > 1):
                     return {
                         "files": list(extracted_files.keys()),
                         "file_contents": extracted_files,

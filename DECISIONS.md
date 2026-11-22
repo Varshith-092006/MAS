@@ -789,3 +789,50 @@ This document tracks architectural decisions, source precedence, specification c
   5. **Manifest summary**: canonical task IDs now come from `eval/tasks.json` and `eval/tasks_v2.json`. Before, v2 tasks were miscounted as "non-canonical test runs".
 - **Methodological note**: these changes were made after seeing pilot results on 5 benchmark tasks. They fix generic failure modes (parsing, truncation, environment assumptions), not task content. The v2 series must be run from scratch, and v1 must not be pooled with it.
 - **Tests**: `tests/test_phase8_pilot_fixes.py` (10 tests). `tests/test_phase2ad_chatdev_and_mas_fixes.py::test_production_manifest_summary_is_reconciled` changed on purpose: it pinned exact historical counts (0-3) from the production manifest, which live runs now legitimately exceed, so it now checks consistency (pairs <= completed runs per system). 341 passed.
+
+---
+
+### Record: Loop Fixes P1-P4 from the End-to-End Audit; Benchmark Series v3
+
+- **ID**: DEC-045
+- **Date**: 2026-11-22
+- **Trigger**: The end-to-end audit (MAS_SYSTEM_GUIDE.md, section 7) traced run mas_srdd_work_01_r1_attempt2 and found that later iterations rewrite instead of refine.
+- **Decision** (no extra LLM calls; all generic):
+  1. **P1, current code to the Developer**: the workflow already computed the sliced context (changed files plus their AST impact set; every file under ablation A2) each iteration and then discarded it; `developer.py` assigned `uml_slice` and never used it. Now `state["context_files"]` carries the sliced files, and from iteration 2 the Developer prompt shows them in delimiter-block form (main.py first, capped at 24,000 characters, omitted files named). The Developer is asked to return only the files it changes; unreturned files stay as they are. Files named in the current test failures, review findings or crash output are added to the slice even if they were neither changed nor dependent. The Reviewer now reviews the whole current workspace (only when the patch was written there) instead of only the patch. **Effect on ablations:** A2 now changes what the model sees (all files vs the sliced set), so it measures something for the first time.
+  2. **P2, class diagram to the Developer**: the Architect's `uml_class_diagram` (capped at 2,000 characters, or the relevant slice when longer) is included in the Developer prompt, so the STRUCTURED design actually constrains the code.
+  3. **P3, ship the best iteration**: after each Reflection, if S_t is the best so far, the workspace is snapshotted (CheckpointManager) with its reports. When the loop ends by plateau or iteration limit and an earlier iteration scored strictly higher, that snapshot and its reports are restored (event `best_iteration_restored`). A run that ends clean always ships its final iteration. Run records gain `shipped_iteration`.
+  4. **P4, wrong self-written tests**: when Developer-written tests fail, the prompt adds a generic note: decide whether the program or the test is wrong, fix a wrong test expectation, and also address review findings about missing requirements.
+  5. `benchmark.series` is now `v3`. v2 results stay as they are and are not pooled with v3.
+- **Tests**: `tests/test_phase8_loop_fixes.py` (9 tests, including an end-to-end workflow in which iterations 2-3 regress and iteration 1 must ship). `tests/test_phase8_pilot_fixes.py::test_current_series_from_config` updated to v3 on purpose. 350 passed.
+
+---
+
+### Record: Retry Temporary Provider Errors Like ChatDev; Honest Batch Summary
+
+- **ID**: DEC-046
+- **Date**: 2026-11-22
+- **Trigger**: First v3 run. Gemini returned 503 "model is currently experiencing high demand" (and one 500 "Internal error") for long stretches. All 5 MAS runs and 1 single-agent run failed on their first unlucky call, while all 5 ChatDev runs completed. ChatDev's camel `ChatAgent.step` is wrapped in `@retry(wait=wait_exponential(min=5, max=60), stop=stop_after_attempt(5))`; our client had no retry at all. That asymmetry penalised MAS and the single agent for provider load, not for anything they did.
+- **Decision**:
+  1. `OpenRouterProvider.generate` (used by MAS and the single agent) now retries with the same policy as ChatDev: up to 5 attempts, exponential wait between 5 and 60 seconds. It retries only temporary infrastructure errors: HTTP 500/502/503/504, per-minute 429 (never the daily-quota 429), timeouts and connection errors. Request errors (400/401/403/404), model mismatches and every output-quality problem are never retried (AGENTS.md: retry infrastructure errors only). Every attempt still goes through the governor and counts against the daily request budget.
+  2. The end-of-batch summary no longer prints `0.0000` and `-100%` for a system with no scored run. It prints `n/a (0 of N runs scored; K infrastructure failures, rerun with --resume)` and computes deltas only when both systems have scored runs. It is labelled "this batch only"; the dashboard and report remain the source for all official runs.
+- **Records**: the failed v3 attempts are INFRA_ERROR and not official, as designed; `--resume` reruns exactly those 6 runs (5 MAS, 1 single). This change does not alter generated code or prompts, so the series stays v3.
+- **Tests**: `tests/test_phase8_retry_and_summary.py` (9 tests).
+
+---
+
+### Record: v3 Official Results (5 tasks, after P1-P4 and the retry fix)
+
+- **ID**: DEC-047
+- **Date**: 2026-11-22
+- **What ran**: `--systems mas,chatdev,single --tasks-file eval/tasks_v2.json --tasks 5 --repeats 1 --resume`, model `gemini-3.5-flash-lite`, series v3. The resume reran the 6 INFRA runs from DEC-046; Gemini still returned 503s, and the new retry absorbed every one (at most 4 retries on any call). 15 official v3 runs: 5 MAS, 5 ChatDev, 5 single.
+- **Results (from results.csv; nothing estimated)**:
+
+  | System | Quality (95% CI) | Executability | Tokens/task | Calls/task |
+  |---|---|---|---|---|
+  | MAS | 0.4968 [0.4383, 0.5741] | 5/5 | 16,635 | 4.8 |
+  | Single agent | 0.4551 | 4/5 | 4,305 | 1.0 |
+  | ChatDev | 0.2182 [0.0000, 0.4700] | 2/5 | 45,090 | 14.8 |
+
+  MAS vs ChatDev: Wilcoxon p = 0.125, Cohen's d = 1.05. With n = 5 the smallest possible two-sided Wilcoxon p is 0.0625, so this is **not significant**; more tasks are needed.
+- **v3 vs v2 for MAS (same 5 tasks)**: Quality 0.5017 -> 0.4968 (no measurable change; per-task differences are within run-to-run noise, e.g. the unchanged single agent moved 0.43 -> 0.65 on srdd_educ_02). Tokens per task 22,792 -> 16,635 (-27%), calls per task 7.2 -> 4.8 (-33%). 4 of 5 runs ended clean within 2 iterations, so P3 (best-iteration restore) did not fire; `shipped_iteration` equals the final iteration in every run.
+- **Reading**: MAS Completeness and Executability are 1.0 on every task, so its Quality equals Consistency (MiniLM similarity between requirement and code). The remaining headroom is in Consistency and in the evaluator's smoke protocol, not in crashes.

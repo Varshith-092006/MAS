@@ -89,7 +89,7 @@ def test_proxy_uses_the_same_output_cap(monkeypatch):
 
 
 def test_current_series_from_config():
-    assert current_series() == "v2"
+    assert current_series() == "v3"
 
 
 def _rec(run_id, series=None):

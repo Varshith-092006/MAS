@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-11-21 22:14 UTC",
+  "generated_utc": "2026-11-22 10:13 UTC",
   "sources": {
     "manifest": "eval\\benchmark_manifest.json",
     "db": "mas.db"
@@ -7,84 +7,85 @@
   "simulation_rows_excluded": 3,
   "official": {
     "count": 15,
-    "series": "v2",
+    "series": "v3",
     "other_series_official": [
-      "v1"
+      "v1",
+      "v2"
     ],
-    "other_series_count": 15,
+    "other_series_count": 30,
     "models": [
       "gemini-3.5-flash-lite"
     ],
     "summary": {
       "mas": {
         "n": 5,
-        "quality": 0.5017,
+        "quality": 0.4968,
         "quality_ci": [
-          0.4315,
-          0.567
+          0.4383,
+          0.5741
         ],
         "completeness": 1.0,
         "executability": 1.0,
-        "consistency": 0.5017,
-        "tokens": 22792.4,
-        "llm_calls": 7.2,
-        "wall_clock_seconds": 33.682,
-        "loc": 852.4,
+        "consistency": 0.4968,
+        "tokens": 16635.2,
+        "llm_calls": 4.8,
+        "wall_clock_seconds": 41.772,
+        "loc": 969.0,
         "cost": 0.0,
-        "quality_per_1k_tokens": 0.022,
+        "quality_per_1k_tokens": 0.0299,
         "success_rate": 1.0
       },
       "chatdev": {
         "n": 5,
-        "quality": 0.1417,
+        "quality": 0.2182,
         "quality_ci": [
           0.0,
-          0.4252
+          0.47
         ],
-        "completeness": 0.8,
-        "executability": 0.2,
-        "consistency": 0.4855,
-        "tokens": 51521.8,
-        "llm_calls": 15.8,
-        "wall_clock_seconds": 287.54,
-        "loc": 112.0,
+        "completeness": 1.0,
+        "executability": 0.4,
+        "consistency": 0.5469,
+        "tokens": 45090.4,
+        "llm_calls": 14.8,
+        "wall_clock_seconds": 332.532,
+        "loc": 172.6,
         "cost": 0.0,
-        "quality_per_1k_tokens": 0.0028,
-        "success_rate": 0.8
+        "quality_per_1k_tokens": 0.0048,
+        "success_rate": 1.0
       },
       "single": {
         "n": 5,
-        "quality": 0.4068,
+        "quality": 0.4551,
         "quality_ci": [
-          0.2032,
-          0.562
+          0.2226,
+          0.6238
         ],
         "completeness": 1.0,
         "executability": 0.8,
-        "consistency": 0.5065,
-        "tokens": 3802.8,
+        "consistency": 0.5651,
+        "tokens": 4305.2,
         "llm_calls": 1.0,
-        "wall_clock_seconds": 8.016,
-        "loc": 294.8,
+        "wall_clock_seconds": 13.146,
+        "loc": 344.4,
         "cost": 0.0,
-        "quality_per_1k_tokens": 0.107,
+        "quality_per_1k_tokens": 0.1057,
         "success_rate": 1.0
       }
     },
     "comparisons": {
       "chatdev": {
-        "quality_change_pct": 254.06,
-        "token_change_pct": -55.76,
-        "calls_change_pct": -54.43,
+        "quality_change_pct": 127.68,
+        "token_change_pct": -63.11,
+        "calls_change_pct": -67.57,
         "pairs": 5,
         "p_value": 0.125
       },
       "single": {
-        "quality_change_pct": 23.33,
-        "token_change_pct": 499.36,
-        "calls_change_pct": 620.0,
+        "quality_change_pct": 9.16,
+        "token_change_pct": 286.4,
+        "calls_change_pct": 380.0,
         "pairs": 5,
-        "p_value": 0.8125
+        "p_value": 1.0
       }
     },
     "agents": {
@@ -92,236 +93,236 @@
         "manager": {
           "calls": 5,
           "input_tokens": 3316,
-          "output_tokens": 1611,
-          "total_tokens": 4927,
-          "latency_ms": 9679
+          "output_tokens": 1677,
+          "total_tokens": 4993,
+          "latency_ms": 18195
         },
         "developer": {
-          "calls": 18,
-          "input_tokens": 20906,
-          "output_tokens": 48463,
-          "total_tokens": 69369,
-          "latency_ms": 127166
+          "calls": 11,
+          "input_tokens": 20541,
+          "output_tokens": 32122,
+          "total_tokens": 52663,
+          "latency_ms": 91324
         },
         "reviewer": {
-          "calls": 11,
-          "input_tokens": 36913,
-          "output_tokens": 1538,
-          "total_tokens": 38451,
-          "latency_ms": 16586
+          "calls": 6,
+          "input_tokens": 23557,
+          "output_tokens": 784,
+          "total_tokens": 24341,
+          "latency_ms": 15293
         },
         "architect": {
           "calls": 2,
-          "input_tokens": 690,
-          "output_tokens": 525,
-          "total_tokens": 1215,
-          "latency_ms": 2916
+          "input_tokens": 676,
+          "output_tokens": 503,
+          "total_tokens": 1179,
+          "latency_ms": 10906
         }
       },
       "chatdev": {
         "chatdev": {
-          "calls": 79,
-          "input_tokens": 183932,
-          "output_tokens": 73677,
-          "total_tokens": 257609,
-          "latency_ms": 248419
+          "calls": 74,
+          "input_tokens": 171349,
+          "output_tokens": 54103,
+          "total_tokens": 225452,
+          "latency_ms": 373083
         }
       },
       "single": {
         "single_agent": {
           "calls": 5,
           "input_tokens": 1505,
-          "output_tokens": 17509,
-          "total_tokens": 19014,
-          "latency_ms": 39792
+          "output_tokens": 20021,
+          "total_tokens": 21526,
+          "latency_ms": 53835
         }
       }
     },
     "ablations": {
       "A0": {
         "n": 5,
-        "quality": 0.5017,
+        "quality": 0.4968,
         "quality_ci": [
-          0.4315,
-          0.567
+          0.4383,
+          0.5741
         ],
         "completeness": 1.0,
         "executability": 1.0,
-        "consistency": 0.5017,
-        "tokens": 22792.4,
-        "llm_calls": 7.2,
-        "wall_clock_seconds": 33.682,
-        "loc": 852.4,
+        "consistency": 0.4968,
+        "tokens": 16635.2,
+        "llm_calls": 4.8,
+        "wall_clock_seconds": 41.772,
+        "loc": 969.0,
         "cost": 0.0,
-        "quality_per_1k_tokens": 0.022,
+        "quality_per_1k_tokens": 0.0299,
         "success_rate": 1.0
       }
     },
     "runs": [
       {
-        "run_id": "mas_srdd_educ_01_r1_attempt9",
-        "task_id": "srdd_educ_01",
-        "system": "mas",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.5772,
-        "tokens": 10489,
-        "llm_calls": 4,
-        "wall_clock_seconds": 27.16
-      },
-      {
-        "run_id": "cd_srdd_educ_01_r1_attempt10",
+        "run_id": "cd_srdd_educ_01_r1_attempt11",
         "task_id": "srdd_educ_01",
         "system": "chatdev",
         "ablation": "A0",
-        "status": "INCOMPLETE",
-        "quality": 0.0,
-        "tokens": 71751,
-        "llm_calls": 22,
-        "wall_clock_seconds": 292.73
-      },
-      {
-        "run_id": "single_srdd_educ_01_r1_attempt3",
-        "task_id": "srdd_educ_01",
-        "system": "single",
-        "ablation": "A0",
         "status": "COMPLETED",
         "quality": 0.0,
-        "tokens": 4334,
-        "llm_calls": 1,
-        "wall_clock_seconds": 9.52
-      },
-      {
-        "run_id": "cd_srdd_educ_02_r1_attempt2",
-        "task_id": "srdd_educ_02",
-        "system": "chatdev",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.0,
-        "tokens": 42476,
+        "tokens": 43173,
         "llm_calls": 15,
-        "wall_clock_seconds": 298.41
+        "wall_clock_seconds": 338.46
       },
       {
-        "run_id": "single_srdd_educ_02_r1_attempt2",
+        "run_id": "single_srdd_educ_01_r1_attempt4",
+        "task_id": "srdd_educ_01",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 4934,
+        "llm_calls": 1,
+        "wall_clock_seconds": 11.31
+      },
+      {
+        "run_id": "cd_srdd_educ_02_r1_attempt3",
+        "task_id": "srdd_educ_02",
+        "system": "chatdev",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.0,
+        "tokens": 50273,
+        "llm_calls": 15,
+        "wall_clock_seconds": 349.9
+      },
+      {
+        "run_id": "single_srdd_educ_02_r1_attempt3",
         "task_id": "srdd_educ_02",
         "system": "single",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.4273,
-        "tokens": 3654,
+        "quality": 0.6498,
+        "tokens": 3952,
         "llm_calls": 1,
-        "wall_clock_seconds": 7.74
+        "wall_clock_seconds": 10.7
       },
       {
-        "run_id": "mas_srdd_educ_03_r1_attempt2",
-        "task_id": "srdd_educ_03",
-        "system": "mas",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.465,
-        "tokens": 24953,
-        "llm_calls": 9,
-        "wall_clock_seconds": 35.56
-      },
-      {
-        "run_id": "cd_srdd_educ_03_r1_attempt2",
+        "run_id": "cd_srdd_educ_03_r1_attempt3",
         "task_id": "srdd_educ_03",
         "system": "chatdev",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.7086,
-        "tokens": 47499,
-        "llm_calls": 14,
-        "wall_clock_seconds": 258.08
+        "quality": 0.4617,
+        "tokens": 55765,
+        "llm_calls": 15,
+        "wall_clock_seconds": 349.51
       },
       {
-        "run_id": "single_srdd_educ_03_r1_attempt2",
+        "run_id": "single_srdd_educ_03_r1_attempt3",
         "task_id": "srdd_educ_03",
         "system": "single",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.6006,
-        "tokens": 3600,
+        "quality": 0.4634,
+        "tokens": 3745,
         "llm_calls": 1,
-        "wall_clock_seconds": 7.38
+        "wall_clock_seconds": 12.51
       },
       {
-        "run_id": "mas_srdd_educ_04_r1_attempt2",
-        "task_id": "srdd_educ_04",
-        "system": "mas",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.3717,
-        "tokens": 25089,
-        "llm_calls": 8,
-        "wall_clock_seconds": 32.3
-      },
-      {
-        "run_id": "cd_srdd_educ_04_r1_attempt2",
+        "run_id": "cd_srdd_educ_04_r1_attempt3",
         "task_id": "srdd_educ_04",
         "system": "chatdev",
         "ablation": "A0",
         "status": "COMPLETED",
         "quality": 0.0,
-        "tokens": 48656,
-        "llm_calls": 14,
-        "wall_clock_seconds": 298.01
+        "tokens": 41587,
+        "llm_calls": 15,
+        "wall_clock_seconds": 329.53
       },
       {
-        "run_id": "single_srdd_educ_04_r1_attempt2",
+        "run_id": "single_srdd_educ_04_r1_attempt3",
         "task_id": "srdd_educ_04",
         "system": "single",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.4154,
-        "tokens": 3149,
+        "quality": 0.657,
+        "tokens": 2393,
         "llm_calls": 1,
-        "wall_clock_seconds": 6.78
+        "wall_clock_seconds": 5.83
       },
       {
-        "run_id": "mas_srdd_work_01_r1_attempt2",
-        "task_id": "srdd_work_01",
-        "system": "mas",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.5088,
-        "tokens": 38414,
-        "llm_calls": 11,
-        "wall_clock_seconds": 50.47
-      },
-      {
-        "run_id": "cd_srdd_work_01_r1_attempt2",
+        "run_id": "cd_srdd_work_01_r1_attempt3",
         "task_id": "srdd_work_01",
         "system": "chatdev",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.0,
-        "tokens": 47227,
+        "quality": 0.6294,
+        "tokens": 34654,
         "llm_calls": 14,
-        "wall_clock_seconds": 290.47
+        "wall_clock_seconds": 295.26
       },
       {
-        "run_id": "single_srdd_work_01_r1_attempt2",
-        "task_id": "srdd_work_01",
-        "system": "single",
-        "ablation": "A0",
-        "status": "COMPLETED",
-        "quality": 0.5908,
-        "tokens": 4277,
-        "llm_calls": 1,
-        "wall_clock_seconds": 8.66
-      },
-      {
-        "run_id": "mas_srdd_educ_02_r1_attempt3",
-        "task_id": "srdd_educ_02",
+        "run_id": "mas_srdd_educ_01_r1_attempt11",
+        "task_id": "srdd_educ_01",
         "system": "mas",
         "ablation": "A0",
         "status": "COMPLETED",
-        "quality": 0.5858,
-        "tokens": 15017,
+        "quality": 0.471,
+        "tokens": 25180,
         "llm_calls": 4,
-        "wall_clock_seconds": 22.92
+        "wall_clock_seconds": 83.67
+      },
+      {
+        "run_id": "mas_srdd_educ_02_r1_attempt5",
+        "task_id": "srdd_educ_02",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.4776,
+        "tokens": 16382,
+        "llm_calls": 4,
+        "wall_clock_seconds": 46.91
+      },
+      {
+        "run_id": "mas_srdd_educ_03_r1_attempt4",
+        "task_id": "srdd_educ_03",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.6384,
+        "tokens": 8422,
+        "llm_calls": 4,
+        "wall_clock_seconds": 13.61
+      },
+      {
+        "run_id": "mas_srdd_educ_04_r1_attempt4",
+        "task_id": "srdd_educ_04",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.4116,
+        "tokens": 10750,
+        "llm_calls": 4,
+        "wall_clock_seconds": 23.77
+      },
+      {
+        "run_id": "mas_srdd_work_01_r1_attempt4",
+        "task_id": "srdd_work_01",
+        "system": "mas",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.4855,
+        "tokens": 22442,
+        "llm_calls": 8,
+        "wall_clock_seconds": 40.9
+      },
+      {
+        "run_id": "single_srdd_work_01_r1_attempt4",
+        "task_id": "srdd_work_01",
+        "system": "single",
+        "ablation": "A0",
+        "status": "COMPLETED",
+        "quality": 0.5053,
+        "tokens": 6502,
+        "llm_calls": 1,
+        "wall_clock_seconds": 25.38
       }
     ]
   },

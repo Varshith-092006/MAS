@@ -44,7 +44,7 @@ benchmark:
   # Benchmark series. Bump it whenever system code or prompts change during the benchmark, so
   # runs from different code versions are never mixed. Rows without a series are 'v1'
   # (the Phase 8 pilot run). Official rows, --resume and reports are all scoped to a series.
-  series: "v2"
+  series: "v3"
 
 database:
   url: "sqlite:///./mas.db"

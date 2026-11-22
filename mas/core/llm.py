@@ -955,7 +955,58 @@ class OpenRouterProvider(LLMProvider):
         except Exception as e:
             return {"error": str(e)}
 
+    # DEC-046: same retry policy as ChatDev's camel ChatAgent.step
+    # (@retry(wait=wait_exponential(min=5, max=60), stop=stop_after_attempt(5))), so a busy
+    # provider does not fail one system while the other waits it out. Only temporary
+    # infrastructure errors are retried, never bad requests and never output quality.
+    RETRY_MAX_ATTEMPTS = 5
+    RETRY_MIN_WAIT_S = 5.0
+    RETRY_MAX_WAIT_S = 60.0
+    RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
+
+    @staticmethod
+    def is_transient_error(exc: Exception) -> bool:
+        if isinstance(exc, OpenRouterAPIError):
+            if exc.status_code in OpenRouterProvider.RETRYABLE_STATUS:
+                return True
+            return exc.status_code == 429 and not exc.is_daily_quota_exhausted
+        name = type(exc).__name__.lower()
+        return any(t in name for t in ("timeout", "connecterror", "remoteprotocolerror", "readerror"))
+
+    def _sleep(self, seconds: float) -> None:  # separate so tests can skip the wait
+        time.sleep(seconds)
+
     def generate(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        response_schema: Optional[type[BaseModel]] = None,
+        temperature: float = 0.0,
+        run_id: Optional[str] = None,
+        agent_name: str = "agent",
+        max_tokens: int = 2000,
+    ) -> ModelResult:
+        attempt = 1
+        while True:
+            try:
+                return self._generate_once(
+                    messages, model=model, response_schema=response_schema, temperature=temperature,
+                    run_id=run_id, agent_name=agent_name, max_tokens=max_tokens,
+                )
+            except Exception as exc:
+                if attempt >= self.RETRY_MAX_ATTEMPTS or not self.is_transient_error(exc):
+                    raise
+                # Exponential backoff like tenacity's wait_exponential(min=5, max=60)
+                wait = min(self.RETRY_MAX_WAIT_S, max(self.RETRY_MIN_WAIT_S, 2.0 ** attempt))
+                status = getattr(exc, "status_code", type(exc).__name__)
+                logger.warning(
+                    "Transient provider error (%s) for agent '%s'; retry %d/%d in %.0fs",
+                    status, agent_name, attempt, self.RETRY_MAX_ATTEMPTS - 1, wait,
+                )
+                self._sleep(wait)
+                attempt += 1
+
+    def _generate_once(
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,

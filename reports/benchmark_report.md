@@ -26,24 +26,24 @@ Generated at: results.csv / benchmark_manifest.json
 
 | System | N | Completeness (95% CI) | Executability (95% CI) | Consistency (95% CI) | Quality (95% CI) | Wilcoxon p-value | Cohen's d |
 |---|---|---|---|---|---|---|---|
-| **MAS (Ours)** | 5 | 1.0000 [1.0000, 1.0000] | 1.0000 [1.0000, 1.0000] | 0.5017 [0.4315, 0.5670] | 0.5017 [0.4315, 0.5670] | 0.12500 | 1.0340 |
-| **ChatDev** | 5 | 0.8000 [0.4000, 1.0000] | 0.2000 [0.0000, 0.6000] | 0.4855 [0.2389, 0.6477] | 0.1417 [0.0000, 0.4252] | — | — |
+| **MAS (Ours)** | 5 | 1.0000 [1.0000, 1.0000] | 1.0000 [1.0000, 1.0000] | 0.4968 [0.4383, 0.5741] | 0.4968 [0.4383, 0.5741] | 0.12500 | 1.0470 |
+| **ChatDev** | 5 | 1.0000 [1.0000, 1.0000] | 0.4000 [0.0000, 0.8000] | 0.5469 [0.4885, 0.6053] | 0.2182 [0.0000, 0.4700] | — | — |
 
 
 ### Table 3: Efficiency and Computational Overhead
 
 | System | Tokens / Task | Quality / 1k Tokens | Est. Cost ($) | LLM Calls | Wall-Clock Time (s) | Lines of Code (LOC) |
 |---|---|---|---|---|---|---|
-| **MAS (Ours)** | 22,792.4 | 0.0220 | $0.0000 | 7.2 | 33.7s | 852.4 |
-| **ChatDev** | 51,521.8 | 0.0028 | $0.0000 | 15.8 | 287.5s | 112.0 |
+| **MAS (Ours)** | 16,635.2 | 0.0299 | $0.0000 | 4.8 | 41.8s | 969.0 |
+| **ChatDev** | 45,090.4 | 0.0048 | $0.0000 | 14.8 | 332.5s | 172.6 |
 
 
 ### Table 4: Per-Category Quality Breakdown
 
 | Category | Tasks | MAS Quality | ChatDev Quality | Delta (MAS - CD) |
 |---|---|---|---|---|
-| Education | 4 | 0.4999 | 0.1772 | +0.3228 |
-| Work | 1 | 0.5088 | 0.0000 | +0.5088 |
+| Education | 4 | 0.4996 | 0.1154 | +0.3842 |
+| Work | 1 | 0.4855 | 0.6294 | -0.1439 |
 | Life | 0 | NOT RUN | NOT RUN | NOT RUN |
 | Games | 0 | NOT RUN | NOT RUN | NOT RUN |
 | Creation | 0 | NOT RUN | NOT RUN | NOT RUN |
@@ -53,7 +53,7 @@ Generated at: results.csv / benchmark_manifest.json
 
 | Condition | Description | Tasks | Mean Quality | Mean Tokens | LLM Calls | Delta Quality vs A0 |
 |---|---|---|---|---|---|---|
-| **A0** | Full MAS (Default Baseline) | 5 | 0.5017 | 22,792 | 7.2 | Reference (0.0000) |
+| **A0** | Full MAS (Default Baseline) | 5 | 0.4968 | 16,635 | 4.8 | Reference (0.0000) |
 | **A1** | Always Architect (No Complexity Router) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | **A2** | Full Repo Context (No AST Slicing) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | **A3** | No Evidence Review (No AST/Ruff/Bandit Checks) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
@@ -64,6 +64,6 @@ Generated at: results.csv / benchmark_manifest.json
 
 | System | Shared Test Score | Executability Rate | Benchmark Success Rate |
 |---|---|---|---|
-| **MAS (Ours)** | 1.0000 | 100.0% | 100.0% |
-| **ChatDev** | 0.2000 | 20.0% | 80.0% |
+| **MAS (Ours)** | 0.9000 | 100.0% | 100.0% |
+| **ChatDev** | 0.4000 | 40.0% | 100.0% |
 

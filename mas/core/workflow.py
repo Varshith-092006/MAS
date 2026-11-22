@@ -33,7 +33,15 @@ from mas.db.models import Run, ConfigSnapshot
 from mas.db.session import get_session, init_db
 
 
+import copy
 import json
+
+# State restored together with the best iteration's code snapshot (P3, DEC-045)
+BEST_STATE_KEYS = (
+    "review_report", "mas_pytest_report", "sandbox_execution", "quality_report",
+    "ast_report", "conformance_report", "internal_completeness", "changed_files", "artifacts",
+)
+
 
 def generate_artifacts_manifest(workspace_dir: str):
     """Generates an auditable manifest of files created in the workspace with SHA256 hashes."""
@@ -216,6 +224,7 @@ class MASWorkflow:
 
             # Ablation A4: no reflection loop (one iteration only)
             max_iterations = 1 if a4_single_iteration else reflection.stopper.max_iterations
+            best = None  # best-scoring iteration so far (P3)
 
             while state.get("iteration", 1) <= max_iterations:
                 curr_iter = state.get("iteration", 1)
@@ -243,6 +252,21 @@ class MASWorkflow:
                     state, workspace_files, set_graph, disable_slicing=a2_disable_slicing
                 )
                 state["relevant_uml"] = sliced_context["relevant_uml"]
+                # P1 (DEC-045): the sliced files (changed files plus AST impact set, or every
+                # file under ablation A2) are what the Developer sees from iteration 2 on.
+                context_files = dict(sliced_context["files"])
+                if not a2_disable_slicing:
+                    # Also include any file the current feedback names (test failures, review
+                    # findings, crash output), even if it was neither changed nor dependent.
+                    feedback_text = " ".join(
+                        [str(x) for x in state.get("mas_pytest_report", {}).get("details", [])]
+                        + [str(x) for x in state.get("review_report", {}).get("findings", [])]
+                        + [str(state.get("sandbox_execution", {}).get("stderr", ""))]
+                    )
+                    for rel_fp, content in workspace_files.items():
+                        if os.path.basename(rel_fp) in feedback_text:
+                            context_files.setdefault(rel_fp, content)
+                state["context_files"] = context_files
 
                 # Developer generates CodePatch & applies to workspace
                 state = dev.run(state)
@@ -335,12 +359,49 @@ class MASWorkflow:
                 # Reflection & Adaptive Stopper
                 state = reflection.run(state)
 
+                # P3 (DEC-045): remember the best-scoring iteration (code snapshot + its reports)
+                score_now = float(state.get("previous_adaptive_score", 0.0))
+                if best is None or score_now > best["score"]:
+                    best = {
+                        "iteration": curr_iter,
+                        "score": score_now,
+                        "checkpoint": checkpoint_mgr.save_checkpoint(f"best_iter_{curr_iter}"),
+                        "state": {k: copy.deepcopy(state.get(k)) for k in BEST_STATE_KEYS if k in state},
+                    }
+
                 decision = state.get("artifacts", {}).get("ReflectionDecision", {}).get("decision", "STOP")
 
                 if decision == "STOP":
                     break
                 else:
                     state["iteration"] = curr_iter + 1
+
+            # P3 (DEC-045): ship the best iteration, not simply the last one
+            state["shipped_iteration"] = state.get("iteration", 1)
+            ended_clean = str(
+                state.get("artifacts", {}).get("ReflectionDecision", {}).get("reason", "")
+            ).startswith("clean_result")
+            if best is not None and not ended_clean and best["iteration"] != state.get("iteration", 1):
+                if checkpoint_mgr.restore_checkpoint(best["checkpoint"]):
+                    last_reason = str(state.get("artifacts", {}).get("ReflectionDecision", {}).get("reason", ""))
+                    for k, v in best["state"].items():
+                        if k != "artifacts":
+                            state[k] = v
+                    for k in ("CodePatch", "TestReport", "ReviewReport"):
+                        if k in (best["state"].get("artifacts") or {}):
+                            state["artifacts"][k] = best["state"]["artifacts"][k]
+                    state["shipped_iteration"] = best["iteration"]
+                    state["stop_reason"] = f"{last_reason}; restored best iteration {best['iteration']}"
+                    event_logger.emit(
+                        run_id=run_id,
+                        agent="reflection",
+                        event="best_iteration_restored",
+                        summary=(
+                            f"Restored iteration {best['iteration']} (S_t={best['score']:.4f}) instead of "
+                            f"final iteration {state.get('iteration', 1)} "
+                            f"(S_t={float(state.get('artifacts', {}).get('ReflectionDecision', {}).get('adaptive_score', 0.0)):.4f})"
+                        ),
+                    )
 
             # Determine final status distinguishing quality gate from iteration limit and infrastructure failure
             final_decision = state.get("artifacts", {}).get("ReflectionDecision", {})

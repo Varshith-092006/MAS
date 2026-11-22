@@ -1,3 +1,3 @@
 system,official_runs,mean_quality,mean_tokens,mean_llm_calls,mean_wall_clock_sec
-mas,5,0.5017,22792.4,7.2,33.7
-chatdev,5,0.1417,51521.8,15.8,287.5
+mas,5,0.4968,16635.2,4.8,41.8
+chatdev,5,0.2182,45090.4,14.8,332.5

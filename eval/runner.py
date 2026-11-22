@@ -7,7 +7,7 @@ import subprocess
 import sys
 from datetime import datetime
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     from dotenv import load_dotenv
@@ -89,6 +89,18 @@ def current_series() -> str:
         return str((get_config().get("benchmark") or {}).get("series") or "v1")
     except Exception:
         return "v1"
+
+
+# DEC-048: requests one task may need per system, from the observed maxima (MAS 11 calls, ChatDev 15,
+# single 1) plus headroom for transient-error retries, which also count against the daily budget.
+TASK_REQUEST_RESERVE = {"mas": 16, "chatdev": 18, "single": 3}
+
+
+def budget_allows_task(governor: Any, pending_systems: List[str]) -> Tuple[bool, int, int]:
+    """(ok, remaining, needed): whether today's remaining requests cover one task for the pending systems."""
+    need = sum(TASK_REQUEST_RESERVE.get(s, 16) for s in pending_systems)
+    remaining = int(governor.get_ledger_stats().get("remaining_internal_attempts", 0))
+    return (need == 0 or remaining >= need), remaining, need
 
 
 def update_benchmark_manifest(
@@ -513,6 +525,8 @@ class EvaluationRunner:
                     cwd=chatdev_dir,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 if res.returncode == 0:
                     chatdev_actual = res.stdout.strip()
@@ -940,11 +954,11 @@ class EvaluationRunner:
             remaining = stats.get("remaining_internal_attempts", 0)
             if remaining < min_required_attempts:
                 print(f"\n[GOVERNOR HALT] Insufficient remaining daily transmissions for benchmark batch:")
-                print(f"  Current UTC date: {stats.get('utc_date')}")
+                print(f"  Current quota day (America/Los_Angeles): {stats.get('utc_date')}")
                 print(f"  Used attempts today: {stats.get('total_attributable_attempts')} / {stats.get('internal_daily_cap')}")
                 print(f"  Remaining attempts: {remaining} (Minimum required with safety margin: {min_required_attempts})")
                 print(f"  Execution safely stopped before ceiling breach.")
-                print(f"  Scheduled next execution after UTC reset: 00:00:00 UTC")
+                print(f"  Quota resets at midnight America/Los_Angeles (08:00 UTC; 07:00 UTC in summer). Rerun with --resume then.")
                 return {"status": "STOPPED_DAILY_CEILING", "stats": stats}
 
             if "chatdev" in systems:
@@ -989,7 +1003,10 @@ class EvaluationRunner:
 
         llm = FakeLLMProvider() if use_fake else OpenRouterProvider(default_model=model)
 
+        budget_stopped = False
         for t_idx, task in enumerate(tasks):
+            if budget_stopped:
+                break
             t_id = task.get("task_id", f"task_{t_idx+1:02d}")
             t_name = task.get("name", t_id)
             base_req = task.get("description", "")
@@ -1005,6 +1022,19 @@ class EvaluationRunner:
                 run_status = "SIMULATION_ONLY" if use_fake else "COMPLETED"
                 exec_mode = "SIMULATED" if use_fake else "LIVE_API"
                 prov_mode = "SIMULATED" if use_fake else "PROVIDER_REPORTED"
+
+                # DEC-048: with --stop-at-budget, never start a task that today's quota cannot finish.
+                if stop_at_budget and not use_fake:
+                    pending = [s for s in systems if not (resume and (t_id, s, r_num, ablation) in completed_keys)]
+                    ok, rem, need = budget_allows_task(governor, pending)
+                    if not ok:
+                        print(
+                            f"   [BUDGET STOP] {rem} requests left today; this task may need up to {need} "
+                            f"({', '.join(pending)}). Stopping cleanly. Rerun the same command with --resume "
+                            f"after the daily quota resets (midnight America/Los_Angeles)."
+                        )
+                        budget_stopped = True
+                        break
 
                 # 1. Run MAS
                 if "mas" in systems:

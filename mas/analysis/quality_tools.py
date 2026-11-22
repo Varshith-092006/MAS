@@ -21,6 +21,8 @@ class QualityTools:
                 ["ruff", "check", target_dir, "--output-format=json"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             data = json.loads(res.stdout) if res.stdout else []
@@ -43,6 +45,8 @@ class QualityTools:
                 ["bandit", "-r", target_dir, "-f", "json", "-q"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             data = json.loads(res.stdout) if res.stdout else {}
@@ -71,6 +75,8 @@ class QualityTools:
                 ["radon", "mi", target_dir, "-j"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             data = json.loads(res.stdout) if res.stdout else {}

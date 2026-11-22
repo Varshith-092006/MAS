@@ -1060,7 +1060,7 @@ class OpenRouterProvider(LLMProvider):
                     stats = global_governor.get_ledger_stats()
                     if stats["total_attributable_attempts"] >= max_daily_calls:
                         raise DailyTransmissionsCeilingExceededError(
-                            f"Daily outbound HTTP transmissions ceiling reached ({stats['total_attributable_attempts']} >= {max_daily_calls} for UTC day). Checkpointing run safely."
+                            f"Daily outbound HTTP transmissions ceiling reached ({stats['total_attributable_attempts']} >= {max_daily_calls} for the quota day, America/Los_Angeles). Checkpointing run safely."
                         )
             except DailyTransmissionsCeilingExceededError:
                 raise

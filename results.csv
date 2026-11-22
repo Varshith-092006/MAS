@@ -215,3 +215,55 @@ mas_srdd_educ_03_r1_attempt4,srdd_educ_03,mas,gemini,gemini-3.5-flash-lite,,1,A0
 mas_srdd_educ_04_r1_attempt4,srdd_educ_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4116,0.0383,1.0,1.0,0.4116,embedding,1.0,0,0,100.0,10750,0.0,4,23.77,408,,,COMPLETED,SUCCESS
 mas_srdd_work_01_r1_attempt4,srdd_work_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4855,0.0216,1.0,1.0,0.4855,embedding,1.0,0,0,100.0,22442,0.0,8,40.9,1440,,,COMPLETED,SUCCESS
 single_srdd_work_01_r1_attempt4,srdd_work_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5053,0.0777,1.0,1.0,0.5053,embedding,1.0,0,0,100.0,6502,0.0,1,25.38,525,,,COMPLETED,SUCCESS
+mas_srdd_work_02_r1,srdd_work_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.7043,0.0581,1.0,1.0,0.7043,embedding,1.0,0,0,100.0,12120,0.0,4,17.17,597,,,COMPLETED,SUCCESS
+cd_srdd_work_02_r1,srdd_work_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.6815,embedding,0.0,0,0,100.0,48020,0.0,15,367.27,167,,,COMPLETED,SUCCESS
+single_srdd_work_02_r1,srdd_work_02,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.5024,embedding,0.0,0,0,100.0,2360,0.0,1,6.94,173,,,COMPLETED,SUCCESS
+mas_srdd_work_03_r1,srdd_work_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.1717,0.0162,1.0,1.0,0.1717,embedding,1.0,0,0,100.0,10573,0.0,5,52.81,618,,,COMPLETED,SUCCESS
+cd_srdd_work_03_r1,srdd_work_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.6023,embedding,0.0,0,0,100.0,48648,0.0,15,358.41,62,,,COMPLETED,SUCCESS
+single_srdd_work_03_r1,srdd_work_03,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.2003,0.0438,1.0,1.0,0.2003,embedding,1.0,0,0,100.0,4572,0.0,1,10.78,356,,,COMPLETED,SUCCESS
+mas_srdd_work_04_r1,srdd_work_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.6113,0.1086,1.0,1.0,0.6113,embedding,1.0,0,0,100.0,5628,0.0,3,25.93,267,,,COMPLETED,SUCCESS
+cd_srdd_work_04_r1,srdd_work_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.3636,embedding,0.0,0,0,100.0,33613,0.0,14,309.1,128,,,COMPLETED,SUCCESS
+single_srdd_work_04_r1,srdd_work_04,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.5073,embedding,0.0,0,0,100.0,3292,0.0,1,21.19,245,,,COMPLETED,SUCCESS
+mas_srdd_life_01_r1,srdd_life_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4907,0.0342,1.0,1.0,0.4907,embedding,1.0,0,0,100.0,14347,0.0,4,39.04,744,,,COMPLETED,SUCCESS
+cd_srdd_life_01_r1,srdd_life_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.364,embedding,0.0,0,0,100.0,44683,0.0,15,353.72,66,,,COMPLETED,SUCCESS
+single_srdd_life_01_r1,srdd_life_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4089,0.1185,1.0,1.0,0.4089,embedding,1.0,0,0,100.0,3450,0.0,1,11.1,269,,,COMPLETED,SUCCESS
+mas_srdd_life_02_r1,srdd_life_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5721,0.0116,1.0,1.0,0.5721,embedding,1.0,0,0,100.0,49191,0.0,8,91.11,2779,,,COMPLETED,SUCCESS
+cd_srdd_life_02_r1,srdd_life_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.5304,embedding,0.0,0,0,100.0,50072,0.0,15,363.19,90,,,COMPLETED,SUCCESS
+single_srdd_life_02_r1,srdd_life_02,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5436,0.1028,1.0,1.0,0.5436,embedding,1.0,0,0,100.0,5290,0.0,1,16.96,441,,,COMPLETED,SUCCESS
+mas_srdd_life_03_r1,srdd_life_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.3402,0.0529,1.0,1.0,0.3402,embedding,1.0,0,0,100.0,6428,0.0,3,16.97,279,,,COMPLETED,SUCCESS
+cd_srdd_life_03_r1,srdd_life_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,,,,embedding,,,,,55230,0.0,15,324.61,0,,,INCOMPLETE,QUALITY_FAILURE
+single_srdd_life_03_r1,srdd_life_03,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.3679,0.1045,1.0,1.0,0.3679,embedding,1.0,0,0,100.0,3521,0.0,1,17.53,267,,,COMPLETED,SUCCESS
+mas_srdd_life_04_r1,srdd_life_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4783,0.0449,1.0,1.0,0.4783,embedding,1.0,0,0,100.0,10648,0.0,3,20.88,831,,,COMPLETED,SUCCESS
+cd_srdd_life_04_r1,srdd_life_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.5361,embedding,0.0,0,0,100.0,39101,0.0,15,360.9,87,,,COMPLETED,SUCCESS
+single_srdd_life_04_r1,srdd_life_04,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.6136,0.1745,1.0,1.0,0.6136,embedding,1.0,0,0,100.0,3516,0.0,1,29.9,292,,,COMPLETED,SUCCESS
+mas_srdd_game_01_r1,srdd_game_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.3721,0.0456,1.0,1.0,0.3721,embedding,1.0,0,0,100.0,8159,0.0,3,16.6,606,,,COMPLETED,SUCCESS
+cd_srdd_game_01_r1,srdd_game_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.3922,embedding,0.0,0,0,100.0,56020,0.0,15,318.33,199,,,COMPLETED,SUCCESS
+single_srdd_game_01_r1,srdd_game_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.4168,0.1202,1.0,1.0,0.4168,embedding,1.0,0,0,100.0,3467,0.0,1,8.06,247,,,COMPLETED,SUCCESS
+mas_srdd_game_02_r1,srdd_game_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5537,0.0406,1.0,1.0,0.5537,embedding,1.0,0,0,100.0,13632,0.0,4,65.1,795,,,COMPLETED,SUCCESS
+cd_srdd_game_02_r1,srdd_game_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.481,embedding,0.0,0,0,100.0,50526,0.0,15,309.38,123,,,COMPLETED,SUCCESS
+single_srdd_game_02_r1,srdd_game_02,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5123,0.1453,1.0,1.0,0.5123,embedding,1.0,0,0,100.0,3525,0.0,1,10.7,251,,,COMPLETED,SUCCESS
+mas_srdd_game_03_r1,srdd_game_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,"INFRA_ERROR: OPENROUTER_SERVER_ERROR_503: OpenRouter Request Error (503) on model 'gemini-3.5-flash-lite': message: '[{
+  ""error"": {
+    ""code"": 503,
+    ""message"": ""This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."",
+    ""status"": ""UNAVAILABLE""
+  }
+}
+]'",,,0.0,0.0,,unavailable,0.0,0,0,100.0,2393,0.0,3,57.76,0,,,FAILED_INFRASTRUCTURE,INFRA_ERROR
+cd_srdd_game_03_r1,srdd_game_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.4962,embedding,0.0,0,0,100.0,51054,0.0,14,356.33,135,,,COMPLETED,SUCCESS
+single_srdd_game_03_r1,srdd_game_03,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.3729,0.0819,1.0,1.0,0.3729,embedding,1.0,0,0,100.0,4551,0.0,1,11.04,340,,,COMPLETED,SUCCESS
+mas_srdd_game_04_r1,srdd_game_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.5791,0.0202,1.0,1.0,0.5791,embedding,1.0,0,0,100.0,28722,0.0,8,76.74,780,,,COMPLETED,SUCCESS
+cd_srdd_game_04_r1,srdd_game_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.7119,embedding,0.0,0,0,100.0,46603,0.0,15,368.99,178,,,COMPLETED,SUCCESS
+single_srdd_game_04_r1,srdd_game_04,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.7331,0.3027,1.0,1.0,0.7331,embedding,1.0,0,0,100.0,2422,0.0,1,5.74,164,,,COMPLETED,SUCCESS
+mas_srdd_crea_01_r1,srdd_crea_01,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.6541,0.089,1.0,1.0,0.6541,embedding,1.0,0,0,100.0,7352,0.0,3,19.01,420,,,COMPLETED,SUCCESS
+cd_srdd_crea_01_r1,srdd_crea_01,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.6296,embedding,0.0,0,0,100.0,59052,0.0,15,338.02,189,,,COMPLETED,SUCCESS
+single_srdd_crea_01_r1,srdd_crea_01,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.6281,0.1533,1.0,1.0,0.6281,embedding,1.0,0,0,100.0,4097,0.0,1,9.9,309,,,COMPLETED,SUCCESS
+mas_srdd_crea_02_r1,srdd_crea_02,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.2589,0.0161,1.0,1.0,0.2589,embedding,1.0,0,0,100.0,16120,0.0,4,56.76,735,,,COMPLETED,SUCCESS
+cd_srdd_crea_02_r1,srdd_crea_02,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.0,0.0,1.0,0.0,0.1793,embedding,0.0,0,0,100.0,44581,0.0,15,360.71,147,,,COMPLETED,SUCCESS
+single_srdd_crea_02_r1,srdd_crea_02,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,true,,0.2209,0.0435,1.0,1.0,0.2209,embedding,1.0,0,0,100.0,5075,0.0,1,14.16,416,,,COMPLETED,SUCCESS
+mas_srdd_crea_03_r1,srdd_crea_03,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: Producer developer failed to produce valid CodePatch: Outbound HTTP transmission rejected before dispatch: daily ceiling reached (450 >= 450 for UTC day 2026-11-22).,,,,,,,,,,,925,0.0,,,,,,FAILED,INFRA_ERROR
+cd_srdd_crea_03_r1,srdd_crea_03,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: Governor quota ceiling threshold reached before ChatDev dispatch,,,,,,,,,,,0,0.0,,,,,,STOPPED_BUDGET_CEILING,INFRA_ERROR
+single_srdd_crea_03_r1,srdd_crea_03,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: DailyTransmissionsCeilingExceededError: Outbound HTTP transmission rejected before dispatch: daily ceiling reached (450 >= 450 for UTC day 2026-11-22).,,,,,,unavailable,,,,,0,0.0,0,0.11,0,,,FAILED,INFRA_ERROR
+mas_srdd_crea_04_r1,srdd_crea_04,mas,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: Producer manager failed to produce valid TaskPlan: Outbound HTTP transmission rejected before dispatch: daily ceiling reached (450 >= 450 for UTC day 2026-11-22).,,,,,,,,,,,0,0.0,,,,,,FAILED,INFRA_ERROR
+cd_srdd_crea_04_r1,srdd_crea_04,chatdev,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: Governor quota ceiling threshold reached before ChatDev dispatch,,,,,,,,,,,0,0.0,,,,,,STOPPED_BUDGET_CEILING,INFRA_ERROR
+single_srdd_crea_04_r1,srdd_crea_04,single,gemini,gemini-3.5-flash-lite,,1,A0,v3,false,INFRA_ERROR: DailyTransmissionsCeilingExceededError: Outbound HTTP transmission rejected before dispatch: daily ceiling reached (450 >= 450 for UTC day 2026-11-22).,,,,,,unavailable,,,,,0,0.0,0,0.13,0,,,FAILED,INFRA_ERROR

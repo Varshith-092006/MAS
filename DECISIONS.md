@@ -836,3 +836,22 @@ This document tracks architectural decisions, source precedence, specification c
   MAS vs ChatDev: Wilcoxon p = 0.125, Cohen's d = 1.05. With n = 5 the smallest possible two-sided Wilcoxon p is 0.0625, so this is **not significant**; more tasks are needed.
 - **v3 vs v2 for MAS (same 5 tasks)**: Quality 0.5017 -> 0.4968 (no measurable change; per-task differences are within run-to-run noise, e.g. the unchanged single agent moved 0.43 -> 0.65 on srdd_educ_02). Tokens per task 22,792 -> 16,635 (-27%), calls per task 7.2 -> 4.8 (-33%). 4 of 5 runs ended clean within 2 iterations, so P3 (best-iteration restore) did not fire; `shipped_iteration` equals the final iteration in every run.
 - **Reading**: MAS Completeness and Executability are 1.0 on every task, so its Quality equals Consistency (MiniLM similarity between requirement and code). The remaining headroom is in Consistency and in the evaluator's smoke protocol, not in crashes.
+
+---
+
+### Record: UTF-8 Subprocess Decoding, Per-Task Budget Stop, ChatDev Failure Audit
+
+- **ID**: DEC-048
+- **Date**: 2026-11-22
+- **Trigger**: 20-task v3 batch. (1) `UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d / 0x8f` in subprocess reader threads. (2) MAS started `srdd_crea_03` with almost no quota left and failed mid-run on the daily ceiling. (3) ChatDev scored Quality 0 on all 13 new tasks, which needed checking before trusting any result.
+- **Decision**:
+  1. **UTF-8 decoding.** Every `subprocess.run(..., text=True)` in `mas/analysis/sandbox.py`, `mas/analysis/quality_tools.py`, `mas/core/checkpoints.py` and `eval/runner.py` now passes `encoding="utf-8", errors="replace"`. The sandbox forces `PYTHONIOENCODING=utf-8` on the child, but the parent decoded with the Windows cp1252 codepage, so any emoji (UTF-8 bytes 0x81/0x8d/0x8f/0x90/0x9d) killed the reader thread and returned empty stdout/stderr. Scoring uses the exit code, but the smoke protocol's CLI fallback reads stderr for `usage:` and for a traceback, so a lost stream could flip a result either way (false fail or false pass). The frozen evaluator files (`eval/neutral_evaluator.py`, `eval/checks/*`) are unchanged. **Check:** executability of all 53 official v3 rows was recomputed with the fix: 0 changed. v3 results remain valid and poolable; the series stays v3.
+  2. **Per-task budget stop.** With `--stop-at-budget`, before each task the runner checks that today's remaining requests cover that task for every system still pending (`TASK_REQUEST_RESERVE`: MAS 16, ChatDev 18, single 3: observed maxima plus retry headroom). If not, it prints `[BUDGET STOP]` and stops cleanly, so no run is started that cannot finish.
+- **ChatDev audit (no code change; findings for the report)**: every official v3 ChatDev workspace was rerun by hand. The zeros are genuine behaviour of unmodified ChatDev with this model, not a harness fault:
+  - 7 runs: the model echoed ChatDev's literal answer template (`FILENAME` + fences), and ChatDev's own code extractor wrote a file name or a language tag as file content (e.g. `main.py` containing only `main.py`, `analyzer.py` starting with a line `python`).
+  - 4 runs: a later ChatDev phase replaced a whole file with a fragment, leaving a syntax error at the last line (the full line exists earlier in the log; the reply was short, not truncated by a token cap).
+  - 2 runs: an interactive menu calls `input()` without handling end-of-input and crashes under the no-input smoke protocol (`EOFError`), although the requirement text given to every system says the program must run without crashing.
+  - 1 run needs `pygame` (not installed), 1 imports a module it never wrote, 1 produced no `main.py`.
+  MAS avoids these by design: delimiter-block parsing, standard-library-only planning, and EOF-safe input rules. This is a validity note for the report: ChatDev's score with a small Lite model is dominated by output-format and robustness failures.
+- **Interim (not final; 3 MAS, 2 ChatDev, 2 single runs still to rerun)**: MAS vs ChatDev, paired n = 17: Wilcoxon p = 0.00003, MAS higher on 16 of 17. MAS vs single agent, paired n = 17: p = 0.58, MAS higher on 9 of 17: **no significant difference from the single-agent baseline.**
+- **Tests**: `tests/test_phase8_utf8_subprocess.py` (6 tests; the 4 sandbox tests fail without the fix, including a false-pass case). 365 passed.

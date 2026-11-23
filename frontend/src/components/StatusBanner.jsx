@@ -1,42 +1,32 @@
 import React from 'react';
 
+const STATUS = {
+  COMPLETED: ['Finished', 'bg-emerald-950 text-emerald-400 border-emerald-800'],
+  FAILED: ['Failed', 'bg-rose-950 text-rose-400 border-rose-800'],
+  RUNNING: ['Running', 'bg-cyan-950 text-cyan-400 border-cyan-800'],
+  CANCELLED: ['Cancelled', 'bg-amber-950 text-amber-400 border-amber-800'],
+  SKIPPED: ['Skipped', 'bg-slate-850 text-slate-400 border-slate-700'],
+};
+
 export default function StatusBanner({ status, complexity, iteration, stopReason }) {
-  const getStatusBadge = () => {
-    switch (status) {
-      case 'COMPLETED':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'FAILED':
-        return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-      case 'RUNNING':
-        return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 animate-pulse';
-      case 'CANCELLED':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      case 'MODEL_MISMATCH_DIAGNOSTIC':
-      case 'DIAGNOSTIC_RUN':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-      default:
-        return 'bg-slate-700/50 text-slate-300 border-slate-600';
-    }
-  };
+  const [label, cls] = STATUS[status] || [status || 'Unknown', 'bg-slate-850 text-slate-400 border-slate-700'];
+  const route = (complexity || '').toUpperCase() === 'SIMPLE' ? 'Small project (no Architect step)' : complexity ? 'Larger project (with Architect step)' : '-';
 
   return (
-    <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider border ${getStatusBadge()}`}>
-          {status || 'UNKNOWN'}
+    <div className="bg-white border border-slate-800 px-4 py-3 rounded-lg mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cls}`}>{label}</span>
+      {complexity && (
+        <span className="text-slate-400">
+          Plan: <span className="text-slate-200">{route}</span>
         </span>
-        <div className="text-sm text-slate-300">
-          Complexity Route: <span className="font-semibold text-white">{complexity || 'SIMPLE'}</span>
-        </div>
-        <div className="text-sm text-slate-300">
-          Iteration: <span className="font-semibold text-white">{iteration || 1}</span> / 3
-        </div>
-      </div>
-
+      )}
+      <span className="text-slate-400">
+        Improvement rounds: <span className="text-slate-200">{iteration || 1}</span>
+      </span>
       {stopReason && (
-        <div className="text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 max-w-lg truncate">
-          Stop Reason: <span className="text-slate-200">{stopReason}</span>
-        </div>
+        <span className="text-xs text-slate-500 truncate max-w-lg" title={stopReason}>
+          Stopped because: <span className="text-slate-300">{stopReason}</span>
+        </span>
       )}
     </div>
   );

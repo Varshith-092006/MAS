@@ -3,17 +3,19 @@
 @tailwind utilities;
 
 /* ============================================================
-   MAS RESEARCH DASHBOARD — Global Design System
-   Premium dark-mode research interface
+   MAS — global styles (professional light theme, DEC-051)
+   Colours are remapped in tailwind.config.js.
    ============================================================ */
 
 @layer base {
   :root {
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-    --color-bg: #020617;
-    --color-surface: #0f172a;
-    --color-border: #1e293b;
+    --font-code: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    --color-bg: #f3f5f8;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-accent: #2563eb;
   }
 
   * {
@@ -21,7 +23,6 @@
   }
 
   html {
-    scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -30,174 +31,139 @@
     margin: 0;
     font-family: var(--font-sans);
     background-color: var(--color-bg);
-    color: #f8fafc;
+    color: var(--color-text);
     line-height: 1.5;
   }
 
-  code, pre, kbd, samp, .font-mono {
-    font-family: var(--font-mono) !important;
+  /* Labels and numbers use the normal font (monospace everywhere looked like a terminal).
+     Real code keeps a code font. */
+  .font-mono {
+    font-family: var(--font-sans) !important;
+    font-variant-numeric: tabular-nums;
+  }
+  code, pre, kbd, samp, textarea.font-mono, pre .font-mono, code .font-mono {
+    font-family: var(--font-code) !important;
   }
 
-  /* Custom scrollbar — thin, dark, research feel */
+  /* Small all-caps labels: calmer spacing. */
+  .tracking-widest, .tracking-wider {
+    letter-spacing: 0.04em !important;
+  }
+
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #0f172a;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 3px;
+    background: #cbd5e1;
+    border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: #94a3b8;
   }
 
-  /* Selection highlight */
   ::selection {
-    background: rgba(6, 182, 212, 0.25);
-    color: #e2e8f0;
+    background: rgba(37, 99, 235, 0.18);
   }
 
-  /* Focus rings */
   :focus-visible {
-    outline: 2px solid rgba(6, 182, 212, 0.6);
+    outline: 2px solid rgba(37, 99, 235, 0.5);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+
+  /* Cards: a thin border plus a soft shadow instead of glow. */
+  .shadow-lg, .shadow-md, .shadow-xl, .shadow-2xl {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
   }
 }
 
 @layer components {
-  /* === Metric Cards === */
   .metric-card {
-    @apply bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md
-           transition-all duration-200 hover:border-slate-700 hover:shadow-lg;
+    @apply bg-white border border-slate-800 rounded-lg p-4 transition-colors duration-150 hover:border-slate-700;
   }
 
-  /* === Research Badges === */
   .badge-reference {
-    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
-           bg-amber-950/80 text-amber-400 border border-amber-800/60;
+    @apply px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950 text-amber-400 border border-amber-800;
   }
   .badge-experimental {
-    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
-           bg-indigo-950/80 text-indigo-400 border border-indigo-800/60;
+    @apply px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-950 text-indigo-400 border border-indigo-800;
   }
   .badge-live {
-    @apply px-2.5 py-0.5 rounded text-[11px] font-bold font-mono uppercase
-           bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 animate-pulse;
+    @apply px-2 py-0.5 rounded text-[11px] font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800;
   }
 
-  /* === Table row hover === */
   .table-row-hover {
-    @apply hover:bg-slate-800/40 transition-colors duration-100 cursor-pointer;
+    @apply hover:bg-slate-925 transition-colors duration-100 cursor-pointer;
   }
 
-  /* === Section headers === */
   .section-heading {
-    @apply text-xs font-bold uppercase tracking-widest text-slate-400 mb-2;
+    @apply text-xs font-semibold uppercase text-slate-500 mb-2;
   }
 
-  /* === Input fields === */
   .research-input {
-    @apply bg-slate-950 border border-slate-800 focus:border-cyan-500
-           rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none
-           transition-colors duration-150 placeholder-slate-600;
+    @apply bg-white border border-slate-700 focus:border-cyan-500 rounded-md px-3 py-2 text-sm
+           text-slate-200 focus:outline-none transition-colors duration-150 placeholder-slate-600;
   }
 
-  /* === Panel === */
   .research-panel {
-    @apply bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg;
+    @apply bg-white border border-slate-800 rounded-lg p-5;
   }
 
-  /* === Sidebar nav items === */
   .nav-item-active {
-    @apply bg-gradient-to-r from-cyan-500/10 to-indigo-500/10
-           text-cyan-400 border border-cyan-500/30 shadow-sm;
+    @apply bg-cyan-950 text-cyan-400 border border-transparent;
   }
   .nav-item-idle {
-    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800/60
-           border border-transparent;
+    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-850 border border-transparent;
   }
 }
 
 @layer utilities {
-  /* Gradient text */
+  /* Former neon effects, kept as no-op / plain equivalents so old class names stay valid. */
   .text-gradient-cyan {
-    background: linear-gradient(135deg, #06b6d4, #6366f1);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--color-accent);
   }
-
-  /* Subtle glow for active elements */
   .glow-cyan {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.15), 0 0 40px rgba(6, 182, 212, 0.05);
+    box-shadow: none;
   }
-
-  /* Glassmorphism card */
   .glass-card {
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(30, 41, 59, 0.8);
+    background: #ffffff;
+    border: 1px solid var(--color-border);
   }
-
-  /* Animated gradient background */
   .animated-gradient-bg {
-    background: linear-gradient(
-      -45deg,
-      #020617,
-      #0a0f1e,
-      #020617,
-      #060b18
-    );
-    background-size: 400% 400%;
-    animation: gradient-shift 15s ease infinite;
+    background: var(--color-bg);
   }
-
-  /* Fade-in animation */
   .animate-fade-in {
-    animation: fade-in 0.3s ease-out forwards;
+    animation: fade-in 0.2s ease-out forwards;
   }
-
-  /* Slide-in from left */
   .animate-slide-in {
     animation: slide-in 0.2s ease-out forwards;
   }
-}
-
-/* === Keyframe Animations === */
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  /* Pulsing badges and dots looked busy; keep them still. */
+  .animate-pulse {
+    animation: none !important;
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateX(-8px); }
+  from { opacity: 0; transform: translateX(-4px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Progress bar shimmer for running tasks */
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(37, 99, 235, 0.12) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to   { background-position: 200% 0; }
-}
-
-.shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(6, 182, 212, 0.2) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
 }

@@ -91,7 +91,7 @@ export default function WorkspaceExplorer({ runId }) {
       <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-950/60">
         <div className="flex items-center gap-2">
           <Code2 className="w-5 h-5 text-cyan-400" />
-          <h3 className="text-sm font-bold text-white">Generated Project Workspace</h3>
+          <h3 className="text-sm font-bold text-slate-50">Generated files</h3>
           <span className="text-xs font-mono text-slate-400">
             ({files.length} {files.length === 1 ? 'file' : 'files'})
           </span>
@@ -117,7 +117,7 @@ export default function WorkspaceExplorer({ runId }) {
           <div className="p-2.5 border-b border-slate-800">
             <input
               type="text"
-              placeholder="Filter files..."
+              placeholder="Find a file…"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
@@ -128,7 +128,7 @@ export default function WorkspaceExplorer({ runId }) {
             {loadingList ? (
               <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                <span>Reading files...</span>
+                <span>Loading files…</span>
               </div>
             ) : filteredFiles.length === 0 ? (
               <div className="p-4 text-center text-xs text-slate-500 italic">
@@ -212,7 +212,7 @@ export default function WorkspaceExplorer({ runId }) {
                 {loadingContent ? (
                   <div className="flex items-center justify-center h-full text-slate-500 gap-2">
                     <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-                    <span>Loading file content...</span>
+                    <span>Opening file…</span>
                   </div>
                 ) : (
                   <pre className="overflow-x-auto select-text font-mono">
@@ -233,7 +233,7 @@ export default function WorkspaceExplorer({ runId }) {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
               <Folder className="w-12 h-12 text-slate-700 mb-2 stroke-[1.5]" />
-              <p className="text-xs">Select a generated file from the list to preview code and dependencies.</p>
+              <p className="text-xs">Pick a file on the left to read its code.</p>
             </div>
           )}
         </div>

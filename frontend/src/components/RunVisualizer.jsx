@@ -22,7 +22,6 @@ import RunHeader from './RunHeader';
 import StatusBanner from './StatusBanner';
 import AgentLog from './AgentLog';
 import MetricsTable from './MetricsTable';
-import TokenCostChart from './TokenCostChart';
 import WorkspaceExplorer from './WorkspaceExplorer';
 import ArtifactsInspector from './ArtifactsInspector';
 import ChangeRequestModal from './ChangeRequestModal';
@@ -162,14 +161,13 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <MonitorDot className="w-5 h-5 text-cyan-400" />
-          <span className="text-sm font-bold text-white">MAS Run Visualizer</span>
-          <span className="text-xs font-mono text-slate-400">(/runs/:runId)</span>
+          <span className="text-sm font-semibold text-slate-100">Run Details</span>
         </div>
 
         <form onSubmit={handleLoad} className="flex gap-2">
           <input
             type="text"
-            placeholder="Enter Run ID..."
+            placeholder="Paste a run ID…"
             value={inputRunId}
             onChange={(e) => setInputRunId(e.target.value)}
             className="bg-slate-950 border border-slate-700 text-slate-100 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-cyan-500 font-mono w-64"
@@ -180,7 +178,7 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
             className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            <span>Load Run</span>
+            <span>Open</span>
           </button>
         </form>
       </div>
@@ -205,19 +203,19 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
                 onClick={() => setActiveSubTab('telemetry')}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                   activeSubTab === 'telemetry'
-                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                    ? 'bg-white text-cyan-400 border border-slate-800 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <BarChart2 className="w-3.5 h-3.5" />
-                <span>Telemetry & Metrics</span>
+                <span>Scores & Steps</span>
               </button>
 
               <button
                 onClick={() => setActiveSubTab('workspace')}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                   activeSubTab === 'workspace'
-                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                    ? 'bg-white text-cyan-400 border border-slate-800 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -229,12 +227,12 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
                 onClick={() => setActiveSubTab('artifacts')}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                   activeSubTab === 'artifacts'
-                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                    ? 'bg-white text-cyan-400 border border-slate-800 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Boxes className="w-3.5 h-3.5" />
-                <span>Agent Artifacts</span>
+                <span>Agent Outputs</span>
               </button>
             </div>
 
@@ -243,10 +241,10 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
               <button
                 onClick={() => setShowChangeModal(true)}
                 className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
-                title="Apply requirement evolution"
+                title="Change the requirement and update the code"
               >
                 <GitPullRequest className="w-3.5 h-3.5" />
-                <span>Change Request</span>
+                <span>Change requirement</span>
               </button>
 
               {runData.status === 'RUNNING' && (
@@ -257,14 +255,14 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
                   title="Cancel active execution"
                 >
                   <StopCircle className="w-3.5 h-3.5" />
-                  <span>{cancelling ? 'Cancelling...' : 'Cancel Run'}</span>
+                  <span>{cancelling ? 'Stopping…' : 'Stop run'}</span>
                 </button>
               )}
 
               <button
                 onClick={() => fetchRunDetails(currentId)}
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                title="Refresh Run"
+                title="Refresh"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
               </button>
@@ -281,13 +279,15 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
           {/* Sub-Tab 1: Telemetry & Metrics */}
           {activeSubTab === 'telemetry' && (
             <div className="space-y-6">
-              {/* Agent Lifecycle Pipeline Timeline */}
+              <MetricsTable metrics={metrics} />
+
+              {/* Agent steps */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Agent Lifecycle Pipeline Timeline
+                    Agent steps
                   </span>
-                  <span className="text-[11px] font-mono text-cyan-400">Live State Tracking</span>
+                  <span className="text-[11px] text-slate-500">Green = done</span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -313,55 +313,34 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
                 </div>
               </div>
 
-              {/* Token Consumption & Telemetry */}
+              {/* Token use */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                  Token Consumption & Telemetry
+                  Token use
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
+                <div className="grid grid-cols-3 gap-3 text-xs">
                   <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px]">Input Tokens</div>
+                    <div className="text-slate-500 text-[11px]">Input tokens</div>
                     <div className="text-base font-bold text-slate-200 mt-0.5">
                       {(runData.input_tokens || 0).toLocaleString()}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px]">Output Tokens</div>
+                    <div className="text-slate-500 text-[11px]">Output tokens</div>
                     <div className="text-base font-bold text-slate-200 mt-0.5">
                       {(runData.output_tokens || 0).toLocaleString()}
                     </div>
                   </div>
                   <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px]">Total Tokens</div>
+                    <div className="text-slate-500 text-[11px]">Total tokens</div>
                     <div className="text-base font-bold text-amber-300 mt-0.5">
                       {(runData.total_tokens || 0).toLocaleString()}
                     </div>
                   </div>
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px]">Estimated Cost</div>
-                    <div className="text-base font-bold text-violet-300 mt-0.5">
-                      ${(runData.estimated_cost || 0).toFixed(4)}
-                    </div>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px]">Quality / 1K Tokens</div>
-                    <div className="text-base font-bold text-teal-300 mt-0.5">{qPer1k}</div>
-                  </div>
                 </div>
               </div>
 
-              {/* Agent Audit Log and Cost Chart */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AgentLog events={events} />
-                <TokenCostChart
-                  tokens={runData.total_tokens}
-                  cost={runData.estimated_cost}
-                  quality={quality}
-                />
-              </div>
-
-              {/* Full Metrics Table */}
-              <MetricsTable metrics={metrics} tokens={runData.total_tokens} />
+              <AgentLog events={events} />
             </div>
           )}
 
@@ -391,7 +370,7 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
         !error && (
           <div className="text-center py-20 text-slate-500 bg-slate-900 border border-slate-800 rounded-xl">
             <p className="text-sm font-medium">
-              Enter a Run ID above or select a run from the Runs table to inspect live metrics, generated code, and events.
+              Open a run from All Runs, or paste a run ID above, to see its scores, code and agent steps.
             </p>
           </div>
         )

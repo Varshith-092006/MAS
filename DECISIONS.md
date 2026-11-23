@@ -855,3 +855,82 @@ This document tracks architectural decisions, source precedence, specification c
   MAS avoids these by design: delimiter-block parsing, standard-library-only planning, and EOF-safe input rules. This is a validity note for the report: ChatDev's score with a small Lite model is dominated by output-format and robustness failures.
 - **Interim (not final; 3 MAS, 2 ChatDev, 2 single runs still to rerun)**: MAS vs ChatDev, paired n = 17: Wilcoxon p = 0.00003, MAS higher on 16 of 17. MAS vs single agent, paired n = 17: p = 0.58, MAS higher on 9 of 17: **no significant difference from the single-agent baseline.**
 - **Tests**: `tests/test_phase8_utf8_subprocess.py` (6 tests; the 4 sandbox tests fail without the fix, including a false-pass case). 365 passed.
+
+---
+
+### Record: Final v3 Results, 20 SRDD Tasks
+
+- **ID**: DEC-049
+- **Date**: 2026-11-23
+- **What ran**: the frozen 20-task set (`eval/tasks_v2.json`, 4 tasks in each of 5 SRDD categories), model `gemini-3.5-flash-lite`, series v3, 1 repeat. Completed over 2026-11-22 and 2026-11-23 with `--resume`; every infrastructure failure was rerun, none was scored. 60 official runs: 20 per system, no missing pairs. No code changed between the batches (DEC-048 changed no score; verified).
+- **Results (from results.csv; bootstrap 95% CI, 10,000 resamples)**:
+
+  | System | Quality (95% CI) | Completeness | Executability | Consistency | Tokens/task | Calls/task | Time/task |
+  |---|---|---|---|---|---|---|---|
+  | MAS | 0.4929 [0.4329, 0.5488] | 1.000 | 20/20 | 0.4929 | 14,689 | 4.4 | 38 s |
+  | Single agent | 0.3833 [0.2822, 0.4866] | 1.000 | 16/20 | 0.4937 | 3,815 | 1.0 | 13 s |
+  | ChatDev | 0.0546 [0.0000, 0.1406] | 0.950 | 2/20 | 0.5010 | 47,191 | 14.8 | 342 s |
+
+- **Paired tests (Wilcoxon signed-rank, n = 20)**:
+  - MAS vs ChatDev: MAS higher on 19 of 20, p = 0.000004, d_z = 2.18. **Significant.**
+  - MAS vs single agent: MAS higher on 12 of 20, p = 0.19, d_z = 0.40. **Not significant.**
+  - Single agent vs ChatDev: higher on 15, 4 ties, p = 0.0006. **Significant.**
+- **Reading**:
+  - Consistency is almost identical for all three systems (0.49-0.50), so the Quality differences come entirely from executability: whether the program runs under the smoke protocol. MAS ran 20/20, the single agent 16/20, ChatDev 2/20 (failure causes in DEC-048).
+  - MAS used 69% fewer tokens and 70% fewer calls than ChatDev, and 3.9x the tokens of the single agent.
+  - The published iCoder figures (GPT-4o Q = 0.7924; GPT-3.5 Q = 0.6902) use a different model and task split, so they are indicative only and are not compared as a local result.
+- **Limitations to state in the report**: one repeat per task; one small model; Consistency is a sentence-embedding similarity over the first 2,000 characters; the smoke protocol forces UTF-8 output (blind spot described in MAS_SYSTEM_GUIDE.md, audit section: a program that crashes on a cp1252 console can still pass); ChatDev was run unmodified apart from the pinned patch.
+
+## DEC-050 (2026-11-23) - Frontend crash on failed runs; launch config
+
+- **Problem**: the web UI (frontend/, port 3000) went blank about a second after loading. Failed runs in `mas.db` have `quality: null`, and the dashboard's recent-runs table checked only `!== undefined` before calling `.toFixed()`. The resulting TypeError unmounted the whole React tree, because the app has no error boundary.
+- **Fix (frontend change, approved by the maintainer)**: 11 lines in DashboardOverview, MetricsTable, ComparisonsAndStats, ArtifactsInspector and ChangeRequestModal now use `!= null`, so null and undefined values show "-" or "No data" instead of crashing. Display only: no backend, evaluator or results change.
+- **Verified in the browser**: all 9 sidebar pages render with no errors; the Run Visualizer for `mas_srdd_work_02_r1` shows telemetry, the event log, generated code and artifacts.
+- **Added** `.claude/launch.json` with `mas-api` (uvicorn on 8000) and `mas-frontend` (Vite on 3000).
+- **Known, not changed**:
+  - The UI analytics aggregate every eligible live run in `mas.db` (v2, retries and v3), so its numbers differ from the official v3 table in DEC-049. Report figures come from `reports/`.
+  - The Single Task Run model list still offers OpenRouter models, not the pinned Gemini model.
+  - The Run Visualizer banner hard-codes "GPT-4O".
+
+## DEC-051 (2026-11-23) - Simpler, professional web UI (maintainer request)
+
+The maintainer found the web UI hard to understand and asked for plainer names, proper routes and a professional (not neon) theme. Frontend changes only, plus one read-only backend endpoint. No evaluator, benchmark or results change.
+
+- **Theme**: light, neutral background with white cards and one blue accent. Done centrally: `tailwind.config.js` remaps the colour scales (dark shades become light surfaces, light shades become dark text) and `index.css` drops the glows, gradients, pulsing badges and the terminal-style monospace labels (code keeps a code font).
+- **Navigation and routes**: every page has its own URL, and Back/Forward work (`App.jsx`, no new dependency).
+  - `/` Overview
+  - Create: `/generate` Generate a Project, `/benchmark` Run a Benchmark
+  - Results: `/runs` All Runs, `/runs/<id>` Run Details, `/charts` Scores & Charts, `/compare` Compare Systems
+  - Reference: `/paper` Paper Results
+  - System: `/status` System Status
+- **Plain terms** (the metrics themselves are unchanged): Completeness → "Complete", Executability → "Runs (without error)", Consistency → "Matches the requirement"; "Telemetry & Metrics" → "Scores & Steps"; "Agent Artifacts" → "Agent Outputs"; "Change Request" → "Change requirement"; raw statuses → Finished / Failed / Diagnostic.
+- **Removed or corrected misleading content**:
+  - The model pickers listed OpenRouter and GPT-4o models. They now offer "Offline test mode" (the default, no API calls) or the pinned model read from `BENCH_MODEL`.
+  - A hard-coded "~12x Cheaper" and a "GPT-4o-mini cheaper arm" card that actually showed MAS's overall mean (rule 1).
+  - Hard-coded "Python 3.11", OpenRouter endpoint, GPT-4o token caps and "Isolated container execution" on Settings.
+  - The "(GPT-4o)" run banner.
+  - Always-zero cost, Ruff, Bandit and Radon columns.
+  - The `/analytics/summary` paired p-value / Cohen's d (it returns p = 1.0 and d = 0.0 for a 0.37 quality gap). The UI no longer shows it and points to `eval/stats_report.md` (DEC-049) for significance tests. The endpoint itself is not changed here.
+- **Other fixes**: "Execution Repeats" on single runs (ignored by the backend) was removed. System Status called `/health`, which the dev proxy does not forward; it now calls `/api/health`. The UI fetches up to 200 runs (was 100), so the charts cover all 165.
+- **New endpoint** `GET /config`: pinned model, provider host, whether a key is set (never the key), seed, temperature, database type, and today's quota use from the local ledger. No network calls. Tests: `tests/test_api_config.py` (2 tests, including that the key value never appears in the response).
+- **Honesty notes in the UI**: Overview, Scores & Charts and Compare say their numbers pool every live run in `mas.db` (all series and retries); official results are in `reports/`.
+- **Verified**: 367 tests pass; `vite build` succeeds; every page was checked in the browser, including the run detail tabs and Back/Forward.
+- **Known, not changed**: the frontend Docker image (plain nginx) has no `/api` proxy and no fallback for page URLs, so use `npm run dev` (this was already the case before). `TokenCostChart.jsx` is no longer used.
+
+## DEC-052 (2026-11-23) - mas.db reduced to the 60 official v3 runs (maintainer request)
+
+- **Request**: the maintainer asked to remove the runs that failed (token/daily-limit stops, infrastructure errors, older code versions) and keep only the proper compared tests.
+- **Backup first**: `mas.db` is not in git, so a full copy was saved as `archive/mas_full_backup_2026-11-23.db` (165 runs, integrity check ok). It is git-ignored (`archive/*.db`), so it stays local.
+- **Kept**: the 60 runs marked `official=true, series=v3` in `results.csv` (20 MAS, 20 ChatDev, 20 single agent).
+- **Removed from mas.db**: the other 105 runs and their linked rows. These were:
+  - 11 superseded v3 attempts;
+  - 16 v2 runs and 19 unlabelled early Gemini runs;
+  - 51 OpenRouter free-model runs;
+  - 5 GPT-4o diagnostics;
+  - 3 offline (fake) runs.
+  Also 34 orphaned debug rows (`t`, `test_proxy_run`, `eval_offline_check`, …). Totals: runs 165 → 60, agent_events 1594 → 426, model_calls 1070 → 405, metrics 1376 → 564, artifacts 364 → 106, evaluations 46 → 4.
+- **Not changed**: `results.csv`, the benchmark manifest and the ledger (the official-row selection depends on the full attempt history), `eval/workspaces/`, the evaluator.
+- **Effect on reports**: the regenerated `reports/dashboard_data.json` has identical official numbers; only the "exploratory" tier (older live calls) is now empty.
+- **UI**: the Scores & Charts and Compare Systems pages now count every scored official run. The unfinished ChatDev run `cd_srdd_life_03_r1` scores 0, as in the report. Compare Systems is computed from the runs (three systems plus task-by-task wins) instead of `/analytics/summary`, which drops that run. The UI now matches DEC-049: Quality 0.493 / 0.055 / 0.383, MAS higher on 19/20 tasks vs ChatDev and 12/20 vs the single agent. ChatDev run times are not stored in mas.db, so the UI shows "-".
+- **Verified**: 367 tests pass; `vite build` passes; pages checked in the browser.
+- **Follow-up (2026-11-24, maintainer approved)**: deleted the 48 generated-code folders in `eval/workspaces/` that belonged to the removed runs (7.7 MB; the folder is git-ignored, so there is no copy). Exactly the 60 official v3 folders remain. The test suite still writes a few scratch folders there (`sim_*`, `chatdev_test_*`); they were cleared after the test run. This is a known hermeticity gap, not fixed here.

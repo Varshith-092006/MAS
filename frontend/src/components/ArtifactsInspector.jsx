@@ -14,6 +14,16 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
+const ARTIFACT_NAMES = {
+  TaskPlan: 'Task plan (Manager)',
+  Architecture: 'Design (Architect)',
+  UserStories: 'User stories (Architect)',
+  CodePatch: 'Code (Developer)',
+  TestReport: 'Test results (Tester)',
+  ReviewReport: 'Review (Reviewer)',
+  Reflection: 'Reflection',
+};
+
 export default function ArtifactsInspector({ runId }) {
   const [artifacts, setArtifacts] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -56,7 +66,7 @@ export default function ArtifactsInspector({ runId }) {
           <div className="space-y-4">
             <div className="bg-slate-950 p-4 rounded-xl border border-indigo-900/40">
               <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">
-                Architecture Overview & Rationale
+                Design (Architect)
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {data.rationale || data.overview || 'System architecture and component decomposition.'}
@@ -97,7 +107,7 @@ export default function ArtifactsInspector({ runId }) {
 
             {data.dependencies && (
               <div className="bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-xs font-mono">
-                <span className="text-slate-500 text-[10px] block mb-1">Inter-Module Dependencies:</span>
+                <span className="text-slate-500 text-[10px] block mb-1">Module dependencies:</span>
                 <pre className="text-slate-300 overflow-x-auto">
                   {JSON.stringify(data.dependencies, null, 2)}
                 </pre>
@@ -111,14 +121,14 @@ export default function ArtifactsInspector({ runId }) {
           <div className="space-y-4">
             <div className="bg-slate-950 p-4 rounded-xl border border-cyan-900/40">
               <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-1">
-                Normalized Scope & Execution Strategy
+                Task plan (Manager)
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {data.plan_summary || data.description || 'Normalized tasks planned for development.'}
               </p>
               {data.complexity && (
                 <div className="mt-2 text-xs font-mono">
-                  <span className="text-slate-500">Router Classification: </span>
+                  <span className="text-slate-500">Project size: </span>
                   <span className="text-cyan-300 font-bold uppercase">{data.complexity}</span>
                 </div>
               )}
@@ -156,7 +166,7 @@ export default function ArtifactsInspector({ runId }) {
           <div className="space-y-4">
             <div className="bg-slate-950 p-4 rounded-xl border border-purple-900/40 space-y-2">
               <div className="text-xs font-bold text-purple-400 uppercase tracking-wider">
-                User Personas & Functional Scenarios
+                User stories
               </div>
               <div className="text-xs text-slate-300">
                 <span className="font-semibold text-slate-200">As a: </span>
@@ -199,7 +209,7 @@ export default function ArtifactsInspector({ runId }) {
           <div className="space-y-4">
             <div className="bg-slate-950 p-4 rounded-xl border border-emerald-900/40">
               <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">
-                Developer Agent Code Synthesis
+                Code written (Developer)
               </div>
               <div className="text-xs text-slate-300">
                 {data.commit_message || data.summary || 'Code patch applied to workspace repository.'}
@@ -235,7 +245,7 @@ export default function ArtifactsInspector({ runId }) {
             <div className="bg-slate-950 p-4 rounded-xl border border-violet-900/40 flex items-center justify-between">
               <div>
                 <div className="text-xs font-bold text-violet-400 uppercase tracking-wider">
-                  Semantic Code Review
+                  Code review (Reviewer)
                 </div>
                 <div className="text-sm font-semibold text-slate-200 mt-1">
                   Status: {data.approved ? 'APPROVED' : 'CHANGES REQUESTED'}
@@ -244,7 +254,7 @@ export default function ArtifactsInspector({ runId }) {
               <div className="text-right">
                 <div className="text-[11px] text-slate-500 font-mono">Review Score</div>
                 <div className="text-xl font-bold font-mono text-violet-300">
-                  {data.score !== undefined ? data.score.toFixed(2) : '1.00'}
+                  {data.score != null ? data.score.toFixed(2) : '1.00'}
                 </div>
               </div>
             </div>
@@ -272,7 +282,7 @@ export default function ArtifactsInspector({ runId }) {
             <div className="bg-slate-950 p-4 rounded-xl border border-teal-900/40 flex items-center justify-between">
               <div>
                 <div className="text-xs font-bold text-teal-400 uppercase tracking-wider">
-                  Internal Test Report
+                  Test results (Tester)
                 </div>
                 <div className="text-sm font-semibold text-slate-200 mt-1">
                   Passed: {data.passed_tests || 0} / {data.total_tests || 0} tests
@@ -315,7 +325,7 @@ export default function ArtifactsInspector({ runId }) {
       <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
         <div className="flex items-center gap-2">
           <Boxes className="w-5 h-5 text-indigo-400" />
-          <h3 className="text-sm font-bold text-white">Inter-Agent Artifact Inspector</h3>
+          <h3 className="text-sm font-bold text-slate-50">What each agent produced</h3>
           <span className="text-xs font-mono text-slate-400">
             ({artifacts.length} {artifacts.length === 1 ? 'artifact' : 'artifacts'})
           </span>
@@ -339,11 +349,11 @@ export default function ArtifactsInspector({ runId }) {
           {loading ? (
             <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-              <span>Loading artifacts...</span>
+              <span>Loading…</span>
             </div>
           ) : artifacts.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-500 italic">
-              No artifacts recorded for this run yet.
+              No agent outputs saved for this run.
             </div>
           ) : (
             artifacts.map((art, idx) => {
@@ -359,8 +369,8 @@ export default function ArtifactsInspector({ runId }) {
                   }`}
                 >
                   <div className="truncate">
-                    <div className="font-bold">{art.type}</div>
-                    <div className="text-[10px] text-slate-500">v{art.version || 1} • {art.schema_valid ? 'Schema Valid' : 'Invalid'}</div>
+                    <div className="font-bold">{ARTIFACT_NAMES[art.type] || art.type}</div>
+                    <div className="text-[10px] text-slate-500">v{art.version || 1} • {art.schema_valid ? 'Valid format' : 'Invalid format'}</div>
                   </div>
                   <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-indigo-400' : 'text-slate-600'}`} />
                 </button>
@@ -375,11 +385,11 @@ export default function ArtifactsInspector({ runId }) {
             <div className="space-y-4 max-w-4xl">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-white font-mono">
-                    {activeArt.type}
+                  <span className="text-base font-bold text-slate-50 font-mono">
+                    {ARTIFACT_NAMES[activeArt.type] || activeArt.type}
                   </span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
-                    Schema Validated
+                    Valid format
                   </span>
                 </div>
                 <span className="text-xs font-mono text-slate-500">
@@ -392,7 +402,7 @@ export default function ArtifactsInspector({ runId }) {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-500 text-xs">
               <Layers className="w-10 h-10 text-slate-700 mb-2 stroke-[1.5]" />
-              <p>Select an artifact to inspect its schema and structure.</p>
+              <p>Pick an item on the left to see what that agent produced.</p>
             </div>
           )}
         </div>

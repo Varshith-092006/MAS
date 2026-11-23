@@ -914,3 +914,34 @@ def get_analytics_summary(
             },
             "icoder_reference": icoder_reference,
         }
+
+
+@router.get("/config")
+def get_public_config():
+    """Read-only settings the UI shows on 'System Status' and in the model picker (DEC-051).
+
+    Never returns the API key itself, only whether one is set. Reads the local quota ledger;
+    makes no network calls.
+    """
+    from urllib.parse import urlparse
+
+    from mas.core.governor import global_governor
+
+    base_url = os.environ.get("PROVIDER_BASE_URL") or ""
+    db_url = os.environ.get("DATABASE_URL") or "sqlite:///./mas.db"
+    try:
+        quota = global_governor.get_ledger_stats()
+    except Exception:
+        quota = {}
+    return {
+        "bench_model": os.environ.get("BENCH_MODEL") or None,
+        "provider_host": urlparse(base_url).hostname if base_url else None,
+        "api_key_configured": bool(os.environ.get("PROVIDER_API_KEY") or os.environ.get("OPENROUTER_API_KEY")),
+        "seed": os.environ.get("SEED", "42"),
+        "temperature": os.environ.get("TEMPERATURE", "0"),
+        "database": db_url.split(":", 1)[0],
+        "quota_day": quota.get("utc_date"),
+        "daily_request_cap": quota.get("internal_daily_cap"),
+        "requests_used_today": quota.get("total_attributable_attempts"),
+        "requests_left_today": quota.get("remaining_internal_attempts"),
+    }

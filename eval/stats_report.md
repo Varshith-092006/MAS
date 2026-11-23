@@ -1,16 +1,16 @@
 # MAS Empirical Evaluation Statistics Report
 
-## Primary Experimental Metrics (Paired Permutation & Wilcoxon Tests, N=18 Tasks)
+## Primary Experimental Metrics (Paired Permutation & Wilcoxon Tests, N=21 Tasks)
 
 ### System Reliability & Success Rate
-- **MAS Success Rate**: 88.2% (30/34 official runs finished)
-- **ChatDev Success Rate**: 82.9% (29/35 official runs finished)
+- **MAS Success Rate**: 89.2% (33/37 official runs finished)
+- **ChatDev Success Rate**: 83.8% (31/37 official runs finished)
 
 ### Hypothesis Testing Table
 | Metric | MAS (Mean ± SD) | ChatDev (Mean ± SD) | Difference | % Gain | Cohen's d | Permutation p | Wilcoxon p | Sig? (α=0.05) |
 |---|---|---|---|---|---|---|---|---|
-| **Quality** | 0.430 ± 0.178 | 0.046 ± 0.111 | +0.384 | +833.8% | 1.813 | 0.0001 | 0.0003 | YES |
-| **Quality / 1k Tokens** | 0.037 ± 0.028 | 0.001 ± 0.002 | +0.036 | +3570.0% | 1.255 | 0.0001 | 0.0003 | YES |
+| **Quality** | 0.445 ± 0.170 | 0.040 ± 0.104 | +0.405 | +1025.3% | 1.987 | 0.0001 | 0.0001 | YES |
+| **Quality / 1k Tokens** | 0.040 ± 0.027 | 0.001 ± 0.002 | +0.039 | +4862.5% | 1.409 | 0.0001 | 0.0001 | YES |
 
 > **Note on Research Comparison**:
 > MAS is compared directly against ChatDev under identical conditions and logging proxy token measurements.

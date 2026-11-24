@@ -934,3 +934,17 @@ The maintainer found the web UI hard to understand and asked for plainer names, 
 - **UI**: the Scores & Charts and Compare Systems pages now count every scored official run. The unfinished ChatDev run `cd_srdd_life_03_r1` scores 0, as in the report. Compare Systems is computed from the runs (three systems plus task-by-task wins) instead of `/analytics/summary`, which drops that run. The UI now matches DEC-049: Quality 0.493 / 0.055 / 0.383, MAS higher on 19/20 tasks vs ChatDev and 12/20 vs the single agent. ChatDev run times are not stored in mas.db, so the UI shows "-".
 - **Verified**: 367 tests pass; `vite build` passes; pages checked in the browser.
 - **Follow-up (2026-11-24, maintainer approved)**: deleted the 48 generated-code folders in `eval/workspaces/` that belonged to the removed runs (7.7 MB; the folder is git-ignored, so there is no copy). Exactly the 60 official v3 folders remain. The test suite still writes a few scratch folders there (`sim_*`, `chatdev_test_*`); they were cleared after the test run. This is a known hermeticity gap, not fixed here.
+
+## DEC-053 (2026-11-24) - Run a generated project from the web UI (maintainer request)
+
+- **Request**: the maintainer wanted to run or preview the generated programs from the UI, the way the scoring runs them.
+- **New "Run Program" tab in Run Details** (`frontend/src/components/ProgramRunner.jsx`):
+  - **Quick test**: `POST /runs/{id}/quick-test` runs the evaluator's own headless smoke protocol (`SandboxRunner.smoke_run`, same entry-point order as `icoder_metrics` v1.3, 45 s limit) and shows the pass/fail result, exit code, output and errors.
+  - **Open on this computer**: `POST /runs/{id}/open` starts the program in a new console window (`cmd /k` with `CREATE_NEW_CONSOLE` on Windows) with optional command-line arguments, so interactive and tkinter programs can be used for real. Only accepted from 127.0.0.1 / ::1.
+- **Safety**:
+  - Both endpoints run a temporary copy, so programs that write files never change the official `eval/workspaces/` folders.
+  - The environment passed to the program contains no variable whose name includes KEY, TOKEN, SECRET or PASSWORD.
+  - Run folders are only looked up inside `eval/workspaces/`, `workspace/` and `workspaces/`.
+  - Nothing is re-scored, and the frozen evaluator is not changed.
+- **Checked on real runs**: `mas_srdd_work_02_r1` and `single_srdd_crea_01_r1` pass, and `cd_srdd_crea_01_r1` fails with `NameError: name 'main' is not defined`, matching their official executability (1, 1, 0). A real console window was opened from a throwaway test program; it ran in the copy with its arguments.
+- **Tests**: `tests/test_program_runner.py` (8 tests: entry-point order, output capture, crash reporting, original folder untouched, no secrets in the environment, launcher arguments and copy folder, local-only open, unknown or escaping run IDs refused). 375 tests pass.

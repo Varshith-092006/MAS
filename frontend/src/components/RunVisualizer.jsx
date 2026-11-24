@@ -24,6 +24,7 @@ import AgentLog from './AgentLog';
 import MetricsTable from './MetricsTable';
 import WorkspaceExplorer from './WorkspaceExplorer';
 import ArtifactsInspector from './ArtifactsInspector';
+import ProgramRunner from './ProgramRunner';
 import ChangeRequestModal from './ChangeRequestModal';
 
 export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCloneRun }) {
@@ -234,6 +235,18 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
                 <Boxes className="w-3.5 h-3.5" />
                 <span>Agent Outputs</span>
               </button>
+
+              <button
+                onClick={() => setActiveSubTab('program')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  activeSubTab === 'program'
+                    ? 'bg-white text-cyan-400 border border-slate-800 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <PlayCircle className="w-3.5 h-3.5" />
+                <span>Run Program</span>
+              </button>
             </div>
 
             {/* Quick Actions */}
@@ -350,6 +363,8 @@ export default function RunVisualizer({ runId: initialRunId, onRunIdChange, onCl
           )}
 
           {/* Sub-Tab 3: Inter-Agent Artifacts */}
+          {activeSubTab === 'program' && <ProgramRunner runId={currentId} />}
+
           {activeSubTab === 'artifacts' && (
             <ArtifactsInspector runId={currentId} />
           )}

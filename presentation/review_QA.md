@@ -546,3 +546,40 @@ Run these in PowerShell from the project folder (`Final Year Project`).
 (Measured on the 20 official MAS runs, from the `model_calls` table in `mas.db`.)
 
 ---
+
+## Q16. How are the automated tests done, and how and where are the metrics' tests calculated?
+
+**Short answer:** "We test at two levels. The project itself has 375 offline pytest tests, with the network blocked and a fake model. The generated projects are tested by a frozen neutral evaluator that actually runs each program in a sandbox, and computes Completeness by AST, Consistency by embeddings, and Quality as their product, identically for every system. MAS's own Tester only steers MAS's loop; it never counts in the comparison."
+
+### 1. The automated test suite (`tests/`, 375 tests in 53 files)
+Run with `python -m pytest tests/ -q` (result on 25 Nov: 375 passed in about 3 minutes). `tests/conftest.py` makes every test isolated and offline:
+- **No network calls:** every connection to anything outside this computer is blocked by patching Python's `socket.connect` (the project's rule 7).
+- **Fake model:** `FakeLLMProvider` returns fixed answers, so the tests cost nothing and give the same result every time.
+- **No real secrets:** API keys and the model ID are blanked, so the real `.env` is never used.
+- **Separate data:** a throwaway `test_mas.db` and test request ledger are created, then deleted, so real data isn't touched.
+
+**What they cover:** agents (router, schemas, Tester, conformance, adaptive stopping, loop fixes); the evaluator (metric functions, the run-check protocol, UTF-8 handling); ChatDev (adapter, parser, timeouts); quota and tokens (governor, token logger, budget stop); results (statistics, reports, dashboard); the API (`/config`, quick-test, open); fault injection and recovery; and the full pipeline end to end with the fake model.
+
+**Examples:** "a crash whose error text contains an emoji must still count as a crash"; "`/config` never returns the API key"; "open-program refuses requests from other computers".
+
+### 2. Testing the generated projects: two separate kinds
+
+**(a) MAS's own Tester, inside the loop** (`mas/agents/tester.py`, MAS only):
+- It runs the program, checks `--help`, scans for empty functions, and runs the Developer's own `test_*.py` files.
+- The resulting pass rate makes up 30% of the round score S_t and helps decide stop or continue.
+- It's used only for MAS's internal decisions, never for the comparison.
+
+**(b) The frozen neutral evaluator, after each run** (`eval/neutral_evaluator.py`, the same for all three systems):
+
+| Metric | Function (file) | How it's calculated | Part of Quality? |
+|---|---|---|---|
+| Completeness | `calculate_completeness` (`eval/scorers/icoder_metrics.py`) | AST scan: 1 − empty functions ÷ all functions | Yes |
+| Executability | `calculate_executability` (v1.3) → `smoke_run` (`mas/analysis/sandbox.py`) | Runs `main.py` headless in the sandbox, 45 s limit; `--help` fallback for command-line tools; 1 or 0 | Yes |
+| Consistency | `calculate_consistency` (`icoder_metrics.py`) | Cosine similarity of MiniLM embeddings: requirement vs the first 2,000 characters of code | Yes |
+| Quality | `calculate_quality` | C × E × S | — |
+| Shared test | `eval/scorers/shared_test.py` | Level 1 smoke run + Level 2 fixed black-box checks from `eval/checks/level2_checks.json` (only 3 tasks have them: `srdd_educ_01` and 2 examples). Score = 0.5 × L1 + 0.5 × L2, or just L1. It never uses tests the systems wrote themselves | No, reported separately (MAS 0.975, single agent 0.80, ChatDev 0.105) |
+| Ruff · Bandit · Radon | `mas/analysis/quality_tools.py` | Lint errors · high-severity security issues · maintainability index | No, reported separately |
+
+**Where the numbers go:** `eval/runner.py` has each system build its project in `eval/workspaces/<run_id>/`. Then `NeutralEvaluator.evaluate_project(folder, the identical requirement text)` writes the scores to the `metrics` table in `mas.db` (scope "neutral") and to `eval/benchmark_manifest.json`. From there they go to `results.csv` (`eval/reports.py`), then to `eval/stats.py` (bootstrap CI, Wilcoxon), and finally to `reports/` and the web app.
+
+---

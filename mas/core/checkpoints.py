@@ -33,12 +33,16 @@ class CheckpointManager:
                     cwd=self.workspace_path,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 rev = subprocess.run(
                     ["git", "rev-parse", "HEAD"],
                     cwd=self.workspace_path,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=True,
                 )
                 commit_hash = rev.stdout.strip()

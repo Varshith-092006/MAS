@@ -14,7 +14,7 @@ This document provides the exact, step-by-step procedure to execute the empirica
 ```powershell
 Copy-Item .env.example .env
 # Then open .env in a text editor and fill in:
-#   PROVIDER_API_KEY  — your Google AI Studio key (starts with AIza)
+#   PROVIDER_API_KEY  — your Google AI Studio key (starts with AIza or AQ.)
 #   PROVIDER_BASE_URL — already set in the example (keep the trailing slash)
 #   BENCH_MODEL       — leave blank for now; fill after running list_models
 ```
@@ -70,14 +70,14 @@ If any line shows `[FAIL]`, fix that issue before continuing. `[WARN]` lines are
 
 ---
 
-## Step 2: Smoke Test (one task, both systems, live)
+## Step 2: Smoke Test (one task, all systems, live)
 
 The smoke test runs the **first task only** with both systems against the real API. It prints token counts, requests used, and the exact model name the provider confirmed.
 
 **You must run this yourself** (the agent will not run live calls):
 
 ```powershell
-python -m eval.runner --smoke --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
+python -m eval.runner --smoke --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json
 ```
 
 Confirm the summary output shows the correct model name and reasonable token counts before proceeding to the full benchmark.
@@ -86,16 +86,16 @@ Confirm the summary output shows the correct model name and reasonable token cou
 
 ## Step 3: Day 1 Benchmark Execution
 
-Start the official Day 1 benchmark run across 20 tasks with `--repeats 1`, `--systems mas,chatdev`, and `--require-embeddings`. The runner automatically stops cleanly when daily budget headroom is reached:
+Start the official Day 1 benchmark run across 20 tasks with `--repeats 1`, `--systems mas,chatdev,single`, and `--require-embeddings`. The runner automatically stops cleanly when daily budget headroom is reached:
 
 ```powershell
-python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 ```
 
 ### What to Expect:
 - Runs tasks sequentially through MAS, then ChatDev.
 - Delimiter block parsing ensures robust code generation.
-- Reviewer is skipped on clean runs to minimize API calls (<= 3 LLM calls on clean runs).
+- The Tester is deterministic (0 LLM calls); the Reviewer runs once per run, so a clean MAS run is 3 LLM calls (Manager, Developer, Reviewer). The single-agent baseline is 1 call per task.
 - When daily allowance reaches the governor safety threshold (< 12 transmissions remaining), the runner prints:
   ```
   [BUDGET GOVERNOR] Daily allowance ceiling reached (438 / 450 transmissions).
@@ -112,7 +112,7 @@ After midnight Pacific Time (America/Los_Angeles), the quota ledger automaticall
 Run the exact same command to resume where Day 1 stopped:
 
 ```powershell
-python -m eval.runner --benchmark --live --systems mas,chatdev --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
+python -m eval.runner --benchmark --live --systems mas,chatdev,single --model $env:BENCH_MODEL --tasks-file eval/tasks_v2.json --repeats 1 --require-embeddings --resume --stop-at-budget
 ```
 
 ### Why Resume is Safe:
@@ -158,6 +158,24 @@ python scripts/make_report.py --results results.csv --manifest eval/benchmark_ma
 - `reports/summary.csv`: Machine-readable summary statistics.
 - `reports/figures/quality_boxplot.png`: Quality distribution boxplot (if matplotlib installed).
 - `reports/figures/quality_vs_tokens.png`: Quality vs. token overhead scatter (if matplotlib installed).
+
+---
+
+### 5b. Results dashboard (offline, zero model calls)
+
+```powershell
+python scripts/make_dashboard.py
+```
+
+Writes `reports/dashboard.html` (open it in any browser, no internet needed) and `reports/dashboard_data.json`.
+It has three separated tiers: **OFFICIAL** (official live Gemini runs: MAS vs ChatDev vs single-agent,
+bootstrap CIs, % change, paired Wilcoxon, per-agent tokens and latency, ablations), **EXPLORATORY**
+(older real calls recorded in `mas.db`, labelled and never shown as results) and the paper's
+**published** numbers (indicative only). Empty official tables show NOT RUN.
+
+> The `single` system is a one-call, single-agent baseline (1 request per task). It costs almost
+> nothing on the free tier and shows what the extra agents add. Drop it from `--systems` if you only
+> want MAS vs ChatDev.
 
 ---
 

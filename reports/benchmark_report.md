@@ -2,7 +2,11 @@
 
 Generated at: results.csv / benchmark_manifest.json
 
-**Benchmark metadata**: No official live runs found — tables will show NOT RUN.
+**Benchmark metadata** (from run records):
+
+- Provider type(s): gemini
+- Model(s): gemini-3.5-flash-lite
+- Official MAS runs: 20, Official ChatDev runs: 20
 
 
 ### Table 1: Indicative Published Baselines from Literature (You et al., 2026)
@@ -22,34 +26,34 @@ Generated at: results.csv / benchmark_manifest.json
 
 | System | N | Completeness (95% CI) | Executability (95% CI) | Consistency (95% CI) | Quality (95% CI) | Wilcoxon p-value | Cohen's d |
 |---|---|---|---|---|---|---|---|
-| **MAS (Ours)** | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| **ChatDev** | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| **MAS (Ours)** | 20 | 1.0000 [1.0000, 1.0000] | 1.0000 [1.0000, 1.0000] | 0.4929 [0.4341, 0.5480] | 0.4929 [0.4341, 0.5480] | 0.00000 | 2.1800 |
+| **ChatDev** | 20 | 0.9500 [0.8500, 1.0000] | 0.1000 [0.0000, 0.2500] | 0.5010 [0.4190, 0.5718] | 0.0546 [0.0000, 0.1406] | — | — |
 
 
 ### Table 3: Efficiency and Computational Overhead
 
 | System | Tokens / Task | Quality / 1k Tokens | Est. Cost ($) | LLM Calls | Wall-Clock Time (s) | Lines of Code (LOC) |
 |---|---|---|---|---|---|---|
-| **MAS (Ours)** | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| **ChatDev** | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| **MAS (Ours)** | 14,688.8 | 0.0336 | $0.0000 | 4.4 | 38.0s | 784.0 |
+| **ChatDev** | 47,191.2 | 0.0012 | $0.0000 | 14.8 | 341.7s | 134.9 |
 
 
 ### Table 4: Per-Category Quality Breakdown
 
 | Category | Tasks | MAS Quality | ChatDev Quality | Delta (MAS - CD) |
 |---|---|---|---|---|
-| Education | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| Work | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| Life | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| Games | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| Creation | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Education | 4 | 0.4996 | 0.1154 | +0.3842 |
+| Work | 4 | 0.4932 | 0.1573 | +0.3358 |
+| Life | 4 | 0.4703 | 0.0000 | +0.4703 |
+| Games | 4 | 0.5173 | 0.0000 | +0.5173 |
+| Creation | 4 | 0.4839 | 0.0000 | +0.4839 |
 
 
 ### Table 5: Ablation Matrix (MAS Modular Architectural Components)
 
 | Condition | Description | Tasks | Mean Quality | Mean Tokens | LLM Calls | Delta Quality vs A0 |
 |---|---|---|---|---|---|---|
-| **A0** | Full MAS (Default Baseline) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| **A0** | Full MAS (Default Baseline) | 20 | 0.4929 | 14,689 | 4.4 | Reference (0.0000) |
 | **A1** | Always Architect (No Complexity Router) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | **A2** | Full Repo Context (No AST Slicing) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | **A3** | No Evidence Review (No AST/Ruff/Bandit Checks) | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
@@ -60,6 +64,6 @@ Generated at: results.csv / benchmark_manifest.json
 
 | System | Shared Test Score | Executability Rate | Benchmark Success Rate |
 |---|---|---|---|
-| **MAS (Ours)** | NOT RUN | NOT RUN | NOT RUN |
-| **ChatDev** | NOT RUN | NOT RUN | NOT RUN |
+| **MAS (Ours)** | 0.9750 | 100.0% | 100.0% |
+| **ChatDev** | 0.1000 | 10.0% | 95.0% |
 

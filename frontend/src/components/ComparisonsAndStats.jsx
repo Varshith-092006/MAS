@@ -1,152 +1,161 @@
-import React from 'react';
-import {
-  GitCompare,
-  TrendingUp,
-  Percent,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  Sparkles,
-} from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Scale, Info } from 'lucide-react';
 
-export default function ComparisonsAndStats({ analyticsData }) {
-  const stats = analyticsData?.statistical_summary || {};
-  const qStat = stats.quality || {};
-  const masDist = stats.mas_quality_distribution || {};
-  const cdDist = stats.chatdev_quality_distribution || {};
-  const masMini = analyticsData?.mas_gpt4o_mini || { mean_quality: 0, n_runs: 0 };
+// Compare Systems (DEC-052): computed from the official runs themselves, so the numbers match
+// reports/benchmark_report.md. Confidence intervals and significance tests live in eval/stats_report.md.
+const SYSTEMS = [
+  { id: 'mas', name: 'MAS' },
+  { id: 'chatdev', name: 'ChatDev' },
+  { id: 'single', name: 'Single agent' },
+];
+
+const METRICS = [
+  { key: 'quality', name: 'Quality score', help: 'Complete × Runs × Matches requirement', fmt: (v) => v.toFixed(3) },
+  { key: 'executability', name: 'Programs that run', help: 'Share that start without an error', fmt: (v) => `${Math.round(v * 100)}%` },
+  { key: 'completeness', name: 'Completeness', help: 'Share of functions fully written', fmt: (v) => v.toFixed(3) },
+  { key: 'consistency', name: 'Matches the requirement', help: 'Text similarity, requirement vs code', fmt: (v) => v.toFixed(3) },
+  { key: 'tokens', name: 'Tokens per run', help: 'Lower is cheaper', fmt: (v) => Math.round(v).toLocaleString(), lowerIsBetter: true },
+];
+
+const mean = (vals) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
+
+export default function ComparisonsAndStats({ runs }) {
+  const data = useMemo(() => {
+    const scored = (runs || []).filter((r) => r.quality != null && r.model !== 'fake' && r.execution_mode !== 'SIMULATED');
+    const bySys = {};
+    for (const s of SYSTEMS) {
+      const rows = scored.filter((r) => r.system === s.id);
+      const byTask = Object.fromEntries(rows.map((r) => [r.task_id, r]));
+      bySys[s.id] = { rows, byTask };
+    }
+    // Head-to-head on the same task: how often MAS scored higher, lower or the same.
+    const h2h = (other) => {
+      let win = 0, loss = 0, tie = 0;
+      for (const [task, m] of Object.entries(bySys.mas.byTask)) {
+        const o = bySys[other].byTask[task];
+        if (!o) continue;
+        const d = m.quality - o.quality;
+        if (Math.abs(d) < 1e-9) tie += 1;
+        else if (d > 0) win += 1;
+        else loss += 1;
+      }
+      return { win, loss, tie };
+    };
+    return { bySys, h2h: { chatdev: h2h('chatdev'), single: h2h('single') } };
+  }, [runs]);
+
+  const shown = SYSTEMS.filter((s) => data.bySys[s.id].rows.length > 0);
+  const avgOf = (sysId, key) => mean(data.bySys[sysId].rows.map((r) => r[key]).filter((v) => v != null));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <GitCompare className="w-6 h-6 text-indigo-400" />
-          <span>Statistical Analysis & Experimental Comparisons</span>
+        <h1 className="text-2xl font-semibold text-slate-100 flex items-center gap-2">
+          <Scale className="w-6 h-6 text-cyan-500" />
+          <span>Compare Systems</span>
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Task-level paired comparisons across repeats using permutation testing and Cohen's d effect sizes.
+          MAS, ChatDev and a single agent on the same 20 tasks, with the same model and the same scoring code.
         </p>
       </div>
 
-      {/* Main Statistical Summary Table (Section I) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg space-y-6">
-        <div className="border-b border-slate-800 pb-3 flex flex-wrap items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-cyan-400" />
-              <span>Paired Task Comparison: MAS vs ChatDev (Quality)</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Empirical statistics calculated directly by the backend statistical analysis engine.
-            </p>
-          </div>
-          <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-300">
-            N = {masDist.n || 0} MAS / {cdDist.n || 0} ChatDev
-          </span>
+      {shown.length < 2 ? (
+        <div className="bg-white border border-slate-800 rounded-lg p-6 text-sm text-slate-500 text-center">
+          NOT RUN: fewer than two systems have scored runs.
         </div>
-
-        {/* Statistical Grid Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
-          <div className="bg-slate-950 p-4 rounded-xl border border-indigo-900/40">
-            <div className="text-slate-400">MAS Mean Quality</div>
-            <div className="text-xl font-bold text-indigo-300 mt-1">
-              {(masDist?.count > 0 && qStat.mas_mean !== undefined) ? qStat.mas_mean.toFixed(4) : 'No data'}
-            </div>
-            <div className="text-[10px] text-slate-500 mt-1">
-              SD: {(masDist?.count > 0 && qStat.mas_std !== undefined) ? qStat.mas_std.toFixed(4) : '-'}
-            </div>
+      ) : (
+        <>
+          <div className="bg-white border border-slate-800 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-925 text-slate-500 text-xs border-b border-slate-800">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-semibold">Score</th>
+                  {shown.map((s) => (
+                    <th key={s.id} className="text-right py-2.5 px-3 font-semibold">
+                      {s.name}
+                      <span className="block font-normal">{data.bySys[s.id].rows.length} runs</span>
+                    </th>
+                  ))}
+                  <th className="text-right py-2.5 px-4 font-semibold">MAS minus ChatDev</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {METRICS.map((m) => {
+                  const vals = Object.fromEntries(shown.map((s) => [s.id, avgOf(s.id, m.key)]));
+                  const best = m.lowerIsBetter
+                    ? Math.min(...Object.values(vals).filter((v) => v != null))
+                    : Math.max(...Object.values(vals).filter((v) => v != null));
+                  const diff = vals.mas != null && vals.chatdev != null ? vals.mas - vals.chatdev : null;
+                  return (
+                    <tr key={m.key}>
+                      <td className="py-2.5 px-4">
+                        <div className="font-medium text-slate-200">{m.name}</div>
+                        <div className="text-xs text-slate-500">{m.help}</div>
+                      </td>
+                      {shown.map((s) => (
+                        <td
+                          key={s.id}
+                          className={`py-2.5 px-3 text-right ${vals[s.id] === best ? 'font-semibold text-slate-100' : 'text-slate-300'}`}
+                        >
+                          {vals[s.id] == null ? '-' : m.fmt(vals[s.id])}
+                        </td>
+                      ))}
+                      <td className="py-2.5 px-4 text-right text-slate-300">
+                        {diff == null
+                          ? '-'
+                          : m.key === 'tokens'
+                          ? `${diff > 0 ? '+' : ''}${Math.round(diff).toLocaleString()}`
+                          : m.key === 'executability'
+                          ? `${diff > 0 ? '+' : ''}${Math.round(diff * 100)} pts`
+                          : `${diff > 0 ? '+' : ''}${diff.toFixed(3)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <div className="bg-slate-950 p-4 rounded-xl border border-amber-900/40">
-            <div className="text-slate-400">ChatDev Mean Quality</div>
-            <div className="text-xl font-bold text-amber-300 mt-1">
-              {(cdDist?.count > 0 && qStat.chatdev_mean !== undefined) ? qStat.chatdev_mean.toFixed(4) : 'No data'}
-            </div>
-            <div className="text-[10px] text-slate-500 mt-1">
-              SD: {(cdDist?.count > 0 && qStat.chatdev_std !== undefined) ? qStat.chatdev_std.toFixed(4) : '-'}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              ['chatdev', 'MAS vs ChatDev'],
+              ['single', 'MAS vs single agent'],
+            ].map(([other, title]) => {
+              const h = data.h2h[other];
+              const total = h.win + h.loss + h.tie;
+              return (
+                <div key={other} className="bg-white border border-slate-800 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-slate-200">{title}, task by task</div>
+                  <div className="text-xs text-slate-500 mb-3">Quality on the same task, {total} tasks</div>
+                  {total === 0 ? (
+                    <div className="text-sm text-slate-500">NOT RUN</div>
+                  ) : (
+                    <>
+                      <div className="flex h-3 rounded-full overflow-hidden bg-slate-850">
+                        <div className="bg-cyan-600" style={{ width: `${(h.win / total) * 100}%` }} />
+                        <div className="bg-slate-600" style={{ width: `${(h.tie / total) * 100}%` }} />
+                        <div className="bg-amber-500" style={{ width: `${(h.loss / total) * 100}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs mt-2 text-slate-400">
+                        <span>MAS higher: <span className="font-semibold text-slate-200">{h.win}</span></span>
+                        <span>Same: <span className="font-semibold text-slate-200">{h.tie}</span></span>
+                        <span>MAS lower: <span className="font-semibold text-slate-200">{h.loss}</span></span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
+        </>
+      )}
 
-          <div className="bg-slate-950 p-4 rounded-xl border border-cyan-900/40">
-            <div className="text-slate-400">Mean Difference (Δ)</div>
-            <div className="text-xl font-bold text-cyan-300 mt-1">
-              {(masDist?.count > 0 && cdDist?.count > 0 && qStat.difference !== undefined) ? (qStat.difference > 0 ? `+${qStat.difference.toFixed(4)}` : qStat.difference.toFixed(4)) : 'No data'}
-            </div>
-            <div className="text-[10px] text-slate-500 mt-1">
-              Relative: {(masDist?.count > 0 && cdDist?.count > 0 && qStat.percentage_gain !== undefined) ? `+${qStat.percentage_gain.toFixed(2)}%` : '-'}
-            </div>
-          </div>
-
-          <div className="bg-slate-950 p-4 rounded-xl border border-emerald-900/40">
-            <div className="text-slate-400">Permutation P-Value</div>
-            <div className="text-xl font-bold text-emerald-300 mt-1">
-              {(masDist?.count > 0 && cdDist?.count > 0 && qStat.p_value !== undefined) ? (qStat.p_value < 0.001 ? '< 0.001' : qStat.p_value.toFixed(4)) : 'No data'}
-            </div>
-            <div className="text-[10px] text-slate-500 mt-1">
-              {(masDist?.count > 0 && cdDist?.count > 0) ? (qStat.statistically_significant ? 'Significant (p < 0.05)' : 'Not significant (p ≥ 0.05)') : 'Awaiting experimental runs'}
-            </div>
-          </div>
-        </div>
-
-        {/* Detailed Hypothesis Testing Breakdown */}
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3 font-mono text-xs">
-          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-            Hypothesis Testing & Distribution Parameters
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-slate-400">
-            <div>
-              <span className="block text-slate-500 text-[11px]">Effect Size (Cohen's d):</span>
-              <span className="text-sm font-bold text-slate-200">
-                {qStat.effect_size_cohens_d !== undefined ? qStat.effect_size_cohens_d.toFixed(4) : '-'}
-              </span>
-            </div>
-            <div>
-              <span className="block text-slate-500 text-[11px]">MAS Median Quality:</span>
-              <span className="text-sm font-bold text-slate-200">
-                {masDist.median !== undefined ? masDist.median.toFixed(4) : '-'}
-              </span>
-            </div>
-            <div>
-              <span className="block text-slate-500 text-[11px]">95% Confidence Interval:</span>
-              <span className="text-sm font-bold text-slate-200">
-                {masDist.ci_95 ? `[${masDist.ci_95[0]}, ${masDist.ci_95[1]}]` : '-'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* MAS-only GPT-4o-mini Results Card (Section 7) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-base font-bold text-white">MAS-Only GPT-4o-mini Cheaper Model Arm</h2>
-          </div>
-          <span className="text-xs font-mono bg-indigo-950 text-indigo-400 border border-indigo-800 px-2 py-0.5 rounded">
-            Research Evaluation Arm
-          </span>
-        </div>
-        <p className="text-xs text-slate-400">
-          Evaluates MAS architectural resilience and quality degradation when switching from GPT-4o to GPT-4o-mini for all roles (Reviewer already defaults to GPT-4o-mini).
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 font-mono text-xs">
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div className="text-slate-400">Cheaper Arm Quality</div>
-            <div className="text-xl font-bold text-indigo-300 mt-1">
-              {masMini.mean_quality ? masMini.mean_quality.toFixed(4) : 'Pending Runs'}
-            </div>
-          </div>
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div className="text-slate-400">Recorded Runs</div>
-            <div className="text-xl font-bold text-slate-200 mt-1">{masMini.n_runs || 0}</div>
-          </div>
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div className="text-slate-400">Token Cost Factor</div>
-            <div className="text-xl font-bold text-emerald-300 mt-1">~12x Cheaper</div>
-          </div>
-        </div>
+      <div className="bg-cyan-950 border border-cyan-800 text-slate-300 p-3 rounded-lg text-xs flex gap-2">
+        <Info className="w-4 h-4 text-cyan-500 flex-shrink-0 mt-0.5" />
+        <span>
+          Confidence intervals and the significance tests (paired Wilcoxon test, effect sizes) for these runs are in{' '}
+          <code>eval/stats_report.md</code> and DECISIONS.md (DEC-049). A run that did not finish is scored 0, as in the report.
+        </span>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ Rules enforced here:
      alias ("openrouter/free", empty, or the placeholder).
   3. Provider type is detected from PROVIDER_BASE_URL host only.
   4. For the Gemini provider the model ID must NOT start with "google/" (strip it and warn),
-     and the key must start with "AIza" (checked without printing any part of the key).
+     and the key must start with "AIza" or "AQ." (checked without printing any part of the key).
   5. An OpenRouter key (starts with "sk-or-") used with the Gemini endpoint is an error.
   6. Using provider=openrouter for a benchmark run is an error unless --allow-openrouter.
 
@@ -25,6 +25,10 @@ from urllib.parse import urlparse
 # ---------------------------------------------------------------------------
 # Provider type detection
 # ---------------------------------------------------------------------------
+
+# Prefixes of Google AI Studio API keys: classic and newer format.
+GOOGLE_KEY_PREFIXES = ("AIza", "AQ.")
+
 
 def _detect_provider_type(base_url: str) -> str:
     """Returns 'gemini', 'openrouter', or 'other' based on the host name."""
@@ -87,6 +91,10 @@ class ProviderSettings:
 
     def key_starts_with_AIza(self) -> bool:
         return bool(self.api_key) and self.api_key.startswith("AIza")
+
+    def key_looks_like_google(self) -> bool:
+        """Google AI Studio keys: classic 'AIza...' or the newer 'AQ.' format (DEC-042)."""
+        return bool(self.api_key) and self.api_key.startswith(GOOGLE_KEY_PREFIXES)
 
     def key_looks_like_openrouter(self) -> bool:
         return bool(self.api_key) and self.api_key.startswith("sk-or-")
@@ -211,15 +219,15 @@ def validate_for_live_run(
     # --- Gemini-specific checks ---
     if settings.provider_type == "gemini":
         # Key must look like a Google key
-        if settings.api_key and not settings.key_starts_with_AIza():
+        if settings.api_key and not settings.key_looks_like_google():
             if settings.key_looks_like_openrouter():
                 messages.append(
                     f"[FAIL] OpenRouter key (sk-or-...) used with Google endpoint — "
-                    f"set PROVIDER_API_KEY to a Google AI Studio key (starts with 'AIza')"
+                    f"set PROVIDER_API_KEY to a Google AI Studio key (starts with 'AIza' or 'AQ.')"
                 )
             else:
                 messages.append(
-                    f"[FAIL] PROVIDER_API_KEY does not look like a Google key (expected prefix 'AIza', "
+                    f"[FAIL] PROVIDER_API_KEY does not look like a Google key (expected prefix 'AIza' or 'AQ.', "
                     f"key length={settings.key_length()})"
                 )
             all_passed = False
@@ -268,7 +276,7 @@ def validate_key_only(settings: ProviderSettings) -> Tuple[bool, list]:
 
     verdict_parts = [f"length={settings.key_length()}"]
     if settings.provider_type == "gemini":
-        if settings.key_starts_with_AIza():
+        if settings.key_looks_like_google():
             verdict_parts.append("looks like a Google key ✓")
         elif settings.key_looks_like_openrouter():
             verdict_parts.append("WARNING: looks like an OpenRouter key on the Gemini endpoint!")
@@ -277,7 +285,7 @@ def validate_key_only(settings: ProviderSettings) -> Tuple[bool, list]:
             )
             return False, messages
         else:
-            verdict_parts.append("WARNING: does not start with 'AIza'")
+            verdict_parts.append("WARNING: does not start with 'AIza' or 'AQ.'")
     elif settings.provider_type == "openrouter":
         if settings.key_looks_like_openrouter():
             verdict_parts.append("looks like an OpenRouter key ✓")

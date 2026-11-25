@@ -62,3 +62,6 @@ frontend/package-lock.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Full mas.db backup taken before the DEC-052 cleanup (local only)
+archive/*.db

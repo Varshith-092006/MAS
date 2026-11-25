@@ -56,7 +56,7 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
@@ -65,14 +65,14 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
               <GitPullRequest className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Software Evolution — Requirement Change Request</h2>
+              <h2 className="text-sm font-bold text-slate-50">Change the requirement</h2>
               <span className="text-xs font-mono text-slate-400">Target Run: {runId}</span>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-50 hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -94,13 +94,13 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
                 <div className="flex items-center gap-3 text-emerald-300">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                   <div>
-                    <div className="font-bold">Evolution Applied Successfully!</div>
-                    <div className="text-[11px] text-emerald-400 font-mono">AST impact analysis and neutral evaluation completed.</div>
+                    <div className="font-bold">Change applied</div>
+                    <div className="text-[11px] text-emerald-400 font-mono">The affected code was updated and the project was scored again.</div>
                   </div>
                 </div>
                 <div className="text-right font-mono">
                   <div className="text-emerald-400 font-bold text-base">
-                    Quality: {result.final_quality !== undefined ? result.final_quality.toFixed(3) : '-'}
+                    Quality: {result.final_quality != null ? result.final_quality.toFixed(3) : '-'}
                   </div>
                   <div className="text-[10px] text-slate-400">
                     Regression: {result.regression_score !== undefined ? `${(result.regression_score * 100).toFixed(0)}%` : '100%'}
@@ -111,14 +111,14 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
               {/* Impact Breakdown Cards */}
               <div className="grid grid-cols-2 gap-3 text-xs font-mono">
                 <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-slate-500 text-[10px] block">Seed Modules Detected:</span>
+                  <span className="text-slate-500 text-[10px] block">Files changed directly:</span>
                   <div className="font-bold text-indigo-300">
                     {result.seeds && result.seeds.length > 0 ? result.seeds.join(', ') : 'None detected'}
                   </div>
                 </div>
 
                 <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-slate-500 text-[10px] block">Transitive AST Impact Set:</span>
+                  <span className="text-slate-500 text-[10px] block">Files affected indirectly:</span>
                   <div className="font-bold text-cyan-300">
                     {result.affected_modules && result.affected_modules.length > 0
                       ? result.affected_modules.join(', ')
@@ -152,7 +152,7 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
                   onClick={onClose}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors"
                 >
-                  Close & View Updated Run
+                  Close and view the updated run
                 </button>
               </div>
             </div>
@@ -161,28 +161,28 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Evolved Requirement Specification
+                  New or changed requirement
                 </label>
                 <textarea
                   rows={6}
                   value={newRequirement}
                   onChange={(e) => setNewRequirement(e.target.value)}
-                  placeholder="Describe the modifications, new features, or refinements to apply..."
+                  placeholder="Describe what should change or be added…"
                   className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg p-3 text-xs text-slate-200 font-mono focus:outline-none"
                   required
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  The AST analyzer will compute differential requirements, trace seed modules, compute the transitive impact set, and selectively update only affected files.
+                  MAS works out which files the change affects and updates only those files.
                 </span>
               </div>
 
               <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
                 <div className="font-semibold text-slate-300 flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Deterministic Regression Safeguards:</span>
+                  <span>Safety checks:</span>
                 </div>
-                <div>• Pre-change workspace checkpoint snapshot recorded automatically.</div>
-                <div>• Shared fixed Level 1 & Level 2 tests executed before and after modification.</div>
+                <div>• A copy of the project is saved before the change.</div>
+                <div>• The same tests run before and after, so breakages are caught.</div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
@@ -202,12 +202,12 @@ export default function ChangeRequestModal({ runId, originalRequirement, onClose
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Computing AST Impact & Applying...</span>
+                      <span>Applying change…</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Apply Change Request</span>
+                      <span>Apply change</span>
                     </>
                   )}
                 </button>

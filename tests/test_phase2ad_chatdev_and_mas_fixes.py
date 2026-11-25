@@ -295,12 +295,17 @@ def test_benchmark_manifest_canonical_summary_reconciliation(tmp_path):
 
 
 def test_production_manifest_summary_is_reconciled():
-    """Verify that the production benchmark_manifest.json reports 0 completed paired repeats and 0 canonical completed live runs."""
+    """The production manifest summary is internally consistent.
+
+    DEC-044: this used to pin exact counts (0-3) from historical data; live benchmark runs now
+    legitimately add completed runs, so the test checks consistency instead of fixed numbers.
+    """
     manifest = load_benchmark_manifest("eval/benchmark_manifest.json")
     summary = manifest["summary"]
-    assert summary["completed_paired_repeats"] in (0, 1, 2, 3)
-    assert summary["mas_completed_live_runs"] in (0, 1, 2, 3)
-    assert summary["chatdev_completed_live_runs"] in (0, 1, 2, 3)
+    for key in ("completed_paired_repeats", "mas_completed_live_runs", "chatdev_completed_live_runs"):
+        assert isinstance(summary[key], int) and summary[key] >= 0
+    # A completed pair needs a completed run of each system for the same (task, repeat).
+    assert summary["completed_paired_repeats"] <= min(summary["mas_completed_live_runs"], summary["chatdev_completed_live_runs"])
     assert summary["non_canonical_test_runs_excluded"] == 2
 
 

@@ -10,117 +10,113 @@ import ICoderReference from './components/ICoderReference';
 import RunVisualizer from './components/RunVisualizer';
 import SettingsView from './components/SettingsView';
 
-export default function App() {
-  const [initialPath] = useState(() => window.location.pathname);
-  const matchedRunId = initialPath.match(/\/runs\/([^/]+)/)?.[1] || '';
+// One URL per page, so pages can be bookmarked and the browser Back button works.
+export const ROUTES = {
+  overview: '/',
+  generate: '/generate',
+  benchmark: '/benchmark',
+  runs: '/runs',
+  run: '/runs/:id',
+  charts: '/charts',
+  compare: '/compare',
+  paper: '/paper',
+  status: '/status',
+};
 
-  const [activeTab, setActiveTab] = useState(() => (matchedRunId ? 'visualizer' : 'dashboard'));
-  const [currentRunId, setCurrentRunId] = useState(matchedRunId);
+function parseLocation(pathname) {
+  const runMatch = pathname.match(/^\/runs\/([^/]+)\/?$/);
+  if (runMatch) return { page: 'run', runId: decodeURIComponent(runMatch[1]) };
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  const page = Object.keys(ROUTES).find((k) => ROUTES[k] === clean && k !== 'run');
+  return { page: page || 'overview', runId: '' };
+}
+
+function pathFor(page, runId) {
+  if (page === 'run') return runId ? `/runs/${encodeURIComponent(runId)}` : '/runs';
+  return ROUTES[page] || '/';
+}
+
+export default function App() {
+  const [location, setLocation] = useState(() => parseLocation(window.location.pathname));
+  const [lastRunId, setLastRunId] = useState(location.runId);
+  const { page, runId } = location;
 
   const [runs, setRuns] = useState([]);
   const [summary, setSummary] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
       const [resRuns, resAnalytics] = await Promise.all([
-        fetch('/api/runs?limit=100').then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/runs?limit=200').then((r) => (r.ok ? r.json() : null)),
         fetch('/api/analytics/summary').then((r) => (r.ok ? r.json() : null)),
       ]);
-
       if (resRuns) {
         setRuns(resRuns.runs || []);
         setSummary(resRuns.summary || null);
       }
-      if (resAnalytics) {
-        setAnalyticsData(resAnalytics);
-      }
+      if (resAnalytics) setAnalyticsData(resAnalytics);
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
+      console.error('Error fetching data:', err);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000); // 15s polling for background updates
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Handle run selection
-  const handleSelectRun = (runId) => {
-    setCurrentRunId(runId);
-    setActiveTab('visualizer');
-    window.history.pushState({}, '', `/runs/${runId}`);
-  };
+  // Browser Back / Forward.
+  useEffect(() => {
+    const onPop = () => setLocation(parseLocation(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    if (runId) setLastRunId(runId);
+  }, [runId]);
+
+  const navigate = useCallback((nextPage, nextRunId = '') => {
+    // "Run details" without an id reopens the last run that was viewed.
+    const id = nextPage === 'run' ? nextRunId || lastRunId : '';
+    const path = pathFor(nextPage, id);
+    if (window.location.pathname !== path) window.history.pushState({}, '', path);
+    setLocation({ page: nextPage, runId: id });
+    window.scrollTo(0, 0);
+  }, [lastRunId]);
+
+  const openRun = (id) => navigate('run', id);
 
   const handleRunCreated = (newRunId) => {
     fetchData();
-    handleSelectRun(newRunId);
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab === 'dashboard') {
-      window.history.pushState({}, '', '/');
-    }
+    openRun(newRunId);
   };
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Sidebar Navigation */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
-        currentRunId={currentRunId}
-      />
+      <Sidebar activePage={page} onNavigate={navigate} lastRunId={lastRunId} />
 
-      {/* Main Content Pane */}
       <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl">
-        {activeTab === 'dashboard' && (
+        {page === 'overview' && (
           <DashboardOverview
             summary={summary}
             recentRuns={runs}
-            onNavigate={handleTabChange}
-            onSelectRun={handleSelectRun}
+            onNavigate={navigate}
+            onSelectRun={openRun}
           />
         )}
-
-        {activeTab === 'single_run' && (
-          <SingleTaskRun onRunCreated={handleRunCreated} />
+        {page === 'generate' && <SingleTaskRun onRunCreated={handleRunCreated} />}
+        {page === 'benchmark' && <BatchBenchmark onNavigate={navigate} />}
+        {page === 'runs' && <RunsTable runs={runs} onSelectRun={openRun} />}
+        {page === 'charts' && <AnalyticsDashboard runs={runs} analyticsData={analyticsData} />}
+        {page === 'compare' && <ComparisonsAndStats runs={runs} />}
+        {page === 'paper' && <ICoderReference analyticsData={analyticsData} />}
+        {page === 'run' && (
+          <RunVisualizer runId={runId || lastRunId} onRunIdChange={(id) => navigate('run', id)} />
         )}
-
-        {activeTab === 'batch' && (
-          <BatchBenchmark onNavigate={handleTabChange} />
-        )}
-
-        {activeTab === 'runs' && (
-          <RunsTable runs={runs} onSelectRun={handleSelectRun} />
-        )}
-
-        {activeTab === 'analytics' && (
-          <AnalyticsDashboard runs={runs} analyticsData={analyticsData} />
-        )}
-
-        {activeTab === 'comparisons' && (
-          <ComparisonsAndStats analyticsData={analyticsData} />
-        )}
-
-        {activeTab === 'icoder' && (
-          <ICoderReference analyticsData={analyticsData} />
-        )}
-
-        {activeTab === 'visualizer' && (
-          <RunVisualizer
-            runId={currentRunId}
-            onRunIdChange={(newId) => {
-              setCurrentRunId(newId);
-              window.history.pushState({}, '', `/runs/${newId}`);
-            }}
-          />
-        )}
-
-        {activeTab === 'settings' && <SettingsView />}
+        {page === 'status' && <SettingsView />}
       </main>
     </div>
   );

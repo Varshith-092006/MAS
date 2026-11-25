@@ -609,9 +609,10 @@ def test_25_all_workflow_agents_follow_model_policy_including_skipped_architect(
     assert "architect" not in agent_names_called, "Architect must be skipped on SIMPLE task"
     assert "manager" in agent_names_called
     assert "developer" in agent_names_called
-    assert "tester" in agent_names_called
-    # Phase 4 Change 4: Reviewer is skipped on clean first-try execution to conserve LLM calls
-    assert "reviewer" not in agent_names_called, "Reviewer must be skipped on clean run"
+    # Phase 8 (DEC-041): Tester is deterministic (no LLM call); the semantic Reviewer runs
+    # once per run instead, so a clean SIMPLE run is still exactly 3 LLM calls.
+    assert "tester" not in agent_names_called, "Deterministic Tester must not call the LLM"
+    assert "reviewer" in agent_names_called, "Reviewer must run at least once per run"
 
     # Verify every LLM call used the exact configured model
     for call in recorded_calls:

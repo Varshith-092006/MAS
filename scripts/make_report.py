@@ -582,14 +582,51 @@ def generate_figures(mas_runs: List[Dict[str, Any]], cd_runs: List[Dict[str, Any
 
 
 def main():
+    # Windows consoles default to cp1252; force UTF-8 so non-ASCII table text never crashes or garbles.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     parser = argparse.ArgumentParser(description="MAS Benchmark Report Generator (Tables 1-6 & LaTeX)")
     parser.add_argument("--results", type=str, default="results.csv", help="Path to results.csv")
     parser.add_argument("--manifest", type=str, default="eval/benchmark_manifest.json", help="Path to benchmark manifest JSON")
     parser.add_argument("--output-dir", type=str, default="reports", help="Output directory for reports and LaTeX tables")
+    parser.add_argument(
+        "--model", type=str, default=None,
+        help="Report only runs on this model (default: BENCH_MODEL from the environment or .env; all models if unset)",
+    )
+    parser.add_argument("--series", type=str, default=None, help="Benchmark series to report (default: config benchmark.series when a model filter is active)")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     runs = load_runs(csv_path=args.results, manifest_path=args.manifest)
+
+    # DEC-043: official rows are chosen per model, so older-model runs can also be official.
+    # Restrict the report to the pinned benchmark model.
+    report_model = args.model
+    if report_model is None:
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except Exception:
+            pass
+        report_model = os.environ.get("BENCH_MODEL") or None
+    if report_model:
+        runs = [r for r in runs if str(r.get("model") or "").strip().lower() == report_model.strip().lower()]
+        print(f"[REPORT] Restricted to model: {report_model}")
+    # DEC-044: only the active benchmark series (rows without a series are the 'v1' pilot).
+    report_series = args.series
+    if report_series is None and report_model:
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from eval.runner import current_series
+            report_series = current_series()
+        except Exception:
+            report_series = None
+    if report_series:
+        runs = [r for r in runs if str(r.get("series") or "v1") == report_series]
+        print(f"[REPORT] Restricted to series: {report_series}")
 
     mas_runs = [r for r in runs if r.get("system") == "mas" and is_official_live_run(r)]
     cd_runs = [r for r in runs if r.get("system") == "chatdev" and is_official_live_run(r)]

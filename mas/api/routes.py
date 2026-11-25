@@ -7,7 +7,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 import uuid
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 import numpy as np
 from pydantic import BaseModel, Field
 
@@ -914,3 +914,85 @@ def get_analytics_summary(
             },
             "icoder_reference": icoder_reference,
         }
+
+
+@router.get("/config")
+def get_public_config():
+    """Read-only settings the UI shows on 'System Status' and in the model picker (DEC-051).
+
+    Never returns the API key itself, only whether one is set. Reads the local quota ledger;
+    makes no network calls.
+    """
+    from urllib.parse import urlparse
+
+    from mas.core.governor import global_governor
+
+    base_url = os.environ.get("PROVIDER_BASE_URL") or ""
+    db_url = os.environ.get("DATABASE_URL") or "sqlite:///./mas.db"
+    try:
+        quota = global_governor.get_ledger_stats()
+    except Exception:
+        quota = {}
+    return {
+        "bench_model": os.environ.get("BENCH_MODEL") or None,
+        "provider_host": urlparse(base_url).hostname if base_url else None,
+        "api_key_configured": bool(os.environ.get("PROVIDER_API_KEY") or os.environ.get("OPENROUTER_API_KEY")),
+        "seed": os.environ.get("SEED", "42"),
+        "temperature": os.environ.get("TEMPERATURE", "0"),
+        "database": db_url.split(":", 1)[0],
+        "quota_day": quota.get("utc_date"),
+        "daily_request_cap": quota.get("internal_daily_cap"),
+        "requests_used_today": quota.get("total_attributable_attempts"),
+        "requests_left_today": quota.get("remaining_internal_attempts"),
+    }
+
+
+# ---------------------------------------------------------------- run a generated project (DEC-053)
+_PROGRAM_ROOTS = ("eval/workspaces", "workspace", "workspaces")
+_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+class OpenProgramRequest(BaseModel):
+    args: str = ""
+
+
+def resolve_run_folder(run_id: str) -> str:
+    """Finds a run's code folder, only inside the known workspace roots."""
+    roots = [os.path.abspath(r) for r in _PROGRAM_ROOTS]
+    candidates = []
+    with get_session() as session:
+        run = session.query(Run).filter(Run.run_id == run_id).first()
+        if run and run.workspace_path:
+            candidates.append(os.path.abspath(run.workspace_path))
+    candidates += [os.path.join(r, run_id) for r in roots]
+    for c in candidates:
+        c = os.path.abspath(c)
+        inside = any(os.path.commonpath([r, c]) == r and c != r for r in roots if os.path.splitdrive(r)[0] == os.path.splitdrive(c)[0])
+        if inside and os.path.isdir(c):
+            return c
+    raise HTTPException(status_code=404, detail="No generated code folder found for this run")
+
+
+@router.post("/runs/{run_id}/quick-test")
+def quick_test_run(run_id: str):
+    """Runs the evaluator's headless check on a copy of the project and returns the output."""
+    from mas.api.program_runner import quick_test
+
+    return {"run_id": run_id, **quick_test(resolve_run_folder(run_id))}
+
+
+@router.post("/runs/{run_id}/open")
+def open_run_program(run_id: str, req: OpenProgramRequest, request: Request):
+    """Opens the program in a new console window on this computer. Local requests only."""
+    from mas.api.program_runner import open_program
+
+    host = request.client.host if request.client else ""
+    if host not in _LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="Programs can only be opened from this computer")
+    try:
+        info = open_program(resolve_run_folder(run_id), req.args)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"run_id": run_id, "opened": True, "entry_point": info["entry_point"], "args": info["args"]}

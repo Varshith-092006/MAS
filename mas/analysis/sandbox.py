@@ -61,6 +61,8 @@ class SandboxRunner:
                 ["docker", "version"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=4,
             )
             available = (res.returncode == 0 and "Server:" in res.stdout)
@@ -118,6 +120,8 @@ class SandboxRunner:
                 docker_cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 stdin=subprocess.DEVNULL,
                 timeout=self.timeout_seconds,
             )
@@ -174,6 +178,8 @@ class SandboxRunner:
                 env=clean_env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 stdin=subprocess.DEVNULL,
                 timeout=self.timeout_seconds,
             )

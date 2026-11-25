@@ -727,3 +727,224 @@ This document tracks architectural decisions, source precedence, specification c
 
 
 
+
+---
+
+### Record: Phase 8 Deterministic Tester, Review-Once Policy, Single-Agent Baseline, Conformance Check, Dashboard
+
+- **ID**: DEC-041
+- **Date**: 2026-11-22
+- **Decision**:
+  1. **Deterministic Tester (behaviour change, intended)**: `TesterAgent` used to ask the LLM to *write* a TestReport (pass rate, coverage) from the requirement and the smoke exit code, so the numbers were model-invented and cost 1 LLM call per iteration (plus retries on JSON failures). It now builds the report from real execution with **zero LLM calls**: entry-point smoke protocol, `python main.py --help` exit code (part of the shared requirement text, so no information asymmetry), placeholder scan (pass / ... / NotImplementedError / docstring-only bodies / TODO/FIXME), and any `test_*.py` the Developer wrote, run by a dependency-free in-sandbox runner (`python:3.11-slim` has no pytest). `coverage` is 0.0 (not measured, never invented). Legacy mode stays behind `quality_improvements.deterministic_tester: false`.
+  2. **Real completeness signal**: Reflection used a hardcoded `completeness: 1.0`; it now uses the Tester's measured internal completeness. The DeterministicRepairChecker uses the same placeholder scan, so the repair loop and the report agree. This is the paper's ReviewBot rule (no TODO/pass placeholders, Sec. 3.2.4), not a copy of the frozen evaluator (which is unchanged).
+  3. **Review-once policy (behaviour change, intended)**: with honest test signals, the Phase 4 skip rule would have skipped semantic review on almost every run. The Reviewer now runs at least once per run and is skipped only when a previous review PASSED and the code is still clean. A clean SIMPLE run is still 3 LLM calls (Manager, Developer, Reviewer); the third call now does useful review instead of producing a TestReport. Every non-clean iteration saves 1 call (no Tester LLM). In the 394 recorded exploratory live calls, the LLM Tester was 46 of 280 MAS calls (16%) and 74,168 of 1,038,112 MAS-agent tokens (7%); that cost is gone.
+  4. **Reverse-architecture conformance (new, 0 LLM calls)**: `mas/analysis/conformance.py` diffs the Architect's design (planned files, classes in the class diagram, module dependencies) with an AST model of the built code (iCoder Sec. 3.2.2 reverse validation). Deviations go to the Reviewer as evidence. STRUCTURED path only.
+  5. **Single-agent baseline (`--systems single`)**: one LLM call per task, generic prompt, same augmented requirement, provider, model, temperature, seed, token logger and frozen evaluator as MAS and ChatDev. Unparseable output is a quality failure (Quality 0), never re-sent.
+  6. **Runner bug fix**: `token_cap` was referenced in `run_benchmark` but never defined there, so every normally finished *live* MAS/ChatDev run would have raised NameError and been stored as FAILED. Simulation never reached that line, so tests did not catch it. Now defined from `limits.max_tokens_per_run`; regression test added.
+  7. **Telemetry**: every run record now carries `agent_breakdown` (per-agent calls, input/output/total tokens, latency, summed from provider-reported `model_calls` rows), `provider`, `iterations` and `complexity`. The end-of-batch summary no longer prints "MAS vs iCoder" deltas or "token reduction vs iCoder" (different model and tasks); it prints the published numbers as indicative only.
+  8. **Dashboard**: `scripts/make_dashboard.py` writes a self-contained `reports/dashboard.html` (+ `_data.json`) with three separated tiers: OFFICIAL (official, live, provider gemini), EXPLORATORY (older real calls in mas.db, labelled, never shown as results), and published references (indicative). Simulation rows are excluded. Empty tiers show NOT RUN.
+  9. **Report script**: `scripts/make_report.py` forces UTF-8 stdout (fixed 2 failing tests on Windows cp1252 consoles).
+- **Tests changed on purpose**: `tests/test_research_validity.py::test_25` (Tester no longer calls the LLM; Reviewer runs once), `tests/test_phase4_quality_and_call_reduction.py` (review-once test; legacy-mode skip test added; trim test pinned to `mode="llm"`).
+- **Not changed**: frozen evaluator (`eval/neutral_evaluator.py`, `eval/scorers/*`, `eval/checks/*`), benchmark hashes, task files, ChatDev, HLD/LLD/PDF, frontend.
+- **Impact**: 322 passed (baseline before this phase: 293 passed, 2 failed). No live model calls were made.
+
+---
+
+### Record: Accept the Newer Google API Key Format ("AQ.")
+
+- **ID**: DEC-042
+- **Date**: 2026-11-22
+- **Decision**: The Gemini key check (`eval/provider_config.py`) accepted only keys starting with `AIza`. Google AI Studio now also issues keys in a newer format starting with `AQ.`. The maintainer's `AQ.` key failed preflight even though `scripts/list_models.py` listed models with it against the Gemini endpoint. Both prefixes are now accepted (`GOOGLE_KEY_PREFIXES`). OpenRouter `sk-or-` keys and unknown prefixes still fail. The key is never printed: only its length and prefix class are reported.
+- **Amends**: DEC-013 item 4 ("the key must start with `AIza`").
+- **Tests**: 2 new tests in `tests/test_provider_config.py` (an `AQ.` key passes; an unknown prefix still fails). Existing tests unchanged.
+- **Hermetic tests**: once the maintainer's `.env` held a real Gemini key and `BENCH_MODEL`, 10 tests failed, because modules call `load_dotenv()` on import and the runtime model pinning replaced each test's requested model with the real `BENCH_MODEL`. None of them made a network call (HTTP was mocked). `tests/conftest.py` now pins the provider variables to empty values before any import, sets a dummy `OPENROUTER_API_KEY` (ChatDev's camel library only checks that the variable exists; its backend is mocked), and blocks every non-loopback socket connection, which enforces AGENTS.md rule 7. Result: 324 passed with network blocked.
+
+---
+
+### Record: Fixes from the First Live Gemini Smoke Test (seed, failure classification, per-model official rows)
+
+- **ID**: DEC-043
+- **Date**: 2026-11-22
+- **Trigger**: The maintainer's first live smoke test (task srdd_educ_01, model gemini-3.5-flash-lite, systems mas/chatdev/single) failed on every request with HTTP 400 `Invalid JSON payload received. Unknown name "seed"`. No output was generated (0 tokens) for any system.
+- **Decision**:
+  1. **Seed omitted on Gemini**: Gemini's OpenAI-compatible endpoint rejects the `seed` field. `provider_supports_seed()` in `mas/core/llm.py` drops it for `generativelanguage.googleapis.com`, both in the direct client (MAS, single-agent) and in the logging proxy (ChatDev), so all systems still send identical parameters. `temperature=0` is still enforced for every call. **Deviation from AGENTS.md rule 5 ("identical seed")**: no seed is sent on Gemini, so there is no provider-side seed for any system. Runs at temperature 0 can still vary slightly, which is one reason to report repeats and CIs. Other providers still get seed 42.
+  2. **Provider rejections are INFRA_ERROR**: `classify_failure` now treats provider request errors (400 / INVALID_ARGUMENT / 401 / 403 / 404) as infrastructure errors. Any live run that consumed 0 tokens and 0 calls is also INFRA_ERROR, because there is no model output to judge. Before this, the smoke run's single-agent row was stored as an **official Quality 0** result.
+  3. **Official rows chosen per model**: the official-row group key was (task, system, repeat, ablation). The old OpenRouter runs on srdd_educ_01 therefore held the official slot, the Gemini MAS/ChatDev rows were marked "subsequent attempt", and `--resume` would have skipped MAS and ChatDev on that task for the Gemini benchmark. The model is now part of the key, and `--resume` only skips rows of the model being run. `scripts/make_report.py` gains `--model` (default `BENCH_MODEL`), because several models can now each have official rows. The dashboard already restricts official rows to provider gemini.
+  4. **Records corrected**: the manifest was reclassified with no new records. The 3 smoke rows are now INFRA_ERROR and not official; their error text is kept for audit. `results.csv` was re-exported.
+  5. **Unique evaluation IDs**: `evaluation_id` was `eval_<unix seconds>_<benchmark>`, so two batches started in the same second collided on the primary key. A 6-hex random suffix was added.
+- **Tests**: `tests/test_phase8_gemini_live_fixes.py` (7 tests: seed in direct client and proxy, classification, zero-output rule, per-model official slot, resume scoping). No existing test changed.
+
+---
+
+### Record: Fixes from the 5-Task Gemini Pilot; Benchmark Series v2
+
+- **ID**: DEC-044
+- **Date**: 2026-11-22
+- **Trigger**: The first 5-task live run (srdd_educ_01-04, srdd_work_01; MAS, ChatDev, single-agent; gemini-3.5-flash-lite) scored Quality 0 in 11 of 15 runs. Every zero came from Executability = 0. Re-running the frozen evaluator's smoke protocol on each workspace showed real start-up crashes: ChatDev left markdown fences in files, emptied `main.py`, and had syntax and `tkinter.ttk` errors; the single agent left a delimiter line in code and imported uninstalled packages (`rich`, `PyQt5`, `networkx`); MAS blocked on `input()` without stdin (EOFError) on one task and lost one task entirely because all 3 Developer answers hit the 4,000-token output cap (3,993-3,996 tokens; the Architect had planned 10 files).
+- **Decision** (all generic; no task-specific content):
+  1. **Parser** (`parse_delimiter_blocks`, shared by the MAS Developer and the single agent): accepts `=== END FILE: name ===` variants and quoted or backticked file names. Before, the end marker stayed in the code as a syntax error. This was our bug.
+  2. **One per-call output cap for every system**: `limits.max_output_tokens: 8192` is used by the MAS Developer, the single agent and the ChatDev proxy (which was hard-capped at 4,000). The request count is unchanged.
+  3. **Generic generation rules** (`GENERATION_RULES`), given to the MAS Developer and the single agent so that MAS vs single still isolates the multi-agent structure: start straight with the file blocks; at most 4 files; standard library only; catch EOFError around `input()`; `--help` exits 0. The Architect now plans at most 4 files. ChatDev keeps its published prompts (it is the as-published baseline, as in the paper).
+  4. **Benchmark series**: `benchmark.series: "v2"` in config.yaml. Every new record carries `series`; rows without one are `v1`. Official rows, `--resume`, the dashboard and `make_report.py` are all scoped to the active series, so runs from different code versions never mix. **The pilot (all Gemini rows so far, including the smoke test) is series v1**: it is kept in the manifest for audit, shown only as a count on the dashboard, and is not reported as results. `results.csv` gains a `series` column.
+  5. **Manifest summary**: canonical task IDs now come from `eval/tasks.json` and `eval/tasks_v2.json`. Before, v2 tasks were miscounted as "non-canonical test runs".
+- **Methodological note**: these changes were made after seeing pilot results on 5 benchmark tasks. They fix generic failure modes (parsing, truncation, environment assumptions), not task content. The v2 series must be run from scratch, and v1 must not be pooled with it.
+- **Tests**: `tests/test_phase8_pilot_fixes.py` (10 tests). `tests/test_phase2ad_chatdev_and_mas_fixes.py::test_production_manifest_summary_is_reconciled` changed on purpose: it pinned exact historical counts (0-3) from the production manifest, which live runs now legitimately exceed, so it now checks consistency (pairs <= completed runs per system). 341 passed.
+
+---
+
+### Record: Loop Fixes P1-P4 from the End-to-End Audit; Benchmark Series v3
+
+- **ID**: DEC-045
+- **Date**: 2026-11-22
+- **Trigger**: The end-to-end audit (MAS_SYSTEM_GUIDE.md, section 7) traced run mas_srdd_work_01_r1_attempt2 and found that later iterations rewrite instead of refine.
+- **Decision** (no extra LLM calls; all generic):
+  1. **P1, current code to the Developer**: the workflow already computed the sliced context (changed files plus their AST impact set; every file under ablation A2) each iteration and then discarded it; `developer.py` assigned `uml_slice` and never used it. Now `state["context_files"]` carries the sliced files, and from iteration 2 the Developer prompt shows them in delimiter-block form (main.py first, capped at 24,000 characters, omitted files named). The Developer is asked to return only the files it changes; unreturned files stay as they are. Files named in the current test failures, review findings or crash output are added to the slice even if they were neither changed nor dependent. The Reviewer now reviews the whole current workspace (only when the patch was written there) instead of only the patch. **Effect on ablations:** A2 now changes what the model sees (all files vs the sliced set), so it measures something for the first time.
+  2. **P2, class diagram to the Developer**: the Architect's `uml_class_diagram` (capped at 2,000 characters, or the relevant slice when longer) is included in the Developer prompt, so the STRUCTURED design actually constrains the code.
+  3. **P3, ship the best iteration**: after each Reflection, if S_t is the best so far, the workspace is snapshotted (CheckpointManager) with its reports. When the loop ends by plateau or iteration limit and an earlier iteration scored strictly higher, that snapshot and its reports are restored (event `best_iteration_restored`). A run that ends clean always ships its final iteration. Run records gain `shipped_iteration`.
+  4. **P4, wrong self-written tests**: when Developer-written tests fail, the prompt adds a generic note: decide whether the program or the test is wrong, fix a wrong test expectation, and also address review findings about missing requirements.
+  5. `benchmark.series` is now `v3`. v2 results stay as they are and are not pooled with v3.
+- **Tests**: `tests/test_phase8_loop_fixes.py` (9 tests, including an end-to-end workflow in which iterations 2-3 regress and iteration 1 must ship). `tests/test_phase8_pilot_fixes.py::test_current_series_from_config` updated to v3 on purpose. 350 passed.
+
+---
+
+### Record: Retry Temporary Provider Errors Like ChatDev; Honest Batch Summary
+
+- **ID**: DEC-046
+- **Date**: 2026-11-22
+- **Trigger**: First v3 run. Gemini returned 503 "model is currently experiencing high demand" (and one 500 "Internal error") for long stretches. All 5 MAS runs and 1 single-agent run failed on their first unlucky call, while all 5 ChatDev runs completed. ChatDev's camel `ChatAgent.step` is wrapped in `@retry(wait=wait_exponential(min=5, max=60), stop=stop_after_attempt(5))`; our client had no retry at all. That asymmetry penalised MAS and the single agent for provider load, not for anything they did.
+- **Decision**:
+  1. `OpenRouterProvider.generate` (used by MAS and the single agent) now retries with the same policy as ChatDev: up to 5 attempts, exponential wait between 5 and 60 seconds. It retries only temporary infrastructure errors: HTTP 500/502/503/504, per-minute 429 (never the daily-quota 429), timeouts and connection errors. Request errors (400/401/403/404), model mismatches and every output-quality problem are never retried (AGENTS.md: retry infrastructure errors only). Every attempt still goes through the governor and counts against the daily request budget.
+  2. The end-of-batch summary no longer prints `0.0000` and `-100%` for a system with no scored run. It prints `n/a (0 of N runs scored; K infrastructure failures, rerun with --resume)` and computes deltas only when both systems have scored runs. It is labelled "this batch only"; the dashboard and report remain the source for all official runs.
+- **Records**: the failed v3 attempts are INFRA_ERROR and not official, as designed; `--resume` reruns exactly those 6 runs (5 MAS, 1 single). This change does not alter generated code or prompts, so the series stays v3.
+- **Tests**: `tests/test_phase8_retry_and_summary.py` (9 tests).
+
+---
+
+### Record: v3 Official Results (5 tasks, after P1-P4 and the retry fix)
+
+- **ID**: DEC-047
+- **Date**: 2026-11-22
+- **What ran**: `--systems mas,chatdev,single --tasks-file eval/tasks_v2.json --tasks 5 --repeats 1 --resume`, model `gemini-3.5-flash-lite`, series v3. The resume reran the 6 INFRA runs from DEC-046; Gemini still returned 503s, and the new retry absorbed every one (at most 4 retries on any call). 15 official v3 runs: 5 MAS, 5 ChatDev, 5 single.
+- **Results (from results.csv; nothing estimated)**:
+
+  | System | Quality (95% CI) | Executability | Tokens/task | Calls/task |
+  |---|---|---|---|---|
+  | MAS | 0.4968 [0.4383, 0.5741] | 5/5 | 16,635 | 4.8 |
+  | Single agent | 0.4551 | 4/5 | 4,305 | 1.0 |
+  | ChatDev | 0.2182 [0.0000, 0.4700] | 2/5 | 45,090 | 14.8 |
+
+  MAS vs ChatDev: Wilcoxon p = 0.125, Cohen's d = 1.05. With n = 5 the smallest possible two-sided Wilcoxon p is 0.0625, so this is **not significant**; more tasks are needed.
+- **v3 vs v2 for MAS (same 5 tasks)**: Quality 0.5017 -> 0.4968 (no measurable change; per-task differences are within run-to-run noise, e.g. the unchanged single agent moved 0.43 -> 0.65 on srdd_educ_02). Tokens per task 22,792 -> 16,635 (-27%), calls per task 7.2 -> 4.8 (-33%). 4 of 5 runs ended clean within 2 iterations, so P3 (best-iteration restore) did not fire; `shipped_iteration` equals the final iteration in every run.
+- **Reading**: MAS Completeness and Executability are 1.0 on every task, so its Quality equals Consistency (MiniLM similarity between requirement and code). The remaining headroom is in Consistency and in the evaluator's smoke protocol, not in crashes.
+
+---
+
+### Record: UTF-8 Subprocess Decoding, Per-Task Budget Stop, ChatDev Failure Audit
+
+- **ID**: DEC-048
+- **Date**: 2026-11-22
+- **Trigger**: 20-task v3 batch. (1) `UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d / 0x8f` in subprocess reader threads. (2) MAS started `srdd_crea_03` with almost no quota left and failed mid-run on the daily ceiling. (3) ChatDev scored Quality 0 on all 13 new tasks, which needed checking before trusting any result.
+- **Decision**:
+  1. **UTF-8 decoding.** Every `subprocess.run(..., text=True)` in `mas/analysis/sandbox.py`, `mas/analysis/quality_tools.py`, `mas/core/checkpoints.py` and `eval/runner.py` now passes `encoding="utf-8", errors="replace"`. The sandbox forces `PYTHONIOENCODING=utf-8` on the child, but the parent decoded with the Windows cp1252 codepage, so any emoji (UTF-8 bytes 0x81/0x8d/0x8f/0x90/0x9d) killed the reader thread and returned empty stdout/stderr. Scoring uses the exit code, but the smoke protocol's CLI fallback reads stderr for `usage:` and for a traceback, so a lost stream could flip a result either way (false fail or false pass). The frozen evaluator files (`eval/neutral_evaluator.py`, `eval/checks/*`) are unchanged. **Check:** executability of all 53 official v3 rows was recomputed with the fix: 0 changed. v3 results remain valid and poolable; the series stays v3.
+  2. **Per-task budget stop.** With `--stop-at-budget`, before each task the runner checks that today's remaining requests cover that task for every system still pending (`TASK_REQUEST_RESERVE`: MAS 16, ChatDev 18, single 3: observed maxima plus retry headroom). If not, it prints `[BUDGET STOP]` and stops cleanly, so no run is started that cannot finish.
+- **ChatDev audit (no code change; findings for the report)**: every official v3 ChatDev workspace was rerun by hand. The zeros are genuine behaviour of unmodified ChatDev with this model, not a harness fault:
+  - 7 runs: the model echoed ChatDev's literal answer template (`FILENAME` + fences), and ChatDev's own code extractor wrote a file name or a language tag as file content (e.g. `main.py` containing only `main.py`, `analyzer.py` starting with a line `python`).
+  - 4 runs: a later ChatDev phase replaced a whole file with a fragment, leaving a syntax error at the last line (the full line exists earlier in the log; the reply was short, not truncated by a token cap).
+  - 2 runs: an interactive menu calls `input()` without handling end-of-input and crashes under the no-input smoke protocol (`EOFError`), although the requirement text given to every system says the program must run without crashing.
+  - 1 run needs `pygame` (not installed), 1 imports a module it never wrote, 1 produced no `main.py`.
+  MAS avoids these by design: delimiter-block parsing, standard-library-only planning, and EOF-safe input rules. This is a validity note for the report: ChatDev's score with a small Lite model is dominated by output-format and robustness failures.
+- **Interim (not final; 3 MAS, 2 ChatDev, 2 single runs still to rerun)**: MAS vs ChatDev, paired n = 17: Wilcoxon p = 0.00003, MAS higher on 16 of 17. MAS vs single agent, paired n = 17: p = 0.58, MAS higher on 9 of 17: **no significant difference from the single-agent baseline.**
+- **Tests**: `tests/test_phase8_utf8_subprocess.py` (6 tests; the 4 sandbox tests fail without the fix, including a false-pass case). 365 passed.
+
+---
+
+### Record: Final v3 Results, 20 SRDD Tasks
+
+- **ID**: DEC-049
+- **Date**: 2026-11-23
+- **What ran**: the frozen 20-task set (`eval/tasks_v2.json`, 4 tasks in each of 5 SRDD categories), model `gemini-3.5-flash-lite`, series v3, 1 repeat. Completed over 2026-11-22 and 2026-11-23 with `--resume`; every infrastructure failure was rerun, none was scored. 60 official runs: 20 per system, no missing pairs. No code changed between the batches (DEC-048 changed no score; verified).
+- **Results (from results.csv; bootstrap 95% CI, 10,000 resamples)**:
+
+  | System | Quality (95% CI) | Completeness | Executability | Consistency | Tokens/task | Calls/task | Time/task |
+  |---|---|---|---|---|---|---|---|
+  | MAS | 0.4929 [0.4329, 0.5488] | 1.000 | 20/20 | 0.4929 | 14,689 | 4.4 | 38 s |
+  | Single agent | 0.3833 [0.2822, 0.4866] | 1.000 | 16/20 | 0.4937 | 3,815 | 1.0 | 13 s |
+  | ChatDev | 0.0546 [0.0000, 0.1406] | 0.950 | 2/20 | 0.5010 | 47,191 | 14.8 | 342 s |
+
+- **Paired tests (Wilcoxon signed-rank, n = 20)**:
+  - MAS vs ChatDev: MAS higher on 19 of 20, p = 0.000004, d_z = 2.18. **Significant.**
+  - MAS vs single agent: MAS higher on 12 of 20, p = 0.19, d_z = 0.40. **Not significant.**
+  - Single agent vs ChatDev: higher on 15, 4 ties, p = 0.0006. **Significant.**
+- **Reading**:
+  - Consistency is almost identical for all three systems (0.49-0.50), so the Quality differences come entirely from executability: whether the program runs under the smoke protocol. MAS ran 20/20, the single agent 16/20, ChatDev 2/20 (failure causes in DEC-048).
+  - MAS used 69% fewer tokens and 70% fewer calls than ChatDev, and 3.9x the tokens of the single agent.
+  - The published iCoder figures (GPT-4o Q = 0.7924; GPT-3.5 Q = 0.6902) use a different model and task split, so they are indicative only and are not compared as a local result.
+- **Limitations to state in the report**: one repeat per task; one small model; Consistency is a sentence-embedding similarity over the first 2,000 characters; the smoke protocol forces UTF-8 output (blind spot described in MAS_SYSTEM_GUIDE.md, audit section: a program that crashes on a cp1252 console can still pass); ChatDev was run unmodified apart from the pinned patch.
+
+## DEC-050 (2026-11-23) - Frontend crash on failed runs; launch config
+
+- **Problem**: the web UI (frontend/, port 3000) went blank about a second after loading. Failed runs in `mas.db` have `quality: null`, and the dashboard's recent-runs table checked only `!== undefined` before calling `.toFixed()`. The resulting TypeError unmounted the whole React tree, because the app has no error boundary.
+- **Fix (frontend change, approved by the maintainer)**: 11 lines in DashboardOverview, MetricsTable, ComparisonsAndStats, ArtifactsInspector and ChangeRequestModal now use `!= null`, so null and undefined values show "-" or "No data" instead of crashing. Display only: no backend, evaluator or results change.
+- **Verified in the browser**: all 9 sidebar pages render with no errors; the Run Visualizer for `mas_srdd_work_02_r1` shows telemetry, the event log, generated code and artifacts.
+- **Added** `.claude/launch.json` with `mas-api` (uvicorn on 8000) and `mas-frontend` (Vite on 3000).
+- **Known, not changed**:
+  - The UI analytics aggregate every eligible live run in `mas.db` (v2, retries and v3), so its numbers differ from the official v3 table in DEC-049. Report figures come from `reports/`.
+  - The Single Task Run model list still offers OpenRouter models, not the pinned Gemini model.
+  - The Run Visualizer banner hard-codes "GPT-4O".
+
+## DEC-051 (2026-11-23) - Simpler, professional web UI (maintainer request)
+
+The maintainer found the web UI hard to understand and asked for plainer names, proper routes and a professional (not neon) theme. Frontend changes only, plus one read-only backend endpoint. No evaluator, benchmark or results change.
+
+- **Theme**: light, neutral background with white cards and one blue accent. Done centrally: `tailwind.config.js` remaps the colour scales (dark shades become light surfaces, light shades become dark text) and `index.css` drops the glows, gradients, pulsing badges and the terminal-style monospace labels (code keeps a code font).
+- **Navigation and routes**: every page has its own URL, and Back/Forward work (`App.jsx`, no new dependency).
+  - `/` Overview
+  - Create: `/generate` Generate a Project, `/benchmark` Run a Benchmark
+  - Results: `/runs` All Runs, `/runs/<id>` Run Details, `/charts` Scores & Charts, `/compare` Compare Systems
+  - Reference: `/paper` Paper Results
+  - System: `/status` System Status
+- **Plain terms** (the metrics themselves are unchanged): Completeness → "Complete", Executability → "Runs (without error)", Consistency → "Matches the requirement"; "Telemetry & Metrics" → "Scores & Steps"; "Agent Artifacts" → "Agent Outputs"; "Change Request" → "Change requirement"; raw statuses → Finished / Failed / Diagnostic.
+- **Removed or corrected misleading content**:
+  - The model pickers listed OpenRouter and GPT-4o models. They now offer "Offline test mode" (the default, no API calls) or the pinned model read from `BENCH_MODEL`.
+  - A hard-coded "~12x Cheaper" and a "GPT-4o-mini cheaper arm" card that actually showed MAS's overall mean (rule 1).
+  - Hard-coded "Python 3.11", OpenRouter endpoint, GPT-4o token caps and "Isolated container execution" on Settings.
+  - The "(GPT-4o)" run banner.
+  - Always-zero cost, Ruff, Bandit and Radon columns.
+  - The `/analytics/summary` paired p-value / Cohen's d (it returns p = 1.0 and d = 0.0 for a 0.37 quality gap). The UI no longer shows it and points to `eval/stats_report.md` (DEC-049) for significance tests. The endpoint itself is not changed here.
+- **Other fixes**: "Execution Repeats" on single runs (ignored by the backend) was removed. System Status called `/health`, which the dev proxy does not forward; it now calls `/api/health`. The UI fetches up to 200 runs (was 100), so the charts cover all 165.
+- **New endpoint** `GET /config`: pinned model, provider host, whether a key is set (never the key), seed, temperature, database type, and today's quota use from the local ledger. No network calls. Tests: `tests/test_api_config.py` (2 tests, including that the key value never appears in the response).
+- **Honesty notes in the UI**: Overview, Scores & Charts and Compare say their numbers pool every live run in `mas.db` (all series and retries); official results are in `reports/`.
+- **Verified**: 367 tests pass; `vite build` succeeds; every page was checked in the browser, including the run detail tabs and Back/Forward.
+- **Known, not changed**: the frontend Docker image (plain nginx) has no `/api` proxy and no fallback for page URLs, so use `npm run dev` (this was already the case before). `TokenCostChart.jsx` is no longer used.
+
+## DEC-052 (2026-11-23) - mas.db reduced to the 60 official v3 runs (maintainer request)
+
+- **Request**: the maintainer asked to remove the runs that failed (token/daily-limit stops, infrastructure errors, older code versions) and keep only the proper compared tests.
+- **Backup first**: `mas.db` is not in git, so a full copy was saved as `archive/mas_full_backup_2026-11-23.db` (165 runs, integrity check ok). It is git-ignored (`archive/*.db`), so it stays local.
+- **Kept**: the 60 runs marked `official=true, series=v3` in `results.csv` (20 MAS, 20 ChatDev, 20 single agent).
+- **Removed from mas.db**: the other 105 runs and their linked rows. These were:
+  - 11 superseded v3 attempts;
+  - 16 v2 runs and 19 unlabelled early Gemini runs;
+  - 51 OpenRouter free-model runs;
+  - 5 GPT-4o diagnostics;
+  - 3 offline (fake) runs.
+  Also 34 orphaned debug rows (`t`, `test_proxy_run`, `eval_offline_check`, …). Totals: runs 165 → 60, agent_events 1594 → 426, model_calls 1070 → 405, metrics 1376 → 564, artifacts 364 → 106, evaluations 46 → 4.
+- **Not changed**: `results.csv`, the benchmark manifest and the ledger (the official-row selection depends on the full attempt history), `eval/workspaces/`, the evaluator.
+- **Effect on reports**: the regenerated `reports/dashboard_data.json` has identical official numbers; only the "exploratory" tier (older live calls) is now empty.
+- **UI**: the Scores & Charts and Compare Systems pages now count every scored official run. The unfinished ChatDev run `cd_srdd_life_03_r1` scores 0, as in the report. Compare Systems is computed from the runs (three systems plus task-by-task wins) instead of `/analytics/summary`, which drops that run. The UI now matches DEC-049: Quality 0.493 / 0.055 / 0.383, MAS higher on 19/20 tasks vs ChatDev and 12/20 vs the single agent. ChatDev run times are not stored in mas.db, so the UI shows "-".
+- **Verified**: 367 tests pass; `vite build` passes; pages checked in the browser.
+- **Follow-up (2026-11-24, maintainer approved)**: deleted the 48 generated-code folders in `eval/workspaces/` that belonged to the removed runs (7.7 MB; the folder is git-ignored, so there is no copy). Exactly the 60 official v3 folders remain. The test suite still writes a few scratch folders there (`sim_*`, `chatdev_test_*`); they were cleared after the test run. This is a known hermeticity gap, not fixed here.
+
+## DEC-053 (2026-11-24) - Run a generated project from the web UI (maintainer request)
+
+- **Request**: the maintainer wanted to run or preview the generated programs from the UI, the way the scoring runs them.
+- **New "Run Program" tab in Run Details** (`frontend/src/components/ProgramRunner.jsx`):
+  - **Quick test**: `POST /runs/{id}/quick-test` runs the evaluator's own headless smoke protocol (`SandboxRunner.smoke_run`, same entry-point order as `icoder_metrics` v1.3, 45 s limit) and shows the pass/fail result, exit code, output and errors.
+  - **Open on this computer**: `POST /runs/{id}/open` starts the program in a new console window (`cmd /k` with `CREATE_NEW_CONSOLE` on Windows) with optional command-line arguments, so interactive and tkinter programs can be used for real. Only accepted from 127.0.0.1 / ::1.
+- **Safety**:
+  - Both endpoints run a temporary copy, so programs that write files never change the official `eval/workspaces/` folders.
+  - The environment passed to the program contains no variable whose name includes KEY, TOKEN, SECRET or PASSWORD.
+  - Run folders are only looked up inside `eval/workspaces/`, `workspace/` and `workspaces/`.
+  - Nothing is re-scored, and the frozen evaluator is not changed.
+- **Checked on real runs**: `mas_srdd_work_02_r1` and `single_srdd_crea_01_r1` pass, and `cd_srdd_crea_01_r1` fails with `NameError: name 'main' is not defined`, matching their official executability (1, 1, 0). A real console window was opened from a throwaway test program; it ran in the copy with its arguments.
+- **Tests**: `tests/test_program_runner.py` (8 tests: entry-point order, output capture, crash reporting, original folder untouched, no secrets in the environment, launcher arguments and copy folder, local-only open, unknown or escaping run IDs refused). 375 tests pass.

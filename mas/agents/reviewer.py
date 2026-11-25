@@ -38,9 +38,15 @@ class ReviewerAgent(BaseAgent):
         file_contents = patch.get("file_contents", {})
         workspace_path = state.get("workspace_path", "")
 
-        # Collect code to review
-        code_snippets = dict(file_contents)
-        if not code_snippets and workspace_path and os.path.exists(workspace_path):
+        # Collect code to review. DEC-045: the Developer may now return only changed files,
+        # so review the whole current workspace and fall back to the patch when there is none.
+        code_snippets: dict = {}
+        # Only trust the workspace if this patch was written there (every patched file exists),
+        # so a shared parent folder is never reviewed as if it were the project.
+        patch_applied_here = bool(workspace_path) and os.path.isdir(workspace_path) and all(
+            os.path.exists(os.path.join(workspace_path, f)) for f in file_contents
+        )
+        if patch_applied_here and (file_contents or os.path.basename(os.path.normpath(workspace_path)) == run_id):
             for root, _, files in os.walk(workspace_path):
                 if any(x in root for x in [".git", "__pycache__", ".mas_snapshots"]):
                     continue
@@ -53,6 +59,8 @@ class ReviewerAgent(BaseAgent):
                                 code_snippets[rel_p] = fh.read()
                         except Exception:
                             pass
+        if not code_snippets:
+            code_snippets = dict(file_contents)
 
         code_text_repr = "\n\n".join(
             f"=== File: {fname} ===\n{code}" for fname, code in code_snippets.items()
@@ -81,6 +89,14 @@ class ReviewerAgent(BaseAgent):
                 f"- Internal Test Pass Rate: {test_report.get('pass_rate', 0.0)}\n"
                 f"- Test Failures / Output: {test_report.get('details', [])}\n\n"
             )
+            conf = state.get("conformance_report") or {}
+            if conf.get("applicable"):
+                evidence_section += (
+                    f"Design Conformance (Architect plan vs built code, AST):\n"
+                    f"- Score: {conf.get('conformance_score')}\n"
+                    + "".join(f"- {f}\n" for f in conf.get("findings", [])[:5])
+                    + "\n"
+                )
 
         attempt_count = 0
 

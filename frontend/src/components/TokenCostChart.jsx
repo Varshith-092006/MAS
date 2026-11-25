@@ -7,7 +7,7 @@ export default function TokenCostChart({ tokens, cost, quality }) {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-5">
-      <h2 className="text-base font-semibold text-white mb-3">Token & Cost Budget (60,000 Cap)</h2>
+      <h2 className="text-base font-semibold text-slate-50 mb-3">Token & Cost Budget (60,000 Cap)</h2>
 
       <div className="space-y-4">
         <div>

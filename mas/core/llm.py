@@ -405,6 +405,16 @@ class DailyTransmissionsCeilingExceededError(Exception):
     pass
 
 
+BENCHMARK_SEED = 42
+
+
+def provider_supports_seed(base_url: Optional[str]) -> bool:
+    """Gemini's OpenAI-compatible endpoint rejects the 'seed' field with HTTP 400
+    ("Unknown name \\"seed\\""), so it is omitted there (DEC-043). Applied identically to
+    MAS, the single-agent baseline (direct client) and ChatDev (logging proxy)."""
+    return "generativelanguage.googleapis.com" not in (base_url or "").lower()
+
+
 class TokenLogger:
     """Tracks provider token usage per run and enforces the configured cap with DB persistence."""
 
@@ -823,6 +833,24 @@ class FakeLLMProvider(LLMProvider):
             }
             text = json.dumps(parsed)
 
+        elif agent_name == "single_agent":
+            # Simulation-only single-agent baseline output (delimiter blocks, one file).
+            text = (
+                "=== FILE: main.py ===\n"
+                "import argparse\n\n"
+                "def process(items):\n"
+                "    \"\"\"Returns the number of items.\"\"\"\n"
+                "    return len(items)\n\n"
+                "def main():\n"
+                "    parser = argparse.ArgumentParser(description='Simulated baseline program')\n"
+                "    parser.parse_args()\n"
+                "    print(process([1, 2, 3]))\n\n"
+                "if __name__ == '__main__':\n"
+                "    main()\n"
+                "=== END FILE ===\n"
+            )
+            parsed = {}
+
         else:
             text = "Deterministic response"
             parsed = {"status": "ok"}
@@ -927,7 +955,58 @@ class OpenRouterProvider(LLMProvider):
         except Exception as e:
             return {"error": str(e)}
 
+    # DEC-046: same retry policy as ChatDev's camel ChatAgent.step
+    # (@retry(wait=wait_exponential(min=5, max=60), stop=stop_after_attempt(5))), so a busy
+    # provider does not fail one system while the other waits it out. Only temporary
+    # infrastructure errors are retried, never bad requests and never output quality.
+    RETRY_MAX_ATTEMPTS = 5
+    RETRY_MIN_WAIT_S = 5.0
+    RETRY_MAX_WAIT_S = 60.0
+    RETRYABLE_STATUS = frozenset({500, 502, 503, 504})
+
+    @staticmethod
+    def is_transient_error(exc: Exception) -> bool:
+        if isinstance(exc, OpenRouterAPIError):
+            if exc.status_code in OpenRouterProvider.RETRYABLE_STATUS:
+                return True
+            return exc.status_code == 429 and not exc.is_daily_quota_exhausted
+        name = type(exc).__name__.lower()
+        return any(t in name for t in ("timeout", "connecterror", "remoteprotocolerror", "readerror"))
+
+    def _sleep(self, seconds: float) -> None:  # separate so tests can skip the wait
+        time.sleep(seconds)
+
     def generate(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        response_schema: Optional[type[BaseModel]] = None,
+        temperature: float = 0.0,
+        run_id: Optional[str] = None,
+        agent_name: str = "agent",
+        max_tokens: int = 2000,
+    ) -> ModelResult:
+        attempt = 1
+        while True:
+            try:
+                return self._generate_once(
+                    messages, model=model, response_schema=response_schema, temperature=temperature,
+                    run_id=run_id, agent_name=agent_name, max_tokens=max_tokens,
+                )
+            except Exception as exc:
+                if attempt >= self.RETRY_MAX_ATTEMPTS or not self.is_transient_error(exc):
+                    raise
+                # Exponential backoff like tenacity's wait_exponential(min=5, max=60)
+                wait = min(self.RETRY_MAX_WAIT_S, max(self.RETRY_MIN_WAIT_S, 2.0 ** attempt))
+                status = getattr(exc, "status_code", type(exc).__name__)
+                logger.warning(
+                    "Transient provider error (%s) for agent '%s'; retry %d/%d in %.0fs",
+                    status, agent_name, attempt, self.RETRY_MAX_ATTEMPTS - 1, wait,
+                )
+                self._sleep(wait)
+                attempt += 1
+
+    def _generate_once(
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
@@ -981,7 +1060,7 @@ class OpenRouterProvider(LLMProvider):
                     stats = global_governor.get_ledger_stats()
                     if stats["total_attributable_attempts"] >= max_daily_calls:
                         raise DailyTransmissionsCeilingExceededError(
-                            f"Daily outbound HTTP transmissions ceiling reached ({stats['total_attributable_attempts']} >= {max_daily_calls} for UTC day). Checkpointing run safely."
+                            f"Daily outbound HTTP transmissions ceiling reached ({stats['total_attributable_attempts']} >= {max_daily_calls} for the quota day, America/Los_Angeles). Checkpointing run safely."
                         )
             except DailyTransmissionsCeilingExceededError:
                 raise
@@ -1028,9 +1107,10 @@ class OpenRouterProvider(LLMProvider):
             "model": target_model,
             "messages": processed_messages,
             "temperature": temperature,
-            "seed": 42,
             "max_tokens": effective_max_tokens,
         }
+        if provider_supports_seed(self.base_url):
+            payload["seed"] = BENCHMARK_SEED
         if "openrouter.ai" in self.base_url.lower():
             payload["provider"] = {
                 "allow_fallbacks": False,

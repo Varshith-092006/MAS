@@ -336,7 +336,7 @@ class ProviderQuotaGovernor:
             if current_total >= self.internal_daily_cap:
                 raise DailyTransmissionsCeilingExceededError(
                     f"Outbound HTTP transmission rejected before dispatch: daily ceiling reached "
-                    f"({current_total} >= {self.internal_daily_cap} for UTC day {today_str})."
+                    f"({current_total} >= {self.internal_daily_cap} for quota day (America/Los_Angeles) {today_str})."
                 )
 
             # Consume exactly 1 transmission allowance atomically

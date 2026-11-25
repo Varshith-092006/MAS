@@ -7,7 +7,7 @@ import subprocess
 import sys
 from datetime import datetime
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     from dotenv import load_dotenv
@@ -24,6 +24,7 @@ from eval.reports import export_results_csv, generate_stats_markdown_report
 from eval.scorers.icoder_metrics import is_embedding_available
 from eval.srdd_loader import load_srdd_benchmark_tasks, save_and_persist_tasks
 from eval.task_text import CLI_CONTRACT_SUFFIX, get_augmented_requirement
+from eval.telemetry import get_agent_breakdown
 from mas.core.llm import FakeLLMProvider, OpenRouterProvider, token_logger
 from mas.core.workflow import MASWorkflow, generate_artifacts_manifest
 from mas.db.models import Evaluation, Run
@@ -81,6 +82,27 @@ def resolve_attempt_run_id(
         return canonical_id
 
 
+def current_series() -> str:
+    """The active benchmark series from config.yaml (benchmark.series); 'v1' if unset (DEC-044)."""
+    try:
+        from mas.core.config import get_config
+        return str((get_config().get("benchmark") or {}).get("series") or "v1")
+    except Exception:
+        return "v1"
+
+
+# DEC-048: requests one task may need per system, from the observed maxima (MAS 11 calls, ChatDev 15,
+# single 1) plus headroom for transient-error retries, which also count against the daily budget.
+TASK_REQUEST_RESERVE = {"mas": 16, "chatdev": 18, "single": 3}
+
+
+def budget_allows_task(governor: Any, pending_systems: List[str]) -> Tuple[bool, int, int]:
+    """(ok, remaining, needed): whether today's remaining requests cover one task for the pending systems."""
+    need = sum(TASK_REQUEST_RESERVE.get(s, 16) for s in pending_systems)
+    remaining = int(governor.get_ledger_stats().get("remaining_internal_attempts", 0))
+    return (need == 0 or remaining >= need), remaining, need
+
+
 def update_benchmark_manifest(
     records: List[Dict[str, Any]],
     manifest_path: Optional[str] = None,
@@ -119,6 +141,9 @@ def update_benchmark_manifest(
         err = r.get("error") or r.get("failure_reason")
         if st in ("COMPLETED", "COMPLETED_QUALITY_GATE", "SIMULATION_ONLY"):
             r["failure_classification"] = "SUCCESS"
+        elif r.get("is_live_benchmark") and not (r.get("tokens") or 0) and not (r.get("llm_calls") or 0):
+            # The model produced nothing at all, so there is no output to judge (DEC-043).
+            r["failure_classification"] = "INFRA_ERROR"
         else:
             r["failure_classification"] = classify_failure(status=st, error_msg=err)
 
@@ -129,11 +154,15 @@ def update_benchmark_manifest(
             r["official"] = False
             r["retry_reason"] = "SIMULATION_ONLY"
             continue
+        # Scoped by model (DEC-043): runs on an older model must never hold the official
+        # slot for the pinned benchmark model.
         key = (
             r.get("task_id"),
             r.get("system"),
             r.get("repeat_no", 1),
             r.get("ablation", "A0"),
+            str(r.get("model") or "").lower(),
+            str(r.get("series") or "v1"),
         )
         groups[key].append(r)
 
@@ -145,7 +174,7 @@ def update_benchmark_manifest(
             if not official_assigned:
                 if cls == "INFRA_ERROR":
                     r["official"] = False
-                    if not r.get("retry_reason"):
+                    if not r.get("retry_reason") or r.get("retry_reason") == "Subsequent attempt after official result":
                         r["retry_reason"] = f"INFRA_ERROR: {r.get('error') or r.get('status')}"
                 else:
                     r["official"] = True
@@ -226,14 +255,17 @@ def update_benchmark_manifest(
         canonical_task_ids = set()
         is_production_manifest = (os.path.abspath(target_path) == os.path.abspath(MANIFEST_FILE))
         if is_production_manifest:
-            tasks_file = os.path.abspath("eval/tasks.json")
-            if os.path.exists(tasks_file):
-                try:
-                    with open(tasks_file, "r", encoding="utf-8") as tf:
-                        tasks_data = json.load(tf)
-                        canonical_task_ids = {t["task_id"] for t in tasks_data if "task_id" in t}
-                except Exception:
-                    pass
+            # DEC-044: the benchmark runs on eval/tasks_v2.json; reading only the old tasks.json
+            # mislabelled v2 tasks as "non-canonical test runs" in the summary.
+            for rel in ("eval/tasks.json", "eval/tasks_v2.json"):
+                tasks_file = os.path.abspath(rel)
+                if os.path.exists(tasks_file):
+                    try:
+                        with open(tasks_file, "r", encoding="utf-8") as tf:
+                            tasks_data = json.load(tf)
+                            canonical_task_ids |= {t["task_id"] for t in tasks_data if "task_id" in t}
+                    except Exception:
+                        pass
 
     paired_count = sum(
         1
@@ -332,7 +364,13 @@ def classify_failure(
         "429", "rate limit", "daily ceiling", "daily transmissions", "model mismatch",
         "500", "502", "503", "504", "timeout", "connecterror", "connection refused",
         "stopped_provider_quota", "stopped_daily_ceiling", "modelmismatcherror",
-        "dailytransmissionsceilingexceedederror", "quota"
+        "dailytransmissionsceilingexceedederror", "quota",
+        # Provider rejected the request itself (bad payload, auth, unknown model): a setup
+        # error on our side, never a judgement of generated code (DEC-043).
+        "(400)", "error 400", "error_400", "invalid_argument", "invalid json payload",
+        "(401)", "error 401", "error_401", "unauthenticated",
+        "(403)", "error 403", "error_403", "permission_denied",
+        "(404)", "error 404", "error_404",
     ]
     if any(m in text for m in infra_markers):
         return "INFRA_ERROR"
@@ -487,6 +525,8 @@ class EvaluationRunner:
                     cwd=chatdev_dir,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 if res.returncode == 0:
                     chatdev_actual = res.stdout.strip()
@@ -776,6 +816,88 @@ class EvaluationRunner:
 
 
 
+    def _run_single_agent(
+        self,
+        llm,
+        req: str,
+        t_id: str,
+        t_name: str,
+        model: str,
+        r_num: int,
+        ablation: str,
+        run_id: str,
+        eval_id: str,
+        use_fake: bool,
+        token_cap: int,
+    ) -> Dict[str, Any]:
+        """Runs the single-call baseline and scores it with the same frozen evaluator."""
+        from mas.baselines.single_agent import SingleAgentBaseline
+
+        exec_mode = "SIMULATED" if use_fake else "LIVE_API"
+        prov_mode = "SIMULATED" if use_fake else "PROVIDER_REPORTED"
+        t_start = datetime.utcnow()
+        out = SingleAgentBaseline(llm).run(requirement=req, run_id=run_id, model=model)
+        t_end = datetime.utcnow()
+        totals = token_logger.get_run_totals(run_id)
+        tot_tok = totals.get("total_tokens", 0)
+
+        status = "SIMULATION_ONLY" if use_fake else out["status"]
+        if out["status"] == "FAILED":
+            status = "FAILED"
+        elif not use_fake and tot_tok > token_cap:
+            status = "STOPPED_BUDGET_CEILING"
+        ok = status in ("COMPLETED", "SIMULATION_ONLY")
+
+        metrics: Dict[str, Any] = {}
+        if ok:
+            metrics = self.evaluator.evaluate_project(
+                workspace_path=out["workspace_path"], requirement=req, task_id=t_id, run_id=run_id,
+            )
+        q = metrics.get("quality") if ok else None
+        with get_session() as session:
+            row = session.query(Run).filter(Run.run_id == run_id).first()
+            if row:
+                row.evaluation_id = eval_id
+                row.task_id = t_id
+                row.status = status
+                session.commit()
+
+        rec = {
+            "run_id": run_id,
+            "task_id": t_id,
+            "task_name": t_name,
+            "system": "single",
+            "model": model,
+            "repeat_no": r_num,
+            "ablation": ablation,
+            "quality": q,
+            "quality_per_1k_tokens": round(q / (tot_tok / 1000), 4) if (q is not None and tot_tok) else None,
+            "completeness": metrics.get("completeness"),
+            "executability": metrics.get("executability"),
+            "consistency": metrics.get("consistency"),
+            "consistency_method": metrics.get("consistency_method", "unavailable"),
+            "shared_test": metrics.get("shared_test"),
+            "ruff": metrics.get("ruff_violations"),
+            "bandit": metrics.get("bandit_high"),
+            "radon": metrics.get("radon_mi"),
+            "tokens": tot_tok,
+            "cost": 0.0 if use_fake else totals.get("estimated_cost", 0.0),
+            "llm_calls": totals.get("llm_calls", 0),
+            "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
+            "loc": count_code_loc(out["workspace_path"]) if ok else 0,
+            "agent_breakdown": get_agent_breakdown(run_id),
+            "status": status,
+            "execution_mode": exec_mode if ok else status,
+            "token_provenance": prov_mode,
+            "is_live_benchmark": not use_fake,
+            "timestamp_utc": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        if out.get("error"):
+            rec["error"] = out["error"]
+        q_disp = f"{q:.4f}" if q is not None else "None"
+        print(f"   [{status}] SINGLE:  Quality={q_disp} | Tokens={tot_tok} | Calls={rec['llm_calls']}")
+        return rec
+
     def run_benchmark(
         self,
         task_count: int = 20,
@@ -795,6 +917,13 @@ class EvaluationRunner:
     ) -> Dict[str, Any]:
         """Executes full benchmark evaluation across sampled SRDD tasks under identical conditions."""
         systems = systems or ["mas", "chatdev"]
+        # Phase 8 fix: token_cap was referenced below (live path only) but never defined here,
+        # so every normally finished live MAS/ChatDev run raised NameError and was saved FAILED.
+        try:
+            from mas.core.config import get_config
+            token_cap = get_config().get("limits", {}).get("max_tokens_per_run", 100000)
+        except Exception:
+            token_cap = 100000
         all_tasks = self.load_tasks(tasks_file=tasks_file)
         if task_id:
             tasks = [t for t in all_tasks if t.get("task_id") == task_id]
@@ -825,22 +954,27 @@ class EvaluationRunner:
             remaining = stats.get("remaining_internal_attempts", 0)
             if remaining < min_required_attempts:
                 print(f"\n[GOVERNOR HALT] Insufficient remaining daily transmissions for benchmark batch:")
-                print(f"  Current UTC date: {stats.get('utc_date')}")
+                print(f"  Current quota day (America/Los_Angeles): {stats.get('utc_date')}")
                 print(f"  Used attempts today: {stats.get('total_attributable_attempts')} / {stats.get('internal_daily_cap')}")
                 print(f"  Remaining attempts: {remaining} (Minimum required with safety margin: {min_required_attempts})")
                 print(f"  Execution safely stopped before ceiling breach.")
-                print(f"  Scheduled next execution after UTC reset: 00:00:00 UTC")
+                print(f"  Quota resets at midnight America/Los_Angeles (08:00 UTC; 07:00 UTC in summer). Rerun with --resume then.")
                 return {"status": "STOPPED_DAILY_CEILING", "stats": stats}
 
             if "chatdev" in systems:
                 start_proxy_daemon_if_needed(port=8089)
+
+        series = current_series()
+        print(f"Benchmark series: {series}")
 
         # Resume index - skips tasks that already have an official row
         completed_keys: Set[Tuple[str, str, int, str]] = set()
         if resume:
             manifest = load_benchmark_manifest()
             for r in manifest.get("runs", []):
-                if r.get("official") is True or str(r.get("official")).lower() == "true":
+                same_model = str(r.get("model") or "").lower() == str(model or "").lower()
+                same_model = same_model and str(r.get("series") or "v1") == series
+                if same_model and (r.get("official") is True or str(r.get("official")).lower() == "true"):
                     completed_keys.add((
                         r.get("task_id"),
                         r.get("system"),
@@ -848,7 +982,7 @@ class EvaluationRunner:
                         r.get("ablation", "A0"),
                     ))
 
-        eval_id = f"eval_{int(time.time())}_{benchmark_name}"
+        eval_id = f"eval_{int(time.time())}_{benchmark_name}_{os.urandom(3).hex()}"  # unique even within one second
         init_db()
 
         # Persist Evaluation record
@@ -864,11 +998,15 @@ class EvaluationRunner:
 
         mas_records = []
         cd_records = []
+        sa_records = []
         all_records = []
 
         llm = FakeLLMProvider() if use_fake else OpenRouterProvider(default_model=model)
 
+        budget_stopped = False
         for t_idx, task in enumerate(tasks):
+            if budget_stopped:
+                break
             t_id = task.get("task_id", f"task_{t_idx+1:02d}")
             t_name = task.get("name", t_id)
             base_req = task.get("description", "")
@@ -884,6 +1022,19 @@ class EvaluationRunner:
                 run_status = "SIMULATION_ONLY" if use_fake else "COMPLETED"
                 exec_mode = "SIMULATED" if use_fake else "LIVE_API"
                 prov_mode = "SIMULATED" if use_fake else "PROVIDER_REPORTED"
+
+                # DEC-048: with --stop-at-budget, never start a task that today's quota cannot finish.
+                if stop_at_budget and not use_fake:
+                    pending = [s for s in systems if not (resume and (t_id, s, r_num, ablation) in completed_keys)]
+                    ok, rem, need = budget_allows_task(governor, pending)
+                    if not ok:
+                        print(
+                            f"   [BUDGET STOP] {rem} requests left today; this task may need up to {need} "
+                            f"({', '.join(pending)}). Stopping cleanly. Rerun the same command with --resume "
+                            f"after the daily quota resets (midnight America/Los_Angeles)."
+                        )
+                        budget_stopped = True
+                        break
 
                 # 1. Run MAS
                 if "mas" in systems:
@@ -988,6 +1139,10 @@ class EvaluationRunner:
                                 "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                 "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
                                 "loc": count_code_loc(state.get("workspace_path", "")),
+                                "agent_breakdown": get_agent_breakdown(mas_run_id),
+                                "iterations": state.get("iteration", 1),
+                                "shipped_iteration": state.get("shipped_iteration", state.get("iteration", 1)),
+                                "complexity": state.get("complexity"),
                                 "status": actual_mas_status,
                                 "execution_mode": actual_mas_exec_mode,
                                 "token_provenance": prov_mode,
@@ -1215,6 +1370,7 @@ class EvaluationRunner:
                                     "llm_calls": totals.get("llm_calls", totals.get("call_count", 0)),
                                     "wall_clock_seconds": round((t_end - t_start).total_seconds(), 2),
                                     "loc": count_code_loc(cd_out.get("workspace_dir", "")) if is_cd_success else 0,
+                                    "agent_breakdown": get_agent_breakdown(cd_run_id),
                                     "status": actual_cd_status,
                                     "execution_mode": actual_cd_exec_mode,
                                     "token_provenance": prov_mode,
@@ -1289,6 +1445,31 @@ class EvaluationRunner:
                                 cd_records.append(fail_rec)
                                 all_records.append(fail_rec)
 
+                # 3. Run single-agent baseline (1 LLM call per task)
+                if "single" in systems:
+                    sa_key = (t_id, "single", r_num, ablation)
+                    if resume and sa_key in completed_keys:
+                        print(f"   [SKIPPED] SINGLE: Task {t_id} repeat {r_num} already has official row on resume.")
+                    else:
+                        sa_run_id = resolve_attempt_run_id(prefix, "single", t_id, r_num, start_attempt=attempt)
+                        rec = self._run_single_agent(
+                            llm=llm, req=req, t_id=t_id, t_name=t_name, model=model, r_num=r_num,
+                            ablation=ablation, run_id=sa_run_id, eval_id=eval_id, use_fake=use_fake,
+                            token_cap=token_cap,
+                        )
+                        sa_records.append(rec)
+                        all_records.append(rec)
+
+        # Tag provider on every record so reports can separate official (gemini) runs
+        try:
+            from eval.provider_config import resolve_provider_settings
+            _ptype = "fake" if use_fake else resolve_provider_settings().provider_type
+        except Exception:
+            _ptype = "fake" if use_fake else "unknown"
+        for _rec in all_records:
+            _rec.setdefault("provider", _ptype)
+            _rec.setdefault("series", series)
+
         # Export CSV & Stats report & Update persistent manifest
         manifest = update_benchmark_manifest(all_records)
         export_results_csv(manifest.get("runs", []), self.results_path)
@@ -1305,21 +1486,41 @@ class EvaluationRunner:
         mas_avg_tok = sum(r["tokens"] for r in mas_records) / len(mas_records) if mas_records else 0.0
         cd_avg_tok = sum(r["tokens"] for r in cd_records) / len(cd_records) if cd_records else 0.0
 
+        sa_valid_q = [r["quality"] for r in sa_records if r.get("quality") is not None]
+        sa_avg_q = sum(sa_valid_q) / len(sa_valid_q) if sa_valid_q else 0.0
+        sa_avg_tok = sum(r["tokens"] for r in sa_records) / len(sa_records) if sa_records else 0.0
+
+        def _line(label, records, valid_q, avg_q, avg_tok):
+            # DEC-046: never print 0.0000 (or a -100% delta) for a system with no scored run.
+            if not records:
+                return
+            n_infra = sum(1 for r in records if r.get("quality") is None)
+            if not valid_q:
+                print(f"{label}n/a (0 of {len(records)} runs scored; {n_infra} infrastructure failures, rerun with --resume)")
+            else:
+                note = f", {n_infra} infra failures to rerun" if n_infra else ""
+                print(f"{label}{avg_q:.4f}  over {len(valid_q)} runs (Tokens/run: {avg_tok:,.1f}{note})")
+
         print("\n" + "=" * 70)
-        print("EMPIRICAL BENCHMARK BATCH COMPLETE — SUMMARY")
+        print("EMPIRICAL BENCHMARK BATCH COMPLETE — SUMMARY (this batch only; dashboard has all official runs)")
         print("=" * 70)
-        print(f"MAS Quality:         {mas_avg_q:.4f}  (Tokens/task: {mas_avg_tok:,.1f})")
-        print(f"ChatDev Quality:     {cd_avg_q:.4f}  (Tokens/task: {cd_avg_tok:,.1f})")
-        print(f"iCoder (Published):  0.7924  (Tokens/task: 104,883.2)")
+        _line("MAS Quality:         ", mas_records, mas_valid_q, mas_avg_q, mas_avg_tok)
+        _line("ChatDev Quality:     ", cd_records, cd_valid_q, cd_avg_q, cd_avg_tok)
+        _line("Single-agent Quality:", sa_records, sa_valid_q, sa_avg_q, sa_avg_tok)
         print(f"Manifest Updated:    {MANIFEST_FILE} (Completed Paired Repeats: {manifest['summary']['completed_paired_repeats']})")
         print("-" * 70)
-        if cd_avg_q > 0:
+        if cd_valid_q and mas_valid_q and cd_avg_q > 0:
             gain_vs_cd = ((mas_avg_q - cd_avg_q) / cd_avg_q) * 100
-            print(f"MAS Quality Difference vs ChatDev: {gain_vs_cd:+.1f}%")
-        gain_vs_icoder = ((mas_avg_q - 0.7924) / 0.7924) * 100
-        print(f"MAS Quality Difference vs iCoder:  {gain_vs_icoder:+.1f}%")
-        tok_reduction = (1.0 - (mas_avg_tok / 104883.2)) * 100
-        print(f"MAS Token Reduction vs iCoder:    {tok_reduction:.1f}% LESS tokens consumed")
+            print(f"MAS Quality Difference vs ChatDev (same model and tasks): {gain_vs_cd:+.1f}%")
+        if sa_valid_q and mas_valid_q and sa_avg_q > 0:
+            gain_vs_sa = ((mas_avg_q - sa_avg_q) / sa_avg_q) * 100
+            print(f"MAS Quality Difference vs Single-agent (same model and tasks): {gain_vs_sa:+.1f}%")
+        from eval.published_references import PUBLISHED_REFERENCES
+        _ref = PUBLISHED_REFERENCES["gpt-4o"]
+        print(
+            f"Published iCoder (GPT-4o, different 20 tasks; indicative only, NOT a local result): "
+            f"Quality={_ref['icoder_quality']:.4f}, Tokens/task={_ref['icoder_tokens_per_task']:,.0f}"
+        )
         print("=" * 70 + "\n")
 
         return {
@@ -1329,6 +1530,8 @@ class EvaluationRunner:
             "chatdev_quality": cd_avg_q,
             "mas_tokens_per_task": mas_avg_tok,
             "chatdev_tokens_per_task": cd_avg_tok,
+            "single_quality": sa_avg_q,
+            "single_tokens_per_task": sa_avg_tok,
             "icoder_reference_quality": 0.7924,
             "icoder_reference_tokens": 104883.2,
             "manifest_summary": manifest["summary"],

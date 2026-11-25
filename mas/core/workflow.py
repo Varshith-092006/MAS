@@ -33,7 +33,15 @@ from mas.db.models import Run, ConfigSnapshot
 from mas.db.session import get_session, init_db
 
 
+import copy
 import json
+
+# State restored together with the best iteration's code snapshot (P3, DEC-045)
+BEST_STATE_KEYS = (
+    "review_report", "mas_pytest_report", "sandbox_execution", "quality_report",
+    "ast_report", "conformance_report", "internal_completeness", "changed_files", "artifacts",
+)
+
 
 def generate_artifacts_manifest(workspace_dir: str):
     """Generates an auditable manifest of files created in the workspace with SHA256 hashes."""
@@ -216,6 +224,7 @@ class MASWorkflow:
 
             # Ablation A4: no reflection loop (one iteration only)
             max_iterations = 1 if a4_single_iteration else reflection.stopper.max_iterations
+            best = None  # best-scoring iteration so far (P3)
 
             while state.get("iteration", 1) <= max_iterations:
                 curr_iter = state.get("iteration", 1)
@@ -243,6 +252,21 @@ class MASWorkflow:
                     state, workspace_files, set_graph, disable_slicing=a2_disable_slicing
                 )
                 state["relevant_uml"] = sliced_context["relevant_uml"]
+                # P1 (DEC-045): the sliced files (changed files plus AST impact set, or every
+                # file under ablation A2) are what the Developer sees from iteration 2 on.
+                context_files = dict(sliced_context["files"])
+                if not a2_disable_slicing:
+                    # Also include any file the current feedback names (test failures, review
+                    # findings, crash output), even if it was neither changed nor dependent.
+                    feedback_text = " ".join(
+                        [str(x) for x in state.get("mas_pytest_report", {}).get("details", [])]
+                        + [str(x) for x in state.get("review_report", {}).get("findings", [])]
+                        + [str(state.get("sandbox_execution", {}).get("stderr", ""))]
+                    )
+                    for rel_fp, content in workspace_files.items():
+                        if os.path.basename(rel_fp) in feedback_text:
+                            context_files.setdefault(rel_fp, content)
+                state["context_files"] = context_files
 
                 # Developer generates CodePatch & applies to workspace
                 state = dev.run(state)
@@ -271,6 +295,20 @@ class MASWorkflow:
                     summary=f"AST Analysis: {ast_rep['module_count']} modules, {len(ast_rep['cycles'])} cycles",
                 )
 
+                # Reverse-architecture conformance (design vs built code), STRUCTURED path only
+                arch_art = state.get("artifacts", {}).get("Architecture")
+                if arch_art:
+                    from mas.analysis.conformance import check_conformance
+                    conf = check_conformance(arch_art, workspace_path)
+                    state["conformance_report"] = conf
+                    if conf.get("applicable"):
+                        event_logger.emit(
+                            run_id=run_id,
+                            agent="ast",
+                            event="conformance_checked",
+                            summary=f"Design conformance {conf['conformance_score']:.2f}; deviations: {len(conf['findings'])}",
+                        )
+
                 # Static quality analysis (Ruff, Bandit, Radon)
                 q_rep = QualityTools.run_all(workspace_path)
                 state["quality_report"] = q_rep
@@ -290,7 +328,14 @@ class MASWorkflow:
                     and test_rep.get("failed_tests", 0) == 0
                 )
 
-                if is_clean and skip_review_cfg and not a3_disable_grounded_review and active_ablation != "A3":
+                # Phase 8: the Tester is now deterministic (0 LLM calls), so "clean" no longer
+                # implies the requirement is met. The semantic review therefore always runs at
+                # least once; it is skipped only when an earlier review already PASSED and the
+                # code is still clean (saves the call on later iterations without losing review).
+                prev_review_passed = bool(state.get("review_passed_once", False))
+                deterministic_tester = getattr(tester, "mode", "llm") == "deterministic"
+                can_skip = is_clean and (prev_review_passed or not deterministic_tester)
+                if can_skip and skip_review_cfg and not a3_disable_grounded_review and active_ablation != "A3":
                     state["review_report"] = {
                         "status": "PASSED",
                         "critical_issues": 0,
@@ -308,9 +353,21 @@ class MASWorkflow:
                     )
                 else:
                     state = reviewer.run(state)
+                    if state.get("review_report", {}).get("status") == "PASSED":
+                        state["review_passed_once"] = True
 
                 # Reflection & Adaptive Stopper
                 state = reflection.run(state)
+
+                # P3 (DEC-045): remember the best-scoring iteration (code snapshot + its reports)
+                score_now = float(state.get("previous_adaptive_score", 0.0))
+                if best is None or score_now > best["score"]:
+                    best = {
+                        "iteration": curr_iter,
+                        "score": score_now,
+                        "checkpoint": checkpoint_mgr.save_checkpoint(f"best_iter_{curr_iter}"),
+                        "state": {k: copy.deepcopy(state.get(k)) for k in BEST_STATE_KEYS if k in state},
+                    }
 
                 decision = state.get("artifacts", {}).get("ReflectionDecision", {}).get("decision", "STOP")
 
@@ -318,6 +375,33 @@ class MASWorkflow:
                     break
                 else:
                     state["iteration"] = curr_iter + 1
+
+            # P3 (DEC-045): ship the best iteration, not simply the last one
+            state["shipped_iteration"] = state.get("iteration", 1)
+            ended_clean = str(
+                state.get("artifacts", {}).get("ReflectionDecision", {}).get("reason", "")
+            ).startswith("clean_result")
+            if best is not None and not ended_clean and best["iteration"] != state.get("iteration", 1):
+                if checkpoint_mgr.restore_checkpoint(best["checkpoint"]):
+                    last_reason = str(state.get("artifacts", {}).get("ReflectionDecision", {}).get("reason", ""))
+                    for k, v in best["state"].items():
+                        if k != "artifacts":
+                            state[k] = v
+                    for k in ("CodePatch", "TestReport", "ReviewReport"):
+                        if k in (best["state"].get("artifacts") or {}):
+                            state["artifacts"][k] = best["state"]["artifacts"][k]
+                    state["shipped_iteration"] = best["iteration"]
+                    state["stop_reason"] = f"{last_reason}; restored best iteration {best['iteration']}"
+                    event_logger.emit(
+                        run_id=run_id,
+                        agent="reflection",
+                        event="best_iteration_restored",
+                        summary=(
+                            f"Restored iteration {best['iteration']} (S_t={best['score']:.4f}) instead of "
+                            f"final iteration {state.get('iteration', 1)} "
+                            f"(S_t={float(state.get('artifacts', {}).get('ReflectionDecision', {}).get('adaptive_score', 0.0)):.4f})"
+                        ),
+                    )
 
             # Determine final status distinguishing quality gate from iteration limit and infrastructure failure
             final_decision = state.get("artifacts", {}).get("ReflectionDecision", {})
